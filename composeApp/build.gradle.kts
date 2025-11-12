@@ -17,7 +17,7 @@ kotlin {
             jvmTarget.set(JvmTarget.JVM_11)
         }
     }
-    
+
     listOf(
         iosArm64(),
         iosSimulatorArm64()
@@ -27,20 +27,20 @@ kotlin {
             isStatic = true
         }
     }
-    
+
     jvm()
-    
+
     js {
         browser()
         binaries.executable()
     }
-    
+
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
         browser()
         binaries.executable()
     }
-    
+
     sourceSets {
         androidMain.dependencies {
             implementation(compose.preview)
@@ -62,9 +62,14 @@ kotlin {
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.ktor.client.logging)
+            implementation(libs.ktor.client.websockets)
+
+            // Krossbow STOMP WebSocket
+            implementation(libs.krossbow.stomp.core)
+            implementation(libs.krossbow.websocket.ktor)
+            implementation(libs.krossbow.stomp.kxserialization.json)
 
             // Kotlinx Libraries
-            implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.datetime)
         }
         commonTest.dependencies {
@@ -76,7 +81,7 @@ kotlin {
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
-            implementation(libs.ktor.client.okhttp)
+            implementation(libs.ktor.client.cio)
         }
     }
 }
