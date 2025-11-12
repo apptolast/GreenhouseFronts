@@ -31,7 +31,7 @@ class GreenhouseViewModel(
     }
 
     /**
-     * Carga los mensajes recientes del invernadero
+     * Loads recent greenhouse messages
      */
     fun loadRecentMessages() {
         viewModelScope.launch {
@@ -56,9 +56,9 @@ class GreenhouseViewModel(
     }
 
     /**
-     * Publica un mensaje al invernadero
+     * Publishes a message to the greenhouse
      *
-     * @param value El valor del setpoint a enviar
+     * @param value The setpoint value to send
      */
     fun publishSetpoint(value: Double) {
         viewModelScope.launch {
@@ -82,7 +82,7 @@ class GreenhouseViewModel(
                         publishSuccess = true,
                         error = null
                     )
-                    // Recargar mensajes después de publicar
+                    // Reload messages after publishing
                     loadRecentMessages()
                 }
                 .onFailure { exception ->
@@ -96,14 +96,14 @@ class GreenhouseViewModel(
     }
 
     /**
-     * Limpia el estado de éxito de publicación
+     * Clears the publish success state
      */
     fun clearPublishSuccess() {
         _uiState.value = _uiState.value.copy(publishSuccess = false)
     }
 
     /**
-     * Limpia el mensaje de error
+     * Clears the error message
      */
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)

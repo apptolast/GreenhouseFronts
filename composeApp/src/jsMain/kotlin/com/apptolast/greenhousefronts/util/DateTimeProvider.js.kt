@@ -1,11 +1,13 @@
 package com.apptolast.greenhousefronts.util
 
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 /**
- * Implementación JavaScript del proveedor de timestamp
- * Usa kotlinx-datetime que funciona correctamente en JS
+ * JavaScript implementation of timestamp provider
+ * Uses kotlin.time.Clock from the Kotlin standard library
  */
+@OptIn(ExperimentalTime::class)
 actual fun getCurrentTimestamp(): String {
     return Clock.System.now().toString()
 }

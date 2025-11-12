@@ -1,10 +1,9 @@
 package com.apptolast.greenhousefronts.util
 
 /**
- * Proveedor de fecha/hora multiplataforma usando expect/actual pattern
+ * Multiplatform date/time provider using expect/actual pattern
  *
- * Este patrón permite implementaciones específicas de plataforma cuando
- * no hay una biblioteca multiplataforma disponible o cuando se requiere
- * acceso directo a APIs nativas.
+ * This pattern enables platform-specific implementations when there is no
+ * multiplatform library available or when direct access to native APIs is required.
  */
 expect fun getCurrentTimestamp(): String

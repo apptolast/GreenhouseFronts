@@ -8,6 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. **Use web search when needed** - Consult official Kotlin Multiplatform and Ktor documentation for implementation details
 3. **Ask questions if unclear** - If requirements are ambiguous or you're unsure about an approach, ask the user for clarification before proceeding
 4. **Follow established patterns** - Use the MVVM architecture and repository pattern already implemented in this project
+5. **Code comments must be in English** - All technical comments, documentation (KDoc), and code-level explanations must be written in English. User-facing strings in the UI (button labels, messages, etc.) can remain in Spanish for the target audience
 
 ## Project Overview
 
@@ -189,7 +190,8 @@ State is managed using StateFlow in the ViewModel and collected in the UI with `
 
 ## Development Notes
 
-- UI code and comments are in Spanish (target audience is Spanish-speaking)
+- All code comments and technical documentation must be in English
+- User-facing UI strings (button labels, messages) are in Spanish for the target audience
 - Project uses Material Design 3 for consistent UI
 - Compose Multiplatform enables write-once UI code across all platforms
 - Network calls are made with Ktor Client (not Retrofit)
@@ -233,15 +235,18 @@ expect fun getCurrentTimestamp(): String
 
 // androidMain/util/DateTimeProvider.android.kt
 actual fun getCurrentTimestamp(): String {
-    return Clock.System.now().toString()
+    return kotlin.time.Clock.System.now().toString()
 }
 
 // iosMain/util/DateTimeProvider.ios.kt
 actual fun getCurrentTimestamp(): String {
+    // iOS uses Foundation NSDate directly for better platform integration
     val formatter = NSISO8601DateFormatter()
     return formatter.stringFromDate(NSDate())
 }
 ```
+
+**Note**: Most platforms use `kotlin.time.Clock` from the Kotlin standard library. iOS uses Foundation's NSDate directly for optimal platform integration.
 
 ### Rules for Expect/Actual Declarations
 

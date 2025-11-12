@@ -35,7 +35,7 @@ fun App() {
 
         var userInput by remember { mutableStateOf("") }
 
-        // Mostrar mensajes de error o éxito
+        // Show error or success messages
         LaunchedEffect(uiState.error) {
             uiState.error?.let {
                 snackbarHostState.showSnackbar(it)
@@ -61,7 +61,7 @@ fun App() {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Top
             ) {
-                // TextView para mostrar el dato de la API
+                // Display data from API
                 val displayValue = uiState.lastMessage?.sensor01?.toString()
                     ?: uiState.lastMessage?.setpoint01?.toString()
                     ?: "Sin datos"
@@ -83,7 +83,7 @@ fun App() {
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // EditText para entrada del usuario
+                // Text field for user input
                 OutlinedTextField(
                     value = userInput,
                     onValueChange = { userInput = it },
@@ -94,7 +94,7 @@ fun App() {
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Botón para enviar
+                // Submit button
                 Button(
                     onClick = {
                         val value = userInput.toDoubleOrNull()
@@ -116,7 +116,7 @@ fun App() {
                 }
             }
 
-            // Snackbar host para mostrar mensajes
+            // Snackbar host for messages
             SnackbarHost(
                 hostState = snackbarHostState,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp)
