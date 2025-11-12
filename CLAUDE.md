@@ -36,6 +36,29 @@ This is a **Kotlin Multiplatform (KMP) project** using **Compose Multiplatform**
 ./gradlew :composeApp:jsBrowserDevelopmentRun
 ```
 
+#### Yarn Lock File Management (IMPORTANT)
+
+**When adding or modifying dependencies** that have npm transitive dependencies (like Krossbow, Ktor WebSockets, etc.), you **must manually update** the yarn.lock file for web targets. This is **intentional behavior** by Gradle for version control safety and build reproducibility.
+
+**Required commands after dependency changes:**
+```bash
+./gradlew kotlinUpgradeYarnLock        # For JS target
+./gradlew kotlinWasmUpgradeYarnLock   # For WASM target
+```
+
+**When to run these tasks:**
+- After adding new dependencies in `gradle/libs.versions.toml`
+- After updating versions of existing dependencies
+- When you see the build error: `"Lock file was changed. Run the kotlinUpgradeYarnLock task"`
+
+**Why this is manual:**
+- Ensures developers are aware of npm dependency changes
+- Maintains build reproducibility across environments
+- Allows code review of dependency changes in version control
+- Prevents accidental dependency updates
+
+**Important**: Always commit the updated `yarn.lock` file(s) along with your code changes. The lock files are tracked in Git to ensure consistent builds across all developers and CI/CD environments.
+
 ### iOS
 Open the `iosApp/` directory in Xcode or use the IDE run configuration.
 
