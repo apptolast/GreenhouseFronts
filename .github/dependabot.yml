@@ -4,6 +4,7 @@
 version: 2
 updates:
   # GitHub Actions - Check for updates to GitHub Actions used in workflows
+  # Note: This is configured proactively for future workflows. No workflows exist yet.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -54,18 +55,3 @@ updates:
         update-types:
           - "minor"
           - "patch"
-
-  # npm - Manage npm dependencies for JavaScript/WebAssembly targets
-  - package-ecosystem: "npm"
-    directory: "/kotlin-js-store"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    labels:
-      - "dependencies"
-      - "npm"
-    commit-message:
-      prefix: "deps"
-      include: "scope"
-    # Increase the version requirement to allow both patch and minor updates
-    versioning-strategy: increase
