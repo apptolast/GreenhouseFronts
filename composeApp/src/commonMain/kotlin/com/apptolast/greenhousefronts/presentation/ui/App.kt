@@ -29,18 +29,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.apptolast.greenhousefronts.presentation.ui.components.ConnectionStatsDialog
 import com.apptolast.greenhousefronts.presentation.ui.components.WebSocketStatusIndicator
 import com.apptolast.greenhousefronts.presentation.viewmodel.DataSource
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 @Preview
 fun App() {
     MaterialTheme {
-        val viewModel: GreenhouseViewModel = viewModel { GreenhouseViewModel() }
+        val viewModel: GreenhouseViewModel = koinViewModel()
         val uiState by viewModel.uiState.collectAsState()
         val snackbarHostState = remember { SnackbarHostState() }
 
