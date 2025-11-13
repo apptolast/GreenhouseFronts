@@ -8,9 +8,16 @@ import com.apptolast.greenhousefronts.domain.repository.GreenhouseRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
+/**
+ * Implementation of GreenhouseRepository
+ * Uses constructor injection for dependencies (provided by Koin)
+ *
+ * @param apiService Injected API service for HTTP operations
+ * @param webSocketClient Injected WebSocket client for real-time communication
+ */
 class GreenhouseRepositoryImpl(
-    private val apiService: GreenhouseApiService = GreenhouseApiService(),
-    private val webSocketClient: StompWebSocketClient = StompWebSocketClient()
+    private val apiService: GreenhouseApiService,
+    private val webSocketClient: StompWebSocketClient
 ) : GreenhouseRepository {
 
     // HTTP methods

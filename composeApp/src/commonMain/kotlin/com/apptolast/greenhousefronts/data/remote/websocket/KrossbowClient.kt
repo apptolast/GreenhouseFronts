@@ -1,21 +1,15 @@
 package com.apptolast.greenhousefronts.data.remote.websocket
 
-import io.ktor.client.HttpClient
-import io.ktor.client.plugins.websocket.WebSockets
 import org.hildan.krossbow.stomp.StompClient
 import org.hildan.krossbow.websocket.ktor.KtorWebSocketClient
 
 /**
- * Singleton object providing configured Krossbow STOMP client
- * Uses Ktor CIO engine with WebSocket support for multiplatform compatibility
+ * Factory function to create a configured Krossbow STOMP client
+ * Uses Ktor WebSocket client for multiplatform compatibility
+ * Used by Koin for dependency injection
+ *
+ * @return Configured StompClient instance
  */
-object KrossbowClient {
-
-    /**
-     * Configured STOMP client instance
-     * Uses Ktor WebSocket client for multiplatform support
-     */
-    val stompClient: StompClient = StompClient(
-        KtorWebSocketClient()
-    )
-}
+fun createStompClient(): StompClient = StompClient(
+    KtorWebSocketClient()
+)

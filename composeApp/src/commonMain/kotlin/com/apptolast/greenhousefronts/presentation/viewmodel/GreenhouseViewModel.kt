@@ -35,8 +35,14 @@ data class GreenhouseUiState(
     val dataSource: DataSource = DataSource.WEBSOCKET
 )
 
+/**
+ * ViewModel for greenhouse operations
+ * Uses constructor injection for repository (provided by Koin)
+ *
+ * @param repository Injected repository for data operations
+ */
 class GreenhouseViewModel(
-    private val repository: GreenhouseRepository = GreenhouseRepositoryImpl()
+    private val repository: GreenhouseRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(GreenhouseUiState())

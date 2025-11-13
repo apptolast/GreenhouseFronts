@@ -22,10 +22,14 @@ import kotlin.time.ExperimentalTime
 /**
  * WebSocket client for STOMP protocol connection to greenhouse data stream
  * Handles connection lifecycle, message subscription, and connection state tracking
+ * Uses constructor injection for StompClient (provided by Koin)
+ *
+ * @param stompClient Injected STOMP client for WebSocket communication
  */
-class StompWebSocketClient {
+class StompWebSocketClient(
+    private val stompClient: org.hildan.krossbow.stomp.StompClient
+) {
 
-    private val stompClient = KrossbowClient.stompClient
     private var session: StompSession? = null
 
     val json = Json {

@@ -46,6 +46,9 @@ kotlin {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
             implementation(libs.ktor.client.okhttp)
+
+            // Koin Android
+            implementation(libs.koin.android)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -71,9 +74,18 @@ kotlin {
 
             // Kotlinx Libraries
             implementation(libs.kotlinx.datetime)
+
+            // Koin for Dependency Injection
+            implementation(project.dependencies.platform(libs.koin.bom))
+            implementation(libs.koin.core)
+            implementation(libs.koin.compose)
+            implementation(libs.koin.compose.viewmodel)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+
+            // Koin Test
+            implementation(libs.koin.test)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)

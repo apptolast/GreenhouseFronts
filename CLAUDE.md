@@ -221,6 +221,338 @@ State is managed using StateFlow in the ViewModel and collected in the UI with `
 - All API communication goes through the Repository pattern
 - ViewModels use Kotlin Coroutines and StateFlow for reactive state management
 
+## Dependency Injection with Koin
+
+This project uses **Koin 4.1.0** as the dependency injection framework for managing object creation and lifecycle across all platforms.
+
+### Why Koin?
+
+- **Multiplatform Support**: Official support for all KMP targets (Android, iOS, Desktop, Web)
+- **Lightweight**: No code generation or reflection, just Kotlin DSL
+- **Compose Integration**: First-class support for Compose Multiplatform with `koinViewModel()`
+- **Easy Testing**: Simple to provide fake implementations for unit tests
+- **Google Best Practices**: Follows MVVM architecture recommendations with constructor injection
+
+### Project DI Structure
+
+```
+di/
+├── KoinInitializer.kt           # Koin startup configuration
+├── DataModule.kt                # Data layer dependencies (HttpClient, API, Repository)
+├── DomainModule.kt             # Domain layer dependencies (use cases)
+├── PresentationModule.kt       # Presentation layer dependencies (ViewModels)
+└── PlatformModule.kt           # Platform-specific dependencies (expect/actual)
+```
+
+### Koin Configuration
+
+#### Version (gradle/libs.versions.toml)
+
+```toml
+[versions]
+koin-bom = "4.1.0"
+
+[libraries]
+koin-bom = { module = "io.insert-koin:koin-bom", version.ref = "koin-bom" }
+koin-core = { module = "io.insert-koin:koin-core" }
+koin-compose = { module = "io.insert-koin:koin-compose" }
+koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel" }
+koin-android = { module = "io.insert-koin:koin-android" }
+koin-test = { module = "io.insert-koin:koin-test" }
+```
+
+#### Build Configuration (composeApp/build.gradle.kts)
+
+```kotlin
+commonMain.dependencies {
+    implementation(project.dependencies.platform(libs.koin.bom))
+    implementation(libs.koin.core)
+    implementation(libs.koin.compose)
+    implementation(libs.koin.compose.viewmodel)
+}
+
+androidMain.dependencies {
+    implementation(libs.koin.android)
+}
+
+commonTest.dependencies {
+    implementation(libs.koin.test)
+}
+```
+
+### Defining Koin Modules
+
+#### Data Module (di/DataModule.kt)
+
+Provides network and repository dependencies:
+
+```kotlin
+val dataModule = module {
+    // HttpClient singleton
+    single { createHttpClient() }
+
+    // StompClient singleton
+    single { createStompClient() }
+
+    // API Service with constructor injection
+    singleOf(::GreenhouseApiService)
+
+    // WebSocket Client with constructor injection
+    singleOf(::StompWebSocketClient)
+
+    // Repository Implementation bound to interface
+    singleOf(::GreenhouseRepositoryImpl) bind GreenhouseRepository::class
+}
+```
+
+**Key Points:**
+- `single` creates a singleton (one instance for app lifetime)
+- `singleOf(::ClassName)` is concise syntax for constructor injection
+- `bind` allows injecting by interface type
+- Koin automatically resolves constructor dependencies with `get()`
+
+#### Presentation Module (di/PresentationModule.kt)
+
+Provides ViewModels with lifecycle management:
+
+```kotlin
+val presentationModule = module {
+    // ViewModel with lifecycle-aware scope
+    viewModelOf(::GreenhouseViewModel)
+}
+```
+
+**Key Points:**
+- `viewModelOf` creates a ViewModel-scoped instance
+- Automatically handles lifecycle and configuration changes
+- Repository is auto-injected via constructor
+
+### Using Koin for Injection
+
+#### Injecting ViewModel in Composables
+
+```kotlin
+import org.koin.compose.viewmodel.koinViewModel
+
+@Composable
+fun App() {
+    val viewModel: GreenhouseViewModel = koinViewModel()
+    val uiState by viewModel.uiState.collectAsState()
+    // ...
+}
+```
+
+#### Constructor Injection in Classes
+
+All dependencies use constructor injection (no field injection):
+
+```kotlin
+// ViewModel receives Repository
+class GreenhouseViewModel(
+    private val repository: GreenhouseRepository  // Koin injects
+) : ViewModel()
+
+// Repository receives API service and WebSocket client
+class GreenhouseRepositoryImpl(
+    private val apiService: GreenhouseApiService,  // Koin injects
+    private val webSocketClient: StompWebSocketClient  // Koin injects
+) : GreenhouseRepository
+
+// API Service receives HttpClient
+class GreenhouseApiService(
+    private val httpClient: HttpClient  // Koin injects
+)
+```
+
+### Platform-Specific Initialization
+
+#### Android
+
+Created `GreenhouseApplication` class to initialize Koin:
+
+```kotlin
+class GreenhouseApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+
+        initKoin {
+            androidLogger()  // Enable Android logging
+            androidContext(this@GreenhouseApplication)  // Provide context
+        }
+    }
+}
+```
+
+Registered in `AndroidManifest.xml`:
+
+```xml
+<application
+    android:name=".GreenhouseApplication"
+    ...>
+```
+
+#### iOS
+
+Initialize in `iOSApp.swift`:
+
+```swift
+import ComposeApp
+
+@main
+struct iOSApp: App {
+    init() {
+        KoinInitializerKt.doInitKoin()
+    }
+    // ...
+}
+```
+
+#### Desktop (JVM)
+
+Initialize in `main.kt`:
+
+```kotlin
+fun main() {
+    initKoin()
+
+    application {
+        Window(...) {
+            App()
+        }
+    }
+}
+```
+
+#### Web (JS/Wasm)
+
+Initialize in `main.kt`:
+
+```kotlin
+fun main() {
+    initKoin()
+
+    ComposeViewport {
+        App()
+    }
+}
+```
+
+### Koin Scoping Strategies
+
+| Scope | Usage | Lifecycle |
+|-------|-------|-----------|
+| `single` | Singletons (HttpClient, Repositories, API services) | App lifetime |
+| `factory` | Short-lived objects (use cases) | Created on each injection |
+| `viewModelOf` | ViewModels | Survives configuration changes |
+
+### Best Practices
+
+1. **Constructor Injection Only**: Never use field injection
+2. **Interface-Based Design**: Depend on abstractions (`GreenhouseRepository` interface, not `GreenhouseRepositoryImpl`)
+3. **Single Responsibility**: Each class should depend only on what it needs
+4. **Module Organization**: Separate by architectural layers (data, domain, presentation)
+5. **Platform Modules**: Use `expect`/`actual` for platform-specific dependencies
+
+### Adding New Dependencies
+
+#### Example: Adding a Use Case
+
+1. Create the use case class:
+
+```kotlin
+class GetRecentMessagesUseCase(
+    private val repository: GreenhouseRepository
+) {
+    suspend operator fun invoke(): Result<List<GreenhouseMessage>> {
+        return repository.getRecentMessages()
+    }
+}
+```
+
+2. Add to `DomainModule.kt`:
+
+```kotlin
+val domainModule = module {
+    factory { GetRecentMessagesUseCase(get()) }
+}
+```
+
+3. Inject into ViewModel:
+
+```kotlin
+class GreenhouseViewModel(
+    private val getRecentMessages: GetRecentMessagesUseCase  // Koin injects
+) : ViewModel()
+```
+
+### Testing with Koin
+
+Use fake implementations for testing:
+
+```kotlin
+class FakeGreenhouseRepository : GreenhouseRepository {
+    var shouldReturnError = false
+    var fakeMessages = emptyList<GreenhouseMessage>()
+
+    override suspend fun getRecentMessages(): Result<List<GreenhouseMessage>> {
+        return if (shouldReturnError) {
+            Result.failure(Exception("Test error"))
+        } else {
+            Result.success(fakeMessages)
+        }
+    }
+}
+
+// In test
+class GreenhouseViewModelTest : KoinTest {
+    @Before
+    fun setup() {
+        startKoin {
+            modules(testModule)
+        }
+    }
+
+    @After
+    fun teardown() {
+        stopKoin()
+    }
+
+    companion object {
+        private val testModule = module {
+            single<GreenhouseRepository> { FakeGreenhouseRepository() }
+            viewModelOf(::GreenhouseViewModel)
+        }
+    }
+}
+```
+
+### Common Issues and Solutions
+
+#### Issue: `KoinAppAlreadyStartedException`
+
+**Cause:** Starting Koin multiple times
+
+**Solution:** Only call `initKoin()` once at Application/App entry point, never in Activities or Composables
+
+#### Issue: Missing dependency injection
+
+**Cause:** Class not defined in any module
+
+**Solution:** Add the class to the appropriate module (DataModule, DomainModule, or PresentationModule)
+
+#### Issue: Circular dependency
+
+**Cause:** Class A depends on Class B, which depends on Class A
+
+**Solution:** Refactor to remove circular dependency or use a third mediator class
+
+### Koin Resources
+
+- **Official Documentation**: https://insert-koin.io
+- **KMP Guide**: https://insert-koin.io/docs/reference/koin-mp/kmp/
+- **Compose Integration**: https://insert-koin.io/docs/reference/koin-compose/compose/
+- **GitHub**: https://github.com/InsertKoinIO/koin
+
 ## Expect/Actual Pattern - Platform-Specific Code
 
 ### When to Use Expect/Actual
