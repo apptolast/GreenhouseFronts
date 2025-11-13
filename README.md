@@ -1088,7 +1088,7 @@ Documentación interactiva de la API disponible en:
 | **Arquitectura** | MVVM | Separación de responsabilidades |
 | **Cliente HTTP** | Ktor 3.3.2 | Solicitudes de red |
 | **WebSocket** | Krossbow 9.3.0 | Conexión STOMP en tiempo real |
-| **Serialización** | kotlinx.serialization | Análisis JSON |
+| **Serialización** | kotlinx.serialization | Parseo JSON |
 | **Async** | Kotlin Coroutines | Operaciones asíncronas |
 | **Gestión de Estado** | StateFlow | Actualizaciones de estado reactivas |
 
@@ -1325,10 +1325,18 @@ Desarrollado con ❤️ por el equipo de AppToLast
 
 ## 🙏 Agradecimientos / Acknowledgments
 
-- **JetBrains** - Por Kotlin y Compose Multiplatform
-- **Ktor** - Por el excelente cliente HTTP multiplataforma
-- **Krossbow** - Por la implementación STOMP/WebSocket
-- **Comunidad de código abierto** - Por todas las increíbles bibliotecas y herramientas
+- **JetBrains**  
+  - Por Kotlin y Compose Multiplatform  
+  - For Kotlin and Compose Multiplatform
+- **Ktor**  
+  - Por el excelente cliente HTTP multiplataforma  
+  - For the excellent multiplatform HTTP client
+- **Krossbow**  
+  - Por la implementación STOMP/WebSocket  
+  - For the STOMP/WebSocket implementation
+- **Comunidad de código abierto / Open Source Community**  
+  - Por todas las increíbles bibliotecas y herramientas  
+  - For all the amazing libraries and tools
 
 ---
 
