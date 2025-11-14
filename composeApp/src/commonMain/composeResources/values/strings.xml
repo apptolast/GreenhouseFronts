@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ========================================================================== -->
+    <!-- App General -->
+    <!-- ========================================================================== -->
+    <string name="app_name">Mi Invernadero</string>
+    <string name="empty_state">No hay datos disponibles</string>
+
+    <!-- ========================================================================== -->
+    <!-- Login Screen -->
+    <!-- ========================================================================== -->
+    <string name="login_welcome_title">Bienvenido de nuevo</string>
+    <string name="login_subtitle">Inicia sesión para continuar</string>
+    <string name="login_username_label">Email o Nombre de usuario</string>
+    <string name="login_username_placeholder">Ingresa tu email o nombre de usuario</string>
+    <string name="login_password_label">Contraseña</string>
+    <string name="login_password_placeholder">Ingresa tu contraseña</string>
+    <string name="login_forgot_password">¿Olvidaste tu contraseña?</string>
+    <string name="login_button">Iniciar Sesión</string>
+    <string name="login_signup_prompt">¿No tienes una cuenta?</string>
+    <string name="login_signup_link">Regístrate</string>
+
+    <!-- ========================================================================== -->
+    <!-- Home Screen -->
+    <!-- ========================================================================== -->
+    <string name="home_title">Mi Invernadero</string>
+    <string name="home_monitoring_section_title">Monitoreo de Sensores</string>
+    <string name="home_actuators_section_title">Control de Actuadores</string>
+
+    <!-- ========================================================================== -->
+    <!-- Greenhouse & Tabs -->
+    <!-- ========================================================================== -->
+    <string name="greenhouse_number">Invernadero %1$d</string>
+    <string name="greenhouse_1">Invernadero 1</string>
+    <string name="greenhouse_2">Invernadero 2</string>
+    <string name="greenhouse_3">Invernadero 3</string>
+
+    <!-- ========================================================================== -->
+    <!-- Sensors -->
+    <!-- ========================================================================== -->
+    <string name="sensor_temperature_label">Temperatura</string>
+    <string name="sensor_humidity_label">Humedad</string>
+    <string name="sensor_light_label">Luz</string>
+    <string name="sensor_co2_label">CO₂</string>
+
+    <!-- ========================================================================== -->
+    <!-- Sensor Values & Formats -->
+    <!-- ========================================================================== -->
+    <string name="temperature_value">%1$s°C</string>
+    <string name="humidity_value">%1$s%%</string>
+    <string name="percentage_value">%1$s%%</string>
+    <string name="ppm_value">%1$s ppm</string>
+    <string name="lux_value">%1$s lux</string>
+    <string name="no_data_placeholder">-- °C</string>
+    <string name="no_data_humidity_placeholder">-- %%</string>
+
+    <!-- ========================================================================== -->
+    <!-- Actuators -->
+    <!-- ========================================================================== -->
+    <string name="actuator_sector_label">Sector %1$d</string>
+    <string name="actuator_sector_1">Sector 1</string>
+    <string name="actuator_sector_2">Sector 2</string>
+    <string name="actuator_sector_3">Sector 3</string>
+    <string name="actuator_ventilation_label">Ventilación</string>
+    <string name="actuator_water_pump_label">Bomba de Agua</string>
+    <string name="actuator_fan_label">Ventilador</string>
+    <string name="actuator_heater_label">Calefacción</string>
+
+    <!-- ========================================================================== -->
+    <!-- Actuator Status -->
+    <!-- ========================================================================== -->
+    <string name="status_open">Abierto</string>
+    <string name="status_closed">Cerrado</string>
+    <string name="status_on">Encendido</string>
+    <string name="status_off">Apagado</string>
+    <string name="status_active">Activo</string>
+    <string name="status_inactive">Inactivo</string>
+
+    <!-- ========================================================================== -->
+    <!-- WebSocket / Connection -->
+    <!-- ========================================================================== -->
+    <string name="websocket_status_connected">Conectado</string>
+    <string name="websocket_status_disconnected">Desconectado</string>
+    <string name="websocket_status_connecting">Conectando…</string>
+    <string name="websocket_realtime_label">TIEMPO REAL</string>
+    <string name="websocket_http_label">HTTP</string>
+
+    <!-- ========================================================================== -->
+    <!-- Connection Stats Dialog -->
+    <!-- ========================================================================== -->
+    <string name="stats_dialog_title">Estadísticas de Conexión</string>
+    <string name="stats_status_label">Estado</string>
+    <string name="stats_data_source_label">Fuente de datos</string>
+    <string name="stats_data_source_websocket">WebSocket (Tiempo real)</string>
+    <string name="stats_data_source_http">HTTP (Polling)</string>
+    <string name="stats_connected_time_label">Tiempo conectado</string>
+    <string name="stats_messages_received_label">Mensajes recibidos</string>
+    <string name="stats_reconnection_attempts_label">Intentos de reconexión</string>
+    <string name="stats_last_error_label">Último error:</string>
+    <string name="stats_button_reconnect">Reconectar</string>
+    <string name="stats_button_close">Cerrar</string>
+
+    <!-- ========================================================================== -->
+    <!-- Messages & Snackbars -->
+    <!-- ========================================================================== -->
+    <string name="success_changes_saved">Cambios guardados exitosamente</string>
+    <string name="success_reconnected">Reconectado correctamente</string>
+    <string name="info_reconnecting">Intentando reconectar…</string>
+
+    <!-- ========================================================================== -->
+    <!-- Error Messages -->
+    <!-- ========================================================================== -->
+    <string name="error_load_messages">Error al cargar mensajes: %1$s</string>
+    <string name="error_publish_message">Error al publicar mensaje: %1$s</string>
+    <string name="error_websocket">WebSocket error: %1$s. Switching to HTTP.</string>
+    <string name="error_reconnect_failed">Failed to reconnect: %1$s</string>
+    <string name="error_connection_failed">Error de conexión</string>
+    <string name="error_unknown">Error desconocido</string>
+
+    <!-- ========================================================================== -->
+    <!-- Accessibility (Content Descriptions) -->
+    <!-- ========================================================================== -->
+    <string name="cd_user_icon">Usuario</string>
+    <string name="cd_password_icon">Contraseña</string>
+    <string name="cd_password_show">Mostrar contraseña</string>
+    <string name="cd_password_hide">Ocultar contraseña</string>
+    <string name="cd_menu">Menú</string>
+    <string name="cd_notifications">Notificaciones</string>
+    <string name="cd_settings">Configuración</string>
+    <string name="cd_close">Cerrar</string>
+
+    <!-- ========================================================================== -->
+    <!-- Common Actions -->
+    <!-- ========================================================================== -->
+    <string name="action_save">Guardar</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_confirm">Confirmar</string>
+    <string name="action_retry">Reintentar</string>
+    <string name="action_close">Cerrar</string>
+
+    <!-- ========================================================================== -->
+    <!-- Time Formats -->
+    <!-- ========================================================================== -->
+    <string name="time_seconds">%1$d s</string>
+    <string name="time_minutes">%1$d min</string>
+    <string name="time_hours">%1$d h</string>
+    <string name="time_days">%1$d días</string>
+</resources>

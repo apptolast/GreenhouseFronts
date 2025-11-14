@@ -1,7 +1,6 @@
 package com.apptolast.greenhousefronts.presentation.ui
 
 import androidx.compose.foundation.background
-import com.apptolast.greenhousefronts.util.formatDecimals
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,15 +14,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -32,7 +27,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -54,6 +48,21 @@ import com.apptolast.greenhousefronts.data.model.GreenhouseData
 import com.apptolast.greenhousefronts.presentation.ui.components.ConnectionStatsDialog
 import com.apptolast.greenhousefronts.presentation.ui.components.WebSocketStatusIndicator
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseViewModel
+import com.apptolast.greenhousefronts.util.formatDecimals
+import greenhousefronts.composeapp.generated.resources.Res
+import greenhousefronts.composeapp.generated.resources.actuator_sector_label
+import greenhousefronts.composeapp.generated.resources.actuator_ventilation_label
+import greenhousefronts.composeapp.generated.resources.empty_state
+import greenhousefronts.composeapp.generated.resources.greenhouse_number
+import greenhousefronts.composeapp.generated.resources.home_actuators_section_title
+import greenhousefronts.composeapp.generated.resources.home_monitoring_section_title
+import greenhousefronts.composeapp.generated.resources.home_title
+import greenhousefronts.composeapp.generated.resources.sensor_humidity_label
+import greenhousefronts.composeapp.generated.resources.sensor_temperature_label
+import greenhousefronts.composeapp.generated.resources.status_closed
+import greenhousefronts.composeapp.generated.resources.status_open
+import greenhousefronts.composeapp.generated.resources.success_changes_saved
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Home screen displaying greenhouse sensor data with a modern UI design.
@@ -68,6 +77,9 @@ fun HomeScreen(viewModel: GreenhouseViewModel) {
     val snackbarHostState = remember { SnackbarHostState() }
     var showStatsDialog by remember { mutableStateOf(false) }
 
+    // Get localized strings
+    val successMessage = stringResource(Res.string.success_changes_saved)
+
     // Show error or success messages
     LaunchedEffect(uiState.error) {
         uiState.error?.let {
@@ -78,7 +90,7 @@ fun HomeScreen(viewModel: GreenhouseViewModel) {
 
     LaunchedEffect(uiState.publishSuccess) {
         if (uiState.publishSuccess) {
-            snackbarHostState.showSnackbar("Cambios guardados exitosamente")
+            snackbarHostState.showSnackbar(successMessage)
             viewModel.clearPublishSuccess()
         }
     }
@@ -86,16 +98,28 @@ fun HomeScreen(viewModel: GreenhouseViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Mi Invernadero", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = { /* TODO: Open menu */ }) {
-                        Icon(Icons.Default.Menu, contentDescription = "Menu")
-                    }
+                title = {
+                    Text(
+                        stringResource(Res.string.home_title),
+                        fontWeight = FontWeight.Bold
+                    )
                 },
+//                navigationIcon = {
+//                    IconButton(onClick = { /* TODO: Open menu */ }) {
+//                        Icon(Icons.Default.Menu, contentDescription = "Menu")
+//                    }
+//                },
                 actions = {
-                    IconButton(onClick = { /* TODO: Open notifications */ }) {
-                        Icon(Icons.Default.Notifications, contentDescription = "Notifications")
-                    }
+//                    IconButton(onClick = { /* TODO: Open notifications */ }) {
+//                        Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+//                    }
+                    // WebSocket status indicator (moved below tabs)
+                    WebSocketStatusIndicator(
+                        isConnected = uiState.webSocketState.isConnected,
+                        dataSource = uiState.dataSource,
+                        onStatusClick = { showStatsDialog = true },
+                        modifier = Modifier.padding(8.dp)
+                    )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
@@ -113,25 +137,15 @@ fun HomeScreen(viewModel: GreenhouseViewModel) {
                 .padding(paddingValues)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            // WebSocket status indicator
-            WebSocketStatusIndicator(
-                isConnected = uiState.webSocketState.isConnected,
-                dataSource = uiState.dataSource,
-                onStatusClick = { showStatsDialog = true },
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-
             // Tabs for greenhouse selection
-            TabRow(
-                selectedTabIndex = uiState.selectedGreenhouseId - 1,
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.primary
+            PrimaryTabRow(
+                selectedTabIndex = uiState.selectedGreenhouseId - 1
             ) {
                 repeat(3) { index ->
                     Tab(
                         selected = uiState.selectedGreenhouseId == index + 1,
                         onClick = { viewModel.selectGreenhouse(index + 1) },
-                        text = { Text("Invernadero ${index + 1}") }
+                        text = { Text(stringResource(Res.string.greenhouse_number, index + 1)) }
                     )
                 }
             }
@@ -149,7 +163,7 @@ fun HomeScreen(viewModel: GreenhouseViewModel) {
                 ) {
                     // Monitoring Section
                     Text(
-                        "Monitoreo de Sensores",
+                        stringResource(Res.string.home_monitoring_section_title),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(bottom = 12.dp)
@@ -161,7 +175,7 @@ fun HomeScreen(viewModel: GreenhouseViewModel) {
 
                     // Actuators Section
                     Text(
-                        "Control de Actuadores",
+                        stringResource(Res.string.home_actuators_section_title),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(bottom = 12.dp)
@@ -184,7 +198,7 @@ fun HomeScreen(viewModel: GreenhouseViewModel) {
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        "No hay datos disponibles",
+                        stringResource(Res.string.empty_state),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                     )
@@ -214,7 +228,7 @@ private fun SensorCards(greenhouse: GreenhouseData) {
     ) {
         // Temperature Card
         SensorCard(
-            title = "Temperatura",
+            title = stringResource(Res.string.sensor_temperature_label),
             value = greenhouse.temperatura?.let { "${it.formatDecimals(1)}°C" } ?: "-- °C",
             icon = "🌡️",
             color = Color(0xFFFF6B6B),
@@ -223,7 +237,7 @@ private fun SensorCards(greenhouse: GreenhouseData) {
 
         // Humidity Card
         SensorCard(
-            title = "Humedad",
+            title = stringResource(Res.string.sensor_humidity_label),
             value = greenhouse.humedad?.let { "${it.formatDecimals(0)}%" } ?: "-- %",
             icon = "💧",
             color = Color(0xFF4ECDC4),
@@ -297,7 +311,7 @@ private fun ActuatorControls(
         // Sector sliders (irrigation valves)
         greenhouse.sectores.forEachIndexed { index, value ->
             SectorSlider(
-                label = "Sector ${index + 1}",
+                label = stringResource(Res.string.actuator_sector_label, index + 1),
                 value = value ?: 0,
                 onValueChange = { newValue ->
                     onSectorChange(index, newValue)
@@ -411,14 +425,14 @@ private fun ExtractorToggle(
                         Text("🌀", fontSize = 20.sp)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            "Ventilación",
+                            stringResource(Res.string.actuator_ventilation_label),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Medium
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        if (isOn) "Abierto" else "Cerrado",
+                        if (isOn) stringResource(Res.string.status_open) else stringResource(Res.string.status_closed),
                         style = MaterialTheme.typography.bodySmall,
                         color = if (isOn) Color(0xFF4ECDC4) else MaterialTheme.colorScheme.outline
                     )

@@ -1334,12 +1334,124 @@ fun SensorCard(
 }
 ```
 
+### Status Bar & System UI Management
+
+#### Overview
+
+The app implements **edge-to-edge** design with adaptive status bar icon colors that automatically
+adjust based on the current theme (dark/light mode). This ensures optimal visibility of system
+status icons in all scenarios.
+
+#### Implementation Architecture
+
+The status bar management uses an **expect/actual pattern** for platform-specific implementations:
+
+```
+presentation/ui/theme/
+├── Theme.kt           # Common theme with ConfigureSystemUI() expect declaration
+├── Theme.android.kt   # Android implementation using WindowCompat
+├── Theme.ios.kt       # iOS implementation (placeholder)
+├── Theme.jvm.kt       # Desktop (no-op)
+├── Theme.js.kt        # Web JS (no-op)
+└── Theme.wasmJs.kt    # Web Wasm (no-op)
+```
+
+#### Android Implementation
+
+**MainActivity.kt** configures edge-to-edge with `SystemBarStyle.auto()`:
+
+```kotlin
+class MainActivity : ComponentActivity() {
+   override fun onCreate(savedInstanceState: Bundle?) {
+      // Configure edge-to-edge with auto-adjusting status bar icons
+      enableEdgeToEdge(
+         statusBarStyle = SystemBarStyle.auto(
+            lightScrim = Color.TRANSPARENT,
+            darkScrim = Color.TRANSPARENT
+         ),
+         navigationBarStyle = SystemBarStyle.auto(
+            lightScrim = Color.TRANSPARENT,
+            darkScrim = Color.TRANSPARENT
+         )
+      )
+      super.onCreate(savedInstanceState)
+      setContent { App() }
+   }
+}
+```
+
+**Theme.android.kt** uses `WindowCompat.getInsetsController()` to explicitly set icon appearance:
+
+```kotlin
+@Composable
+actual fun ConfigureSystemUI(darkTheme: Boolean) {
+   val view = LocalView.current
+   if (!view.isInEditMode) {
+      SideEffect {
+         val window = (view.context as Activity).window
+         val insetsController = WindowCompat.getInsetsController(window, view)
+
+         // isAppearanceLightStatusBars = true → dark icons (for light backgrounds)
+         // isAppearanceLightStatusBars = false → light icons (for dark backgrounds)
+         insetsController.isAppearanceLightStatusBars = !darkTheme
+         insetsController.isAppearanceLightNavigationBars = !darkTheme
+      }
+   }
+}
+```
+
+#### Status Bar Behavior
+
+| Theme Mode | Background | Icon Color | Configuration                         |
+|------------|------------|------------|---------------------------------------|
+| Dark       | Dark       | White      | `isAppearanceLightStatusBars = false` |
+| Light      | Light      | Dark       | `isAppearanceLightStatusBars = true`  |
+
+#### Key Features
+
+- **Automatic Adjustment**: Icons automatically change color when theme switches
+- **Edge-to-Edge**: Full-screen content with transparent status/navigation bars
+- **No API Checks**: `WindowCompat.getInsetsController()` works across all Android API levels
+- **Multi-Platform**: Each platform has appropriate implementation via expect/actual
+
+#### Common Issues & Solutions
+
+**Problem**: Status bar icons invisible in dark mode (dark icons on dark background)
+
+**Solution**:
+
+1. Ensure `enableEdgeToEdge()` is called with `SystemBarStyle.auto()` in MainActivity
+2. Verify `ConfigureSystemUI(darkTheme)` is called from GreenhouseTheme
+3. Check that `isAppearanceLightStatusBars = !darkTheme` (inverted logic)
+
+**Problem**: Icons don't update when switching between light/dark mode
+
+**Solution**: Ensure `GreenhouseTheme` receives the correct `darkTheme` parameter and calls
+`ConfigureSystemUI(darkTheme)` every time it recomposes.
+
+#### iOS Implementation (Placeholder)
+
+The iOS implementation currently does nothing but can be extended to use UIKit:
+
+```kotlin
+// TODO: Implement iOS status bar configuration
+// Use UIApplication.shared.statusBarStyle or preferredStatusBarStyle
+// Configure for light content in dark mode, dark content in light mode
+```
+
+#### References
+
+- **Edge-to-Edge**: https://developer.android.com/develop/ui/compose/system/system-bars
+- **SystemBarStyle**: Part of `androidx.activity:activity-compose:1.8.0+`
+- **WindowCompat**: Part of `androidx.core:core-ktx`
+
 ### Accessibility Considerations
 
 1. **Always provide contentDescription** for icons and images
 2. **Use semantic colors** (error for errors, not red)
 3. **Minimum touch targets**: 48dp × 48dp for interactive elements
 4. **Text contrast**: Ensure sufficient contrast ratios (4.5:1 for body text, 3:1 for large text)
+5. **Status bar visibility**: Ensure adequate contrast between status bar icons and app background
 
 ### Resources for UI Design
 
@@ -1348,3 +1460,4 @@ fun SensorCard(
 - **Material 3 Typography**: https://m3.material.io/styles/typography/overview
 - **Compose Material 3**: https://developer.android.com/develop/ui/compose/designsystems/material3
 - **Google Fonts**: https://fonts.google.com
+- **Edge-to-Edge Design**: https://developer.android.com/develop/ui/compose/system/system-bars

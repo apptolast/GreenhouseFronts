@@ -41,6 +41,22 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import greenhousefronts.composeapp.generated.resources.Res
+import greenhousefronts.composeapp.generated.resources.cd_password_hide
+import greenhousefronts.composeapp.generated.resources.cd_password_icon
+import greenhousefronts.composeapp.generated.resources.cd_password_show
+import greenhousefronts.composeapp.generated.resources.cd_user_icon
+import greenhousefronts.composeapp.generated.resources.login_button
+import greenhousefronts.composeapp.generated.resources.login_forgot_password
+import greenhousefronts.composeapp.generated.resources.login_password_label
+import greenhousefronts.composeapp.generated.resources.login_password_placeholder
+import greenhousefronts.composeapp.generated.resources.login_signup_link
+import greenhousefronts.composeapp.generated.resources.login_signup_prompt
+import greenhousefronts.composeapp.generated.resources.login_subtitle
+import greenhousefronts.composeapp.generated.resources.login_username_label
+import greenhousefronts.composeapp.generated.resources.login_username_placeholder
+import greenhousefronts.composeapp.generated.resources.login_welcome_title
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -116,7 +132,7 @@ fun LoginScreen(
 
             // Welcome title
             Text(
-                text = "Bienvenido de nuevo",
+                text = stringResource(Res.string.login_welcome_title),
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold
@@ -126,7 +142,7 @@ fun LoginScreen(
 
             // Subtitle
             Text(
-                text = "Inicia sesión para continuar",
+                text = stringResource(Res.string.login_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
             )
@@ -138,18 +154,18 @@ fun LoginScreen(
                 value = username,
                 onValueChange = { username = it },
                 label = {
-                    Text("Email o Nombre de usuario")
+                    Text(stringResource(Res.string.login_username_label))
                 },
                 placeholder = {
                     Text(
-                        "Ingresa tu email o nombre de usuario",
+                        stringResource(Res.string.login_username_placeholder),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Person,
-                        contentDescription = "Usuario",
+                        contentDescription = stringResource(Res.string.cd_user_icon),
                         tint = MaterialTheme.colorScheme.primary
                     )
                 },
@@ -169,17 +185,17 @@ fun LoginScreen(
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
-                label = { Text("Contraseña") },
+                label = { Text(stringResource(Res.string.login_password_label)) },
                 placeholder = {
                     Text(
-                        "Ingresa tu contraseña",
+                        stringResource(Res.string.login_password_placeholder),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Lock,
-                        contentDescription = "Contraseña",
+                        contentDescription = stringResource(Res.string.cd_password_icon),
                         tint = MaterialTheme.colorScheme.primary
                     )
                 },
@@ -192,9 +208,9 @@ fun LoginScreen(
                                 Icons.Default.VisibilityOff
                             },
                             contentDescription = if (passwordVisible) {
-                                "Ocultar contraseña"
+                                stringResource(Res.string.cd_password_hide)
                             } else {
-                                "Mostrar contraseña"
+                                stringResource(Res.string.cd_password_show)
                             },
                             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
@@ -223,7 +239,7 @@ fun LoginScreen(
                 modifier = Modifier.align(Alignment.End)
             ) {
                 Text(
-                    text = "¿Olvidaste tu contraseña?",
+                    text = stringResource(Res.string.login_forgot_password),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -247,7 +263,7 @@ fun LoginScreen(
                 )
             ) {
                 Text(
-                    text = "Iniciar Sesión",
+                    text = stringResource(Res.string.login_button),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -261,7 +277,7 @@ fun LoginScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "¿No tienes una cuenta?",
+                    text = stringResource(Res.string.login_signup_prompt),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
@@ -270,7 +286,7 @@ fun LoginScreen(
 
                 TextButton(onClick = { /* TODO: Navigate to registration */ }) {
                     Text(
-                        text = "Regístrate",
+                        text = stringResource(Res.string.login_signup_link),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold

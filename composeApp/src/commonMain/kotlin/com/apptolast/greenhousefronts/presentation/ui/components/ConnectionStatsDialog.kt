@@ -20,9 +20,24 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.apptolast.greenhousefronts.data.remote.websocket.WebSocketConnectionState
 import com.apptolast.greenhousefronts.presentation.viewmodel.DataSource
+import greenhousefronts.composeapp.generated.resources.Res
+import greenhousefronts.composeapp.generated.resources.stats_button_close
+import greenhousefronts.composeapp.generated.resources.stats_button_reconnect
+import greenhousefronts.composeapp.generated.resources.stats_connected_time_label
+import greenhousefronts.composeapp.generated.resources.stats_data_source_http
+import greenhousefronts.composeapp.generated.resources.stats_data_source_label
+import greenhousefronts.composeapp.generated.resources.stats_data_source_websocket
+import greenhousefronts.composeapp.generated.resources.stats_dialog_title
+import greenhousefronts.composeapp.generated.resources.stats_last_error_label
+import greenhousefronts.composeapp.generated.resources.stats_messages_received_label
+import greenhousefronts.composeapp.generated.resources.stats_reconnection_attempts_label
+import greenhousefronts.composeapp.generated.resources.stats_status_label
+import greenhousefronts.composeapp.generated.resources.websocket_status_connected
+import greenhousefronts.composeapp.generated.resources.websocket_status_disconnected
 import kotlin.math.floor
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Dialog showing WebSocket connection statistics
@@ -49,7 +64,7 @@ fun ConnectionStatsDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Estadísticas de Conexión",
+                text = stringResource(Res.string.stats_dialog_title),
                 style = MaterialTheme.typography.headlineSmall
             )
         },
@@ -60,8 +75,11 @@ fun ConnectionStatsDialog(
             ) {
                 // Connection status
                 StatRow(
-                    label = "Estado",
-                    value = if (connectionState.isConnected) "Conectado" else "Desconectado",
+                    label = stringResource(Res.string.stats_status_label),
+                    value = if (connectionState.isConnected)
+                        stringResource(Res.string.websocket_status_connected)
+                    else
+                        stringResource(Res.string.websocket_status_disconnected),
                     valueColor = if (connectionState.isConnected)
                         MaterialTheme.colorScheme.primary
                     else
@@ -70,10 +88,10 @@ fun ConnectionStatsDialog(
 
                 // Data source
                 StatRow(
-                    label = "Fuente de datos",
+                    label = stringResource(Res.string.stats_data_source_label),
                     value = when (dataSource) {
-                        DataSource.WEBSOCKET -> "WebSocket (Tiempo real)"
-                        DataSource.HTTP -> "HTTP (Polling)"
+                        DataSource.WEBSOCKET -> stringResource(Res.string.stats_data_source_websocket)
+                        DataSource.HTTP -> stringResource(Res.string.stats_data_source_http)
                     }
                 )
 
@@ -86,20 +104,20 @@ fun ConnectionStatsDialog(
                 } ?: "N/A"
 
                 StatRow(
-                    label = "Tiempo conectado",
+                    label = stringResource(Res.string.stats_connected_time_label),
                     value = if (connectionState.isConnected) connectedDuration else "N/A"
                 )
 
                 // Messages received
                 StatRow(
-                    label = "Mensajes recibidos",
+                    label = stringResource(Res.string.stats_messages_received_label),
                     value = connectionState.messagesReceived.toString()
                 )
 
                 // Reconnect attempts
                 if (connectionState.reconnectAttempts > 0) {
                     StatRow(
-                        label = "Intentos de reconexión",
+                        label = stringResource(Res.string.stats_reconnection_attempts_label),
                         value = connectionState.reconnectAttempts.toString()
                     )
                 }
@@ -109,7 +127,7 @@ fun ConnectionStatsDialog(
                     HorizontalDivider()
                     Column {
                         Text(
-                            text = "Último error:",
+                            text = stringResource(Res.string.stats_last_error_label),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.error
@@ -136,12 +154,12 @@ fun ConnectionStatsDialog(
                             onDismiss()
                         }
                     ) {
-                        Text("Reconectar")
+                        Text(stringResource(Res.string.stats_button_reconnect))
                     }
                 }
 
                 TextButton(onClick = onDismiss) {
-                    Text("Cerrar")
+                    Text(stringResource(Res.string.stats_button_close))
                 }
             }
         },
