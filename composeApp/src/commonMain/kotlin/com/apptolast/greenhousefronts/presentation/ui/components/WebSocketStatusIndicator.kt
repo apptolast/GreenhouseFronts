@@ -20,6 +20,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.apptolast.greenhousefronts.presentation.viewmodel.DataSource
+import greenhousefronts.composeapp.generated.resources.Res
+import greenhousefronts.composeapp.generated.resources.websocket_http_label
+import greenhousefronts.composeapp.generated.resources.websocket_realtime_label
+import greenhousefronts.composeapp.generated.resources.websocket_status_disconnected
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Status indicator for WebSocket connection
@@ -63,9 +68,9 @@ fun WebSocketStatusIndicator(
 
         // Status text
         val statusText = when {
-            isConnected && dataSource == DataSource.WEBSOCKET -> "TIEMPO REAL"
-            dataSource == DataSource.HTTP -> "HTTP"
-            else -> "Desconectado"
+            isConnected && dataSource == DataSource.WEBSOCKET -> stringResource(Res.string.websocket_realtime_label)
+            dataSource == DataSource.HTTP -> stringResource(Res.string.websocket_http_label)
+            else -> stringResource(Res.string.websocket_status_disconnected)
         }
 
         Text(
