@@ -2,11 +2,12 @@ package com.apptolast.greenhousefronts.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.apptolast.greenhousefronts.data.model.GreenhouseData
 import com.apptolast.greenhousefronts.data.model.GreenhouseMessage
+import com.apptolast.greenhousefronts.data.model.toGroupedData
 import com.apptolast.greenhousefronts.data.remote.websocket.WebSocketConnectionState
 import com.apptolast.greenhousefronts.data.repository.GreenhouseRepositoryImpl
 import com.apptolast.greenhousefronts.domain.repository.GreenhouseRepository
-import com.apptolast.greenhousefronts.util.getCurrentTimestamp
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,13 +26,12 @@ enum class DataSource {
 
 data class GreenhouseUiState(
     val isLoading: Boolean = false,
-    val recentMessages: List<GreenhouseMessage> = emptyList(),
-    val lastMessage: GreenhouseMessage? = null,
+    val greenhouses: List<GreenhouseData> = emptyList(),
+    val selectedGreenhouseId: Int = 1, // ID of the currently selected greenhouse (1, 2, or 3)
     val error: String? = null,
     val publishSuccess: Boolean = false,
     // WebSocket state
     val webSocketState: WebSocketConnectionState = WebSocketConnectionState(),
-    val realtimeMessage: GreenhouseMessage? = null,
     val dataSource: DataSource = DataSource.WEBSOCKET
 )
 
@@ -58,7 +58,7 @@ class GreenhouseViewModel(
     }
 
     /**
-     * Loads recent greenhouse messages
+     * Loads recent greenhouse messages and transforms them to GreenhouseData
      */
     fun loadRecentMessages() {
         viewModelScope.launch {
@@ -66,10 +66,10 @@ class GreenhouseViewModel(
 
             repository.getRecentMessages()
                 .onSuccess { messages ->
+                    val greenhouseDataList = messages.firstOrNull()?.toGroupedData() ?: emptyList()
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        recentMessages = messages,
-                        lastMessage = messages.firstOrNull(),
+                        greenhouses = greenhouseDataList,
                         error = null
                     )
                 }
@@ -83,26 +83,46 @@ class GreenhouseViewModel(
     }
 
     /**
-     * Publishes a message to the greenhouse
+     * Updates a sector value for a specific greenhouse
      *
-     * @param value The setpoint value to send
+     * @param greenhouseId The greenhouse ID (1, 2, or 3)
+     * @param sectorIndex The sector index (0-3 for sectors 1-4)
+     * @param value The new value for the sector (0-100)
      */
-    fun publishSetpoint(value: Double) {
+    fun updateSector(greenhouseId: Int, sectorIndex: Int, value: Int) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null, publishSuccess = false)
 
-            val message = GreenhouseMessage(
-                timestamp = getCurrentTimestamp(),
-                greenhouseId = "default",
-                setpoint01 = value,
-                sensor01 = null,
-                sensor02 = null,
-                setpoint02 = null,
-                setpoint03 = null,
-                rawPayload = null,
-            )
+            // Create message with the updated sector value
+            val message = when (greenhouseId) {
+                1 -> when (sectorIndex) {
+                    0 -> GreenhouseMessage(invernadero01Sector01 = value)
+                    1 -> GreenhouseMessage(invernadero01Sector02 = value)
+                    2 -> GreenhouseMessage(invernadero01Sector03 = value)
+                    3 -> GreenhouseMessage(invernadero01Sector04 = value)
+                    else -> return@launch
+                }
 
-            repository.publishMessage(message, topic = "GREENHOUSE/MOBILE",)
+                2 -> when (sectorIndex) {
+                    0 -> GreenhouseMessage(invernadero02Sector01 = value)
+                    1 -> GreenhouseMessage(invernadero02Sector02 = value)
+                    2 -> GreenhouseMessage(invernadero02Sector03 = value)
+                    3 -> GreenhouseMessage(invernadero02Sector04 = value)
+                    else -> return@launch
+                }
+
+                3 -> when (sectorIndex) {
+                    0 -> GreenhouseMessage(invernadero03Sector01 = value)
+                    1 -> GreenhouseMessage(invernadero03Sector02 = value)
+                    2 -> GreenhouseMessage(invernadero03Sector03 = value)
+                    3 -> GreenhouseMessage(invernadero03Sector04 = value)
+                    else -> return@launch
+                }
+
+                else -> return@launch
+            }
+
+            repository.publishMessage(message, topic = "GREENHOUSE/MOBILE")
                 .onSuccess {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
@@ -120,6 +140,50 @@ class GreenhouseViewModel(
                     )
                 }
         }
+    }
+
+    /**
+     * Updates the extractor (ventilation) value for a specific greenhouse
+     *
+     * @param greenhouseId The greenhouse ID (1, 2, or 3)
+     * @param value The new value for the extractor (0 or 1 typically)
+     */
+    fun updateExtractor(greenhouseId: Int, value: Int) {
+        viewModelScope.launch {
+            _uiState.value =
+                _uiState.value.copy(isLoading = true, error = null, publishSuccess = false)
+
+            val message = when (greenhouseId) {
+                1 -> GreenhouseMessage(invernadero01Extractor = value)
+                2 -> GreenhouseMessage(invernadero02Extractor = value)
+                3 -> GreenhouseMessage(invernadero03Extractor = value)
+                else -> return@launch
+            }
+
+            repository.publishMessage(message, topic = "GREENHOUSE/MOBILE")
+                .onSuccess {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        publishSuccess = true,
+                        error = null
+                    )
+                    loadRecentMessages()
+                }
+                .onFailure { exception ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        publishSuccess = false,
+                        error = "Error al publicar mensaje: ${exception.message}"
+                    )
+                }
+        }
+    }
+
+    /**
+     * Selects a greenhouse to view its details
+     */
+    fun selectGreenhouse(greenhouseId: Int) {
+        _uiState.value = _uiState.value.copy(selectedGreenhouseId = greenhouseId)
     }
 
     /**
@@ -194,10 +258,9 @@ class GreenhouseViewModel(
                     connectToWebSocket()
                 }
                 .collect { message ->
+                    val greenhouseDataList = message.toGroupedData()
                     _uiState.value = _uiState.value.copy(
-                        realtimeMessage = message,
-                        lastMessage = message,
-                        recentMessages = listOf(message) + _uiState.value.recentMessages.take(99)
+                        greenhouses = greenhouseDataList
                     )
                 }
         }

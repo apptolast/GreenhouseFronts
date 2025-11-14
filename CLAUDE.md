@@ -250,13 +250,14 @@ di/
 
 ```toml
 [versions]
-koin-bom = "4.1.0"
+koin-bom = "4.1.1"
 
 [libraries]
 koin-bom = { module = "io.insert-koin:koin-bom", version.ref = "koin-bom" }
 koin-core = { module = "io.insert-koin:koin-core" }
 koin-compose = { module = "io.insert-koin:koin-compose" }
 koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel" }
+koin-compose-viewmodel-navigation = { module = "io.insert-koin:koin-compose-viewmodel-navigation" }
 koin-android = { module = "io.insert-koin:koin-android" }
 koin-test = { module = "io.insert-koin:koin-test" }
 ```
@@ -269,6 +270,7 @@ commonMain.dependencies {
     implementation(libs.koin.core)
     implementation(libs.koin.compose)
     implementation(libs.koin.compose.viewmodel)
+    implementation(libs.koin.compose.viewmodel.navigation)
 }
 
 androidMain.dependencies {
@@ -331,14 +333,81 @@ val presentationModule = module {
 
 #### Injecting ViewModel in Composables
 
+Starting with **Koin 4.1+**, the API has been simplified. Use `koinViewModel()` for **all scenarios
+**, including Navigation Compose:
+
 ```kotlin
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun App() {
-    val viewModel: GreenhouseViewModel = koinViewModel()
-    val uiState by viewModel.uiState.collectAsState()
-    // ...
+    val navController = rememberNavController()
+
+    NavHost(navController, startDestination = LoginRoute) {
+        composable<HomeRoute> {
+            // koinViewModel() automatically handles Navigation integration
+            val viewModel: GreenhouseViewModel = koinViewModel()
+            HomeScreen(viewModel = viewModel)
+        }
+    }
+}
+```
+
+**Important Note**: `koinNavViewModel()` is **DEPRECATED** in Koin 4.1+. The functionality has been
+integrated into `koinViewModel()` thanks to lifecycle library updates. Always use `koinViewModel()`
+now.
+
+**Automatic Features in `koinViewModel()` (Koin 4.1+)**:
+
+- ✅ NavBackStackEntry integration (when used inside NavHost)
+- ✅ Automatic SavedStateHandle support
+- ✅ Navigation argument injection
+- ✅ Lifecycle-aware scoping
+
+**For ViewModels with Navigation Arguments**:
+
+```kotlin
+// ViewModel with navigation arguments
+class DetailViewModel(
+    private val savedStateHandle: SavedStateHandle
+) : ViewModel() {
+    val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
+}
+
+// Usage in NavHost
+composable("detail/{itemId}") {
+    val viewModel: DetailViewModel = koinViewModel()  // Arguments auto-injected
+    DetailScreen(viewModel)
+}
+```
+
+**For Shared ViewModels Across Navigation Destinations**:
+
+```kotlin
+NavHost(
+    navController = navController,
+    startDestination = "screenA",
+    route = "parentRoute"  // Important: Define parent route
+) {
+    composable("screenA") { backStackEntry ->
+        val parentEntry = remember(backStackEntry) {
+            navController.getBackStackEntry("parentRoute")
+        }
+        val sharedViewModel: SharedViewModel = koinViewModel(
+            viewModelStoreOwner = parentEntry  // Scope to parent
+        )
+        ScreenA(sharedViewModel)
+    }
+
+    composable("screenB") { backStackEntry ->
+        val parentEntry = remember(backStackEntry) {
+            navController.getBackStackEntry("parentRoute")
+        }
+        val sharedViewModel: SharedViewModel = koinViewModel(
+            viewModelStoreOwner = parentEntry  // Same instance
+        )
+        ScreenB(sharedViewModel)
+    }
 }
 ```
 
