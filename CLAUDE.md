@@ -759,3 +759,592 @@ When implementing new features or troubleshooting, consult these official resour
 - **Compose Documentation**: https://developer.android.com/jetpack/compose
 - **ViewModel Guide**: https://developer.android.com/topic/libraries/architecture/viewmodel
 - **StateFlow**: https://developer.android.com/kotlin/flow/stateflow-and-sharedflow
+
+## UI Design & Theming System
+
+This project uses a **custom Material Design 3 theme** with a dark-first aesthetic and neon green
+accents, designed specifically for greenhouse monitoring dashboards.
+
+### Theme Architecture
+
+The theming system is located in `presentation/ui/theme/` and consists of:
+
+```
+presentation/ui/theme/
+├── Color.kt       # Color palette definitions (light & dark schemes)
+├── Font.kt        # Custom font family definitions
+├── Type.kt        # Typography scale (Material 3)
+└── Theme.kt       # Main GreenhouseTheme composable
+```
+
+### Color System
+
+#### Design Philosophy
+
+The app uses a **dark-first design** with:
+
+- **Background**: Almost black with subtle blue tint (`#0F1419`)
+- **Surface**: Dark gray for cards and elevated elements (`#1A1E23`)
+- **Primary**: Neon green for emphasis and actions (`#00E676` - Material Green A400)
+- **Surface Variant**: Dark green-tinted surfaces for greenhouse branding (`#1E3A34`)
+- **Tertiary**: Bright teal for humidity and variety (`#4ECDC4`)
+
+#### Color Palette (Dark Theme - Primary)
+
+```kotlin
+// Primary colors - Neon green for main actions
+primary = Color(0xFF00E676)              // Bright neon green
+onPrimary = Color(0xFF003300)            // Very dark green for text
+primaryContainer = Color(0xFF1E3A34)     // Dark green-gray for containers
+onPrimaryContainer = Color(0xFFB2DFDB)   // Light teal for text
+
+// Background & Surface
+background = Color(0xFF0F1419)           // Almost black with blue tint
+surface = Color(0xFF1A1E23)              // Dark gray for cards
+surfaceVariant = Color(0xFF1E3A34)       // Dark green-tinted surface
+onBackground = Color(0xFFE6E1E5)         // Light gray for text
+onSurface = Color(0xFFE6E1E5)            // Light gray for text
+
+// Tertiary - Teal accent
+tertiary = Color(0xFF4ECDC4)             // Bright teal (humidity displays)
+onTertiary = Color(0xFF002020)           // Very dark teal
+tertiaryContainer = Color(0xFF1A3635)    // Dark teal-gray
+```
+
+#### Using Colors in UI
+
+**Always use MaterialTheme.colorScheme** - never hardcode colors:
+
+```kotlin
+// ✅ CORRECT - Uses theme colors
+Text(
+   text = "Temperature",
+   color = MaterialTheme.colorScheme.onSurface
+)
+
+Button(
+   onClick = { },
+   colors = ButtonDefaults.buttonColors(
+      containerColor = MaterialTheme.colorScheme.primary,
+      contentColor = MaterialTheme.colorScheme.onPrimary
+   )
+) {
+   Text("Action")
+}
+
+// ❌ WRONG - Hardcoded color
+Text(
+   text = "Temperature",
+   color = Color(0xFFFFFFFF)  // Don't do this!
+)
+```
+
+#### Material 3 Color Roles
+
+| Role               | Usage                             | Example Components                     |
+|--------------------|-----------------------------------|----------------------------------------|
+| `primary`          | Main brand color, primary actions | FABs, prominent buttons, active states |
+| `primaryContainer` | Tinted backgrounds                | Cards with emphasis, chips             |
+| `secondary`        | Less prominent actions            | Secondary buttons, filter chips        |
+| `tertiary`         | Contrasting accents               | Humidity cards, special highlights     |
+| `surface`          | Backgrounds for components        | Cards, dialogs, sheets                 |
+| `surfaceVariant`   | Alternative surfaces              | Input fields, inactive chips           |
+| `outline`          | Borders and dividers              | TextField borders, dividers            |
+| `error`            | Error states and warnings         | Error messages, validation failures    |
+
+#### Adding New Colors
+
+If you need custom colors beyond Material 3 roles:
+
+1. Define in `Color.kt` as private values
+2. Add to the appropriate ColorScheme
+3. Document the usage clearly
+
+```kotlin
+// In Color.kt
+private val CustomGreenHighlight = Color(0xFF4CAF50)
+
+internal val DarkColorScheme = darkColorScheme(
+   // ... existing colors
+   // Use surfaceTint or other flexible roles for custom colors
+)
+```
+
+### Typography System
+
+#### Font Architecture
+
+The app uses **composable typography** to support custom fonts easily.
+
+**Current State**: Using system default font (`FontFamily.Default`)
+
+**To add custom fonts**: See [Custom Fonts](#custom-fonts) section below.
+
+#### Material 3 Type Scale
+
+The app follows Material 3's 5-category type scale:
+
+| Category     | Sizes                                     | Usage                                  | Font Weight     |
+|--------------|-------------------------------------------|----------------------------------------|-----------------|
+| **Display**  | Large (57sp), Medium (45sp), Small (36sp) | Large, expressive text (hero sections) | Bold/Normal     |
+| **Headline** | Large (32sp), Medium (28sp), Small (24sp) | Page titles, emphasis                  | SemiBold/Medium |
+| **Title**    | Large (22sp), Medium (16sp), Small (14sp) | Section titles, list items             | SemiBold/Medium |
+| **Body**     | Large (16sp), Medium (14sp), Small (12sp) | Main content, paragraphs               | Normal          |
+| **Label**    | Large (14sp), Medium (12sp), Small (11sp) | Buttons, labels, captions              | Medium          |
+
+#### Using Typography in UI
+
+**Always use MaterialTheme.typography**:
+
+```kotlin
+// Page title
+Text(
+   text = "Dashboard",
+   style = MaterialTheme.typography.headlineMedium,
+   color = MaterialTheme.colorScheme.onSurface
+)
+
+// Section heading
+Text(
+   text = "Sensor Readings",
+   style = MaterialTheme.typography.titleLarge,
+   color = MaterialTheme.colorScheme.onSurface
+)
+
+// Body text
+Text(
+   text = "Current temperature is 22°C",
+   style = MaterialTheme.typography.bodyMedium,
+   color = MaterialTheme.colorScheme.onSurfaceVariant
+)
+
+// Button text
+Button(onClick = { }) {
+   Text(
+      text = "Save",
+      style = MaterialTheme.typography.labelLarge
+   )
+}
+```
+
+### Custom Fonts
+
+#### Current Implementation
+
+The project uses a **composable font system** that makes swapping fonts easy:
+
+- **Font.kt**: Defines `appFontFamily()` composable
+- **Type.kt**: Uses `appFontFamily()` for all text styles
+- **Theme.kt**: Calls `appTypography()` composable
+
+**Currently using**: `FontFamily.Default` (system font)
+
+#### Adding Custom Fonts (Step-by-Step)
+
+Follow these steps to add a custom font like Inter, Roboto, or Geist Sans:
+
+##### Step 1: Download Font Files
+
+1. Visit **Google Fonts**: https://fonts.google.com
+2. **Recommended font**: **Inter** (https://fonts.google.com/specimen/Inter)
+   - Optimized for screens and dashboards
+   - Excellent legibility at all sizes
+   - Modern, professional aesthetic
+3. Download at least **4 weights**:
+   - Regular (400)
+   - Medium (500)
+   - SemiBold (600)
+   - Bold (700)
+
+##### Step 2: Create Font Directory
+
+```bash
+mkdir -p composeApp/src/commonMain/composeResources/font
+```
+
+##### Step 3: Place Font Files
+
+Copy the `.ttf` files to the font directory with **lowercase, underscore-separated names**:
+
+```
+composeApp/src/commonMain/composeResources/font/
+├── inter_regular.ttf
+├── inter_medium.ttf
+├── inter_semibold.ttf
+└── inter_bold.ttf
+```
+
+**Naming rules**:
+
+- Use lowercase only
+- Use underscores instead of spaces
+- Include font name and weight (e.g., `roboto_bold.ttf`)
+
+##### Step 4: Build Project
+
+```bash
+./gradlew build
+```
+
+This generates resource accessors in `greenhousefronts.composeapp.generated.resources.Res.font.*`
+
+##### Step 5: Update Font.kt
+
+Uncomment and update the custom font code in `presentation/ui/theme/Font.kt`:
+
+```kotlin
+import org.jetbrains.compose.resources.Font
+import greenhousefronts.composeapp.generated.resources.Res
+import greenhousefronts.composeapp.generated.resources.inter_regular
+import greenhousefronts.composeapp.generated.resources.inter_medium
+import greenhousefronts.composeapp.generated.resources.inter_semibold
+import greenhousefronts.composeapp.generated.resources.inter_bold
+
+@Composable
+fun appFontFamily(): FontFamily {
+   return FontFamily(
+      Font(Res.font.inter_regular, FontWeight.Normal),
+      Font(Res.font.inter_medium, FontWeight.Medium),
+      Font(Res.font.inter_semibold, FontWeight.SemiBold),
+      Font(Res.font.inter_bold, FontWeight.Bold)
+   )
+}
+```
+
+##### Step 6: Rebuild and Test
+
+```bash
+./gradlew build
+./gradlew :composeApp:run  # Test on Desktop or your platform
+```
+
+#### Swapping Fonts Later
+
+To change from Inter to another font (e.g., Roboto):
+
+1. Download new font files from Google Fonts
+2. Place in `composeResources/font/` with descriptive names (e.g., `roboto_regular.ttf`)
+3. Update **only Font.kt**:
+
+```kotlin
+@Composable
+fun appFontFamily(): FontFamily {
+   return FontFamily(
+      Font(Res.font.roboto_regular, FontWeight.Normal),
+      Font(Res.font.roboto_medium, FontWeight.Medium),
+      Font(Res.font.roboto_bold, FontWeight.Bold)
+   )
+}
+```
+
+4. Rebuild: `./gradlew build`
+5. **No changes needed** in Type.kt or Theme.kt - they automatically use the new font!
+
+#### Recommended Fonts for Dashboard Apps
+
+| Font           | Best For               | Key Strength             | Download                                                  |
+|----------------|------------------------|--------------------------|-----------------------------------------------------------|
+| **Inter**      | General UI, dashboards | Screen-optimized clarity | [Google Fonts](https://fonts.google.com/specimen/Inter)   |
+| **Roboto**     | Data tables, numbers   | Tabular figures          | [Google Fonts](https://fonts.google.com/specimen/Roboto)  |
+| **Geist Sans** | Developer tools        | Modern tech aesthetic    | [Vercel](https://vercel.com/font)                         |
+| **Manrope**    | Dense information      | Space efficiency         | [Google Fonts](https://fonts.google.com/specimen/Manrope) |
+| **DM Sans**    | Small text             | Small-scale legibility   | [Google Fonts](https://fonts.google.com/specimen/DM+Sans) |
+
+#### Important: Font() is Composable
+
+In Compose Multiplatform (unlike Android-only Jetpack Compose), **Font() is a @Composable function
+**:
+
+- FontFamily must be created inside `@Composable` functions
+- Typography must be created inside `@Composable` functions
+- Cannot define fonts as top-level `val` properties
+
+**This is why** `appFontFamily()` and `appTypography()` are functions, not values.
+
+### Creating New Screens
+
+When creating new UI screens, follow these best practices:
+
+#### 1. Use the Established Color Palette
+
+```kotlin
+@Composable
+fun MyNewScreen() {
+   Column(
+      modifier = Modifier
+         .fillMaxSize()
+         .background(MaterialTheme.colorScheme.background)
+         .padding(16.dp)
+   ) {
+      // Page title
+      Text(
+         text = "Screen Title",
+         style = MaterialTheme.typography.headlineMedium,
+         color = MaterialTheme.colorScheme.onSurface
+      )
+
+      // Content card
+      Card(
+         modifier = Modifier.fillMaxWidth(),
+         colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+         )
+      ) {
+         // Card content
+      }
+
+      // Primary action button
+      Button(
+         onClick = { },
+         modifier = Modifier.fillMaxWidth(),
+         colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+         )
+      ) {
+         Text("Action", style = MaterialTheme.typography.labelLarge)
+      }
+   }
+}
+```
+
+#### 2. Follow Material 3 Component Patterns
+
+**Inputs with icons**:
+
+```kotlin
+OutlinedTextField(
+   value = value,
+   onValueChange = { value = it },
+   label = { Text("Label") },
+   leadingIcon = {
+      Icon(
+         imageVector = Icons.Default.Person,
+         contentDescription = "Icon",
+         tint = MaterialTheme.colorScheme.primary
+      )
+   },
+   colors = OutlinedTextFieldDefaults.colors(
+      focusedBorderColor = MaterialTheme.colorScheme.primary,
+      unfocusedBorderColor = MaterialTheme.colorScheme.outline
+   )
+)
+```
+
+**Cards with emphasis**:
+
+```kotlin
+Card(
+   modifier = Modifier.fillMaxWidth(),
+   shape = RoundedCornerShape(16.dp),
+   colors = CardDefaults.cardColors(
+      containerColor = MaterialTheme.colorScheme.primaryContainer
+   ),
+   elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+) {
+   // Emphasized content
+}
+```
+
+**Buttons**:
+
+```kotlin
+// Primary action
+Button(
+   onClick = { },
+   colors = ButtonDefaults.buttonColors(
+      containerColor = MaterialTheme.colorScheme.primary
+   )
+) { Text("Primary Action") }
+
+// Secondary action
+OutlinedButton(onClick = { }) {
+   Text("Secondary Action")
+}
+
+// Tertiary/text action
+TextButton(onClick = { }) {
+   Text("Cancel", color = MaterialTheme.colorScheme.primary)
+}
+```
+
+#### 3. Consistent Spacing and Layout
+
+Use **multiples of 4dp** for spacing:
+
+```kotlin
+val spacing = object {
+   val extraSmall = 4.dp
+   val small = 8.dp
+   val medium = 16.dp
+   val large = 24.dp
+   val extraLarge = 32.dp
+}
+
+Column(
+   modifier = Modifier.padding(spacing.medium),
+   verticalArrangement = Arrangement.spacedBy(spacing.small)
+) {
+   // Content with consistent spacing
+}
+```
+
+#### 4. Rounded Corners
+
+The app uses **consistent corner radii**:
+
+- **Small components** (chips, small cards): `8.dp` or `12.dp`
+- **Medium components** (buttons, text fields): `12.dp`
+- **Large components** (cards, dialogs): `16.dp` or `24.dp`
+
+```kotlin
+Card(
+   shape = RoundedCornerShape(16.dp)
+) { /* ... */ }
+
+Button(
+   shape = RoundedCornerShape(12.dp)
+) { /* ... */ }
+```
+
+#### 5. Icons and Visual Elements
+
+Use Material Icons for consistency:
+
+```kotlin
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+
+Icon(
+   imageVector = Icons.Default.Home,
+   contentDescription = "Home",
+   tint = MaterialTheme.colorScheme.primary
+)
+```
+
+### Dark Theme Best Practices
+
+The app is **dark-first**, but supports light theme as a fallback.
+
+#### Key Principles
+
+1. **Desaturated colors in dark mode**: Primary green (`#00E676`) is bright in dark theme, but would
+   use darker green (`#1B5E20`) in light theme
+2. **Sufficient contrast**: Always ensure text has adequate contrast against backgrounds
+3. **Avoid pure black**: Use dark grays (`#0F1419`) instead of `#000000` for better visual comfort
+4. **Elevation with tints**: Use slight color tints instead of shadows for elevation in dark theme
+
+#### Testing Both Themes
+
+To test light theme during development:
+
+```kotlin
+@Preview
+@Composable
+fun MyScreenPreviewLight() {
+   GreenhouseTheme(darkTheme = false) {
+      MyScreen()
+   }
+}
+
+@Preview
+@Composable
+fun MyScreenPreviewDark() {
+   GreenhouseTheme(darkTheme = true) {
+      MyScreen()
+   }
+}
+```
+
+### Component Library Patterns
+
+When creating reusable components, follow this pattern:
+
+```kotlin
+/**
+ * Reusable sensor card component showing current readings.
+ *
+ * @param title The sensor name (e.g., "Temperature")
+ * @param value The current reading
+ * @param unit The measurement unit (e.g., "°C")
+ * @param icon The icon to display
+ * @param accentColor Optional accent color (defaults to primary)
+ * @param onClick Optional click handler
+ */
+@Composable
+fun SensorCard(
+   title: String,
+   value: String,
+   unit: String,
+   icon: ImageVector,
+   accentColor: Color = MaterialTheme.colorScheme.primary,
+   onClick: (() -> Unit)? = null
+) {
+   Card(
+      modifier = Modifier
+         .fillMaxWidth()
+         .then(
+            if (onClick != null) {
+               Modifier.clickable(onClick = onClick)
+            } else {
+               Modifier
+            }
+         ),
+      colors = CardDefaults.cardColors(
+         containerColor = MaterialTheme.colorScheme.surface
+      )
+   ) {
+      Row(
+         modifier = Modifier.padding(16.dp),
+         verticalAlignment = Alignment.CenterVertically
+      ) {
+         Icon(
+            imageVector = icon,
+            contentDescription = title,
+            tint = accentColor,
+            modifier = Modifier.size(40.dp)
+         )
+
+         Spacer(modifier = Modifier.width(16.dp))
+
+         Column {
+            Text(
+               text = title,
+               style = MaterialTheme.typography.bodySmall,
+               color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(
+               verticalAlignment = Alignment.Bottom,
+               horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+               Text(
+                  text = value,
+                  style = MaterialTheme.typography.headlineSmall,
+                  color = MaterialTheme.colorScheme.onSurface
+               )
+               Text(
+                  text = unit,
+                  style = MaterialTheme.typography.bodyMedium,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant
+               )
+            }
+         }
+      }
+   }
+}
+```
+
+### Accessibility Considerations
+
+1. **Always provide contentDescription** for icons and images
+2. **Use semantic colors** (error for errors, not red)
+3. **Minimum touch targets**: 48dp × 48dp for interactive elements
+4. **Text contrast**: Ensure sufficient contrast ratios (4.5:1 for body text, 3:1 for large text)
+
+### Resources for UI Design
+
+- **Material Design 3**: https://m3.material.io
+- **Material 3 Color System**: https://m3.material.io/styles/color/overview
+- **Material 3 Typography**: https://m3.material.io/styles/typography/overview
+- **Compose Material 3**: https://developer.android.com/develop/ui/compose/designsystems/material3
+- **Google Fonts**: https://fonts.google.com
