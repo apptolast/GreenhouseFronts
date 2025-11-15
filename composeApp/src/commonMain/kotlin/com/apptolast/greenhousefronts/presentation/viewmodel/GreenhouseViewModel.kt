@@ -87,7 +87,7 @@ class GreenhouseViewModel(
      *
      * @param greenhouseId The greenhouse ID (1, 2, or 3)
      * @param sectorIndex The sector index (0-3 for sectors 1-4)
-     * @param value The new value for the sector (0-100)
+     * @param value The new value for the sector (Double, 0-100)
      */
     fun updateSector(greenhouseId: Int, sectorIndex: Int, value: Double) {
         viewModelScope.launch {
@@ -146,7 +146,7 @@ class GreenhouseViewModel(
      * Updates the extractor (ventilation) value for a specific greenhouse
      *
      * @param greenhouseId The greenhouse ID (1, 2, or 3)
-     * @param value The new value for the extractor (0 or 1 typically)
+     * @param value The new value for the extractor (0.0 or 1.0 typically)
      */
     fun updateExtractor(greenhouseId: Int, value: Double) {
         viewModelScope.launch {
