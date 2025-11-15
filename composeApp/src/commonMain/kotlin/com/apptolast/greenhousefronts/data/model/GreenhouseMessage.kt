@@ -9,6 +9,8 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class GreenhouseMessage(
+    @SerialName("timestamp") val timestamp: String? = null,
+
     // Temperaturas
     @SerialName("TEMPERATURA INVERNADERO 01") val temperaturaInvernadero01: Double? = null,
     @SerialName("TEMPERATURA INVERNADERO 02") val temperaturaInvernadero02: Double? = null,
@@ -20,30 +22,32 @@ data class GreenhouseMessage(
     @SerialName("HUMEDAD INVERNADERO 03") val humedadInvernadero03: Double? = null,
 
     // Sectores Invernadero 01
-    @SerialName("INVERNADERO_01_SECTOR_01") val invernadero01Sector01: Int? = null,
-    @SerialName("INVERNADERO_01_SECTOR_02") val invernadero01Sector02: Int? = null,
-    @SerialName("INVERNADERO_01_SECTOR_03") val invernadero01Sector03: Int? = null,
-    @SerialName("INVERNADERO_01_SECTOR_04") val invernadero01Sector04: Int? = null,
+    @SerialName("INVERNADERO_01_SECTOR_01") val invernadero01Sector01: Double? = null,
+    @SerialName("INVERNADERO_01_SECTOR_02") val invernadero01Sector02: Double? = null,
+    @SerialName("INVERNADERO_01_SECTOR_03") val invernadero01Sector03: Double? = null,
+    @SerialName("INVERNADERO_01_SECTOR_04") val invernadero01Sector04: Double? = null,
 
     // Sectores Invernadero 02
-    @SerialName("INVERNADERO_02_SECTOR_01") val invernadero02Sector01: Int? = null,
-    @SerialName("INVERNADERO_02_SECTOR_02") val invernadero02Sector02: Int? = null,
-    @SerialName("INVERNADERO_02_SECTOR_03") val invernadero02Sector03: Int? = null,
-    @SerialName("INVERNADERO_02_SECTOR_04") val invernadero02Sector04: Int? = null,
+    @SerialName("INVERNADERO_02_SECTOR_01") val invernadero02Sector01: Double? = null,
+    @SerialName("INVERNADERO_02_SECTOR_02") val invernadero02Sector02: Double? = null,
+    @SerialName("INVERNADERO_02_SECTOR_03") val invernadero02Sector03: Double? = null,
+    @SerialName("INVERNADERO_02_SECTOR_04") val invernadero02Sector04: Double? = null,
 
     // Sectores Invernadero 03
-    @SerialName("INVERNADERO_03_SECTOR_01") val invernadero03Sector01: Int? = null,
-    @SerialName("INVERNADERO_03_SECTOR_02") val invernadero03Sector02: Int? = null,
-    @SerialName("INVERNADERO_03_SECTOR_03") val invernadero03Sector03: Int? = null,
-    @SerialName("INVERNADERO_03_SECTOR_04") val invernadero03Sector04: Int? = null,
+    @SerialName("INVERNADERO_03_SECTOR_01") val invernadero03Sector01: Double? = null,
+    @SerialName("INVERNADERO_03_SECTOR_02") val invernadero03Sector02: Double? = null,
+    @SerialName("INVERNADERO_03_SECTOR_03") val invernadero03Sector03: Double? = null,
+    @SerialName("INVERNADERO_03_SECTOR_04") val invernadero03Sector04: Double? = null,
 
     // Extractores
-    @SerialName("INVERNADERO_01_EXTRACTOR") val invernadero01Extractor: Int? = null,
-    @SerialName("INVERNADERO_02_EXTRACTOR") val invernadero02Extractor: Int? = null,
-    @SerialName("INVERNADERO_03_EXTRACTOR") val invernadero03Extractor: Int? = null,
+    @SerialName("INVERNADERO_01_EXTRACTOR") val invernadero01Extractor: Double? = null,
+    @SerialName("INVERNADERO_02_EXTRACTOR") val invernadero02Extractor: Double? = null,
+    @SerialName("INVERNADERO_03_EXTRACTOR") val invernadero03Extractor: Double? = null,
 
     // Reserva
-    @SerialName("RESERVA") val reserva: Int? = null
+    @SerialName("RESERVA") val reserva: Double? = null,
+
+    @SerialName("greenhouseId") val greenhouseId: String? = null,
 )
 
 /**
@@ -54,8 +58,8 @@ data class GreenhouseData(
     val id: Int,
     val temperatura: Double?,
     val humedad: Double?,
-    val sectores: List<Int?>,
-    val extractor: Int?
+    val sectores: List<Double?>,
+    val extractor: Double?
 )
 
 /**

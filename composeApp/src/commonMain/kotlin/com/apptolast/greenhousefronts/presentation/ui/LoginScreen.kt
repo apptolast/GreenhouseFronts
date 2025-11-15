@@ -77,8 +77,8 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 fun LoginScreen(
     onLoginSuccess: () -> Unit = {}
 ) {
-    var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("a") }
+    var password by remember { mutableStateOf("a") }
     var passwordVisible by remember { mutableStateOf(false) }
 
     // Background with gradient overlay

@@ -302,8 +302,8 @@ private fun SensorCard(
 @Composable
 private fun ActuatorControls(
     greenhouse: GreenhouseData,
-    onSectorChange: (Int, Int) -> Unit,
-    onExtractorChange: (Int) -> Unit
+    onSectorChange: (Int, Double) -> Unit,
+    onExtractorChange: (Double) -> Unit
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -312,7 +312,7 @@ private fun ActuatorControls(
         greenhouse.sectores.forEachIndexed { index, value ->
             SectorSlider(
                 label = stringResource(Res.string.actuator_sector_label, index + 1),
-                value = value ?: 0,
+                value = value ?: 0.0,
                 onValueChange = { newValue ->
                     onSectorChange(index, newValue)
                 }
@@ -323,9 +323,9 @@ private fun ActuatorControls(
 
         // Extractor (ventilation) toggle
         ExtractorToggle(
-            isOn = greenhouse.extractor == 1,
+            isOn = greenhouse.extractor == 1.0,
             onToggle = { isOn ->
-                onExtractorChange(if (isOn) 1 else 0)
+                onExtractorChange(if (isOn) 1.0 else 0.0)
             }
         )
     }
@@ -337,8 +337,8 @@ private fun ActuatorControls(
 @Composable
 private fun SectorSlider(
     label: String,
-    value: Int,
-    onValueChange: (Int) -> Unit
+    value: Double,
+    onValueChange: (Double) -> Unit
 ) {
     var sliderValue by remember(value) { mutableFloatStateOf(value.toFloat()) }
 
@@ -380,7 +380,7 @@ private fun SectorSlider(
                 value = sliderValue,
                 onValueChange = { sliderValue = it },
                 onValueChangeFinished = {
-                    onValueChange(sliderValue.toInt())
+                    onValueChange(sliderValue.toDouble())
                 },
                 valueRange = 0f..100f,
                 colors = SliderDefaults.colors(

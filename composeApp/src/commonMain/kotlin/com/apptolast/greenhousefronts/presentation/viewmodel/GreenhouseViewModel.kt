@@ -89,7 +89,7 @@ class GreenhouseViewModel(
      * @param sectorIndex The sector index (0-3 for sectors 1-4)
      * @param value The new value for the sector (0-100)
      */
-    fun updateSector(greenhouseId: Int, sectorIndex: Int, value: Int) {
+    fun updateSector(greenhouseId: Int, sectorIndex: Int, value: Double) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null, publishSuccess = false)
 
@@ -148,7 +148,7 @@ class GreenhouseViewModel(
      * @param greenhouseId The greenhouse ID (1, 2, or 3)
      * @param value The new value for the extractor (0 or 1 typically)
      */
-    fun updateExtractor(greenhouseId: Int, value: Int) {
+    fun updateExtractor(greenhouseId: Int, value: Double) {
         viewModelScope.launch {
             _uiState.value =
                 _uiState.value.copy(isLoading = true, error = null, publishSuccess = false)
