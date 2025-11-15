@@ -8,14 +8,11 @@ import androidx.navigation.bindToBrowserNavigation
 
 /**
  * JavaScript implementation of web navigation configuration.
- * Note: bindToBrowserNavigation() is not available in Navigation 2.9.1 for JS target.
- * This functionality may be added in future Navigation releases (possibly Navigation 3.0).
- * For now, this is a no-op.
+ * Enables browser navigation for JS using bindToBrowserNavigation().
  */
 @OptIn(ExperimentalBrowserHistoryApi::class)
 @Composable
 actual fun ConfigureWebNavigation(navController: NavHostController) {
-    // TODO: Enable browser navigation when bindToBrowserNavigation() is available for JS
     LaunchedEffect(navController) {
         navController.bindToBrowserNavigation()
     }
