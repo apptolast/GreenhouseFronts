@@ -3,9 +3,9 @@ package com.apptolast.greenhousefronts.di
 import com.apptolast.greenhousefronts.data.remote.api.GreenhouseApiService
 import com.apptolast.greenhousefronts.data.remote.createHttpClient
 import com.apptolast.greenhousefronts.data.remote.websocket.StompWebSocketClient
-import com.apptolast.greenhousefronts.data.remote.websocket.createStompClient
 import com.apptolast.greenhousefronts.data.repository.GreenhouseRepositoryImpl
 import com.apptolast.greenhousefronts.domain.repository.GreenhouseRepository
+import kotlinx.serialization.json.Json
 import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.bind
 import org.koin.dsl.module
@@ -15,11 +15,28 @@ import org.koin.dsl.module
  */
 val dataModule = module {
 
+    single {
+        Json {
+            // Configuración MUY permisiva para debug
+            ignoreUnknownKeys = true
+            isLenient = true
+            encodeDefaults = true
+            coerceInputValues = true
+            explicitNulls = false
+            allowStructuredMapKeys = true
+            prettyPrint = false  // Mejor rendimiento
+            useArrayPolymorphism = false
+
+            // iOS específico - a veces ayuda
+//            classDiscriminator = "type"
+        }
+    }
     // Provide HttpClient as singleton
-    single { createHttpClient() }
+    singleOf(::createHttpClient)
 
     // Provide StompClient as singleton
-    single { createStompClient() }
+//    singleOf(::KtorWebSocketClient)
+//    single { StompClient(WebSocketClient.builtIn()) }
 
     // API Service - depends on HttpClient (injected via constructor)
     singleOf(::GreenhouseApiService)

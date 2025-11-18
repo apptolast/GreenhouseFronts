@@ -15,3 +15,16 @@ object LoginRoute
  */
 @Serializable
 object HomeRoute
+
+/**
+ * Represents the sensor detail screen route.
+ * Shows historical data and statistics for a specific sensor in a greenhouse.
+ *
+ * @property greenhouseId UUID of the greenhouse
+ * @property sensorType Type of sensor (e.g., "TEMPERATURE", "HUMIDITY")
+ */
+@Serializable
+data class SensorDetailRoute(
+    val greenhouseId: String,
+    val sensorType: String
+)

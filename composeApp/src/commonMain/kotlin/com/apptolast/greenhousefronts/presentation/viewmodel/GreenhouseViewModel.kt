@@ -53,7 +53,7 @@ class GreenhouseViewModel(
     private val maxReconnectAttempts = 5
 
     init {
-        loadRecentMessages()
+//        loadRecentMessages()
         connectToWebSocket()
     }
 

@@ -48,6 +48,7 @@ import com.apptolast.greenhousefronts.data.model.GreenhouseData
 import com.apptolast.greenhousefronts.presentation.ui.components.ConnectionStatsDialog
 import com.apptolast.greenhousefronts.presentation.ui.components.WebSocketStatusIndicator
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseViewModel
+import com.apptolast.greenhousefronts.util.GreenhouseConstants
 import com.apptolast.greenhousefronts.util.formatDecimals
 import greenhousefronts.composeapp.generated.resources.Res
 import greenhousefronts.composeapp.generated.resources.actuator_sector_label
@@ -69,10 +70,14 @@ import org.jetbrains.compose.resources.stringResource
  * Shows 3 greenhouses with tabs for navigation and detailed sensor/actuator controls.
  *
  * @param viewModel The GreenhouseViewModel managing the state and business logic
+ * @param onNavigateToSensorDetail Callback for navigating to sensor detail screen
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(viewModel: GreenhouseViewModel) {
+fun HomeScreen(
+    viewModel: GreenhouseViewModel,
+    onNavigateToSensorDetail: (greenhouseId: String, sensorType: String) -> Unit = { _, _ -> }
+) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var showStatsDialog by remember { mutableStateOf(false) }
@@ -169,7 +174,10 @@ fun HomeScreen(viewModel: GreenhouseViewModel) {
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
 
-                    SensorCards(greenhouse = selectedGreenhouse)
+                    SensorCards(
+                        greenhouse = selectedGreenhouse,
+                        onNavigateToSensorDetail = onNavigateToSensorDetail
+                    )
 
                     Spacer(modifier = Modifier.height(24.dp))
 
@@ -221,7 +229,13 @@ fun HomeScreen(viewModel: GreenhouseViewModel) {
  * Sensor monitoring cards showing temperature and humidity
  */
 @Composable
-private fun SensorCards(greenhouse: GreenhouseData) {
+private fun SensorCards(
+    greenhouse: GreenhouseData,
+    onNavigateToSensorDetail: (greenhouseId: String, sensorType: String) -> Unit
+) {
+    // Get real greenhouse UUID from backend mapping
+    val greenhouseUuid = GreenhouseConstants.getGreenhouseUuid(greenhouse.id)
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -232,6 +246,7 @@ private fun SensorCards(greenhouse: GreenhouseData) {
             value = greenhouse.temperatura?.let { "${it.formatDecimals(1)}°C" } ?: "-- °C",
             icon = "🌡️",
             color = Color(0xFFFF6B6B),
+            onClick = { onNavigateToSensorDetail(greenhouseUuid, "TEMPERATURE") },
             modifier = Modifier.weight(1f)
         )
 
@@ -241,6 +256,7 @@ private fun SensorCards(greenhouse: GreenhouseData) {
             value = greenhouse.humedad?.let { "${it.formatDecimals(0)}%" } ?: "-- %",
             icon = "💧",
             color = Color(0xFF4ECDC4),
+            onClick = { onNavigateToSensorDetail(greenhouseUuid, "HUMIDITY") },
             modifier = Modifier.weight(1f)
         )
     }
@@ -255,10 +271,12 @@ private fun SensorCard(
     value: String,
     icon: String,
     color: Color,
+    onClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Card(
         modifier = modifier.height(120.dp),
+        onClick = onClick,
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant

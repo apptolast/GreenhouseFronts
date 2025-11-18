@@ -69,14 +69,19 @@ kotlin {
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.ktor.client.logging)
             implementation(libs.ktor.client.websockets)
+            implementation(libs.ktor.client.cio)
 
             // Krossbow STOMP WebSocket
             implementation(libs.krossbow.stomp.core)
             implementation(libs.krossbow.websocket.ktor)
+            implementation(libs.krossbow.websocket.builtin)
             implementation(libs.krossbow.stomp.kxserialization.json)
 
             // Kotlinx Libraries
             implementation(libs.kotlinx.datetime)
+
+            // Chart Library
+            implementation(libs.aay.chart)
 
             // Koin for Dependency Injection
             implementation(project.dependencies.platform(libs.koin.bom))
@@ -97,7 +102,7 @@ kotlin {
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
-            implementation(libs.ktor.client.cio)
+//            implementation(libs.ktor.client.cio)
         }
     }
 }

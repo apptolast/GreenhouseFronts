@@ -1,6 +1,9 @@
 package com.apptolast.greenhousefronts.data.repository
 
 import com.apptolast.greenhousefronts.data.model.GreenhouseMessage
+import com.apptolast.greenhousefronts.data.model.SensorStatistics
+import com.apptolast.greenhousefronts.data.model.SensorType
+import com.apptolast.greenhousefronts.data.model.TimePeriod
 import com.apptolast.greenhousefronts.data.remote.api.GreenhouseApiService
 import com.apptolast.greenhousefronts.data.remote.websocket.StompWebSocketClient
 import com.apptolast.greenhousefronts.data.remote.websocket.WebSocketConnectionState
@@ -38,6 +41,23 @@ class GreenhouseRepositoryImpl(
         return try {
             val response = apiService.publishMessage(message, topic, qos)
             Result.success(response)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getStatistics(
+        greenhouseId: String,
+        sensorType: SensorType,
+        period: TimePeriod
+    ): Result<SensorStatistics> {
+        return try {
+            val statistics = apiService.getStatistics(
+                greenhouseId = greenhouseId,
+                sensorType = sensorType.apiValue,
+                period = period.apiValue
+            )
+            Result.success(statistics)
         } catch (e: Exception) {
             Result.failure(e)
         }

@@ -1,11 +1,21 @@
 package com.apptolast.greenhousefronts.data.remote
 
 import com.apptolast.greenhousefronts.util.Environment
-import io.ktor.client.*
-import io.ktor.client.plugins.contentnegotiation.*
-import io.ktor.client.plugins.logging.*
-import io.ktor.serialization.kotlinx.json.*
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
+import io.ktor.client.engine.cio.endpoint
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.logging.DEFAULT
+import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logger
+import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.plugins.logging.SIMPLE
+import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.client.plugins.websocket.pingInterval
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
+import kotlin.time.DurationUnit
+import kotlin.time.toDuration
 
 /**
  * Factory function to create a configured HttpClient instance
@@ -13,24 +23,48 @@ import kotlinx.serialization.json.Json
  *
  * @return Configured HttpClient with Content Negotiation and Logging
  */
-fun createHttpClient() = HttpClient {
+fun createHttpClient(jsonConfig: Json) = HttpClient(CIO) {
     // Content Negotiation configuration for JSON
     install(ContentNegotiation) {
-        json(Json {
-            prettyPrint = true
-            isLenient = true
-            ignoreUnknownKeys = true
-        })
+        json(jsonConfig)
     }
 
     // Logging configuration
     install(Logging) {
-        logger = Logger.DEFAULT
-        level = LogLevel.BODY
+        logger = Logger.SIMPLE
+        level = LogLevel.ALL
+    }
+
+    install(WebSockets) {
+        pingInterval = 20.toDuration(DurationUnit.SECONDS)
+        maxFrameSize = Long.MAX_VALUE
+        contentConverter = null
     }
 
     // Base URL configuration
     expectSuccess = true
+
+    engine {
+        maxConnectionsCount = 1000
+
+//        endpoint {
+//            // Conexiones por ruta
+//            maxConnectionsPerRoute = 100
+//
+//            // Pipeline
+//            pipelineMaxSize = 20
+//
+//            // Keep alive
+//            keepAliveTime = 5000
+//
+//            // Timeouts
+//            connectTimeout = 10000
+//            connectAttempts = 3
+//
+//            // Socket timeout
+//            socketTimeout = 30000
+//        }
+    }
 }
 
 /**
