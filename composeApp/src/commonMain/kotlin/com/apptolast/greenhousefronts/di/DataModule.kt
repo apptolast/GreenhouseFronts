@@ -36,7 +36,6 @@ val dataModule = module {
 
     // Provide StompClient as singleton
 //    singleOf(::KtorWebSocketClient)
-//    single { StompClient(WebSocketClient.builtIn()) }
 
     // API Service - depends on HttpClient (injected via constructor)
     singleOf(::GreenhouseApiService)

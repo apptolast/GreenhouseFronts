@@ -1,4 +1,3 @@
-import org.gradle.kotlin.dsl.implementation
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -50,6 +49,9 @@ kotlin {
 
             // Koin Android
             implementation(libs.koin.android)
+
+            // Chart Library - Vico (native platforms)
+            implementation(libs.vico.multiplatform.m3)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -74,14 +76,10 @@ kotlin {
             // Krossbow STOMP WebSocket
             implementation(libs.krossbow.stomp.core)
             implementation(libs.krossbow.websocket.ktor)
-            implementation(libs.krossbow.websocket.builtin)
             implementation(libs.krossbow.stomp.kxserialization.json)
 
             // Kotlinx Libraries
             implementation(libs.kotlinx.datetime)
-
-            // Chart Library
-            implementation(libs.aay.chart)
 
             // Koin for Dependency Injection
             implementation(project.dependencies.platform(libs.koin.bom))
@@ -98,11 +96,25 @@ kotlin {
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
+
+            // Chart Library - Vico (native platforms)
+            implementation(libs.vico.multiplatform.m3)
         }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
 //            implementation(libs.ktor.client.cio)
+
+            // Chart Library - Vico (native platforms)
+            implementation(libs.vico.multiplatform.m3)
+        }
+        jsMain.dependencies {
+            // Chart Library - AAY-chart (web platforms)
+            implementation(libs.aay.chart)
+        }
+        wasmJsMain.dependencies {
+            // Chart Library - AAY-chart (web platforms)
+            implementation(libs.aay.chart)
         }
     }
 }
