@@ -71,7 +71,6 @@ kotlin {
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.ktor.client.logging)
             implementation(libs.ktor.client.websockets)
-            implementation(libs.ktor.client.cio)
 
             // Krossbow STOMP WebSocket
             implementation(libs.krossbow.stomp.core)
@@ -103,7 +102,6 @@ kotlin {
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
-//            implementation(libs.ktor.client.cio)
 
             // Chart Library - Vico (native platforms)
             implementation(libs.vico.multiplatform.m3)
