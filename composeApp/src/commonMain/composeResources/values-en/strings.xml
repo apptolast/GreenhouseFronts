@@ -116,6 +116,7 @@
     <string name="error_reconnect_failed">Failed to reconnect: %1$s</string>
     <string name="error_connection_failed">Connection error</string>
     <string name="error_unknown">Unknown error</string>
+    <string name="error_load_statistics">Error loading statistics: %1$s</string>
 
     <!-- ========================================================================== -->
     <!-- Accessibility (Content Descriptions) -->
@@ -145,4 +146,24 @@
     <string name="time_minutes">%1$d min</string>
     <string name="time_hours">%1$d h</string>
     <string name="time_days">%1$d days</string>
+
+    <!-- ========================================================================== -->
+    <!-- Sensor Detail Screen -->
+    <!-- ========================================================================== -->
+    <string name="sensor_detail_title">Data History</string>
+    <string name="sensor_detail_back">Back</string>
+    <string name="sensor_detail_no_chart_data">No chart data available</string>
+
+    <!-- Statistics Labels -->
+    <string name="stat_average">Average</string>
+    <string name="stat_max">Max</string>
+    <string name="stat_min">Min</string>
+
+    <!-- Time Period Filters -->
+    <string name="period_last_24h">Last 24h</string>
+    <string name="period_last_7d">Last 7 days</string>
+    <string name="period_last_30d">Last Month</string>
+
+    <!-- Sensor Type with Unit -->
+    <string name="sensor_type_with_unit">%1$s (%2$s)</string>
 </resources>

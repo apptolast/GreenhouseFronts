@@ -2,6 +2,7 @@ package com.apptolast.greenhousefronts.data.remote.websocket
 
 import com.apptolast.greenhousefronts.data.model.GreenhouseMessage
 import com.apptolast.greenhousefronts.util.Environment
+import io.ktor.client.HttpClient
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,10 +14,14 @@ import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.serialization.json.Json
+import org.hildan.krossbow.stomp.StompClient
 import org.hildan.krossbow.stomp.StompSession
+import org.hildan.krossbow.stomp.config.StompConfig
 import org.hildan.krossbow.stomp.conversions.kxserialization.json.withJsonConversions
 import org.hildan.krossbow.stomp.subscribeText
+import org.hildan.krossbow.websocket.ktor.KtorWebSocketClient
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 
 /**
@@ -27,15 +32,11 @@ import kotlin.time.ExperimentalTime
  * @param stompClient Injected STOMP client for WebSocket communication
  */
 class StompWebSocketClient(
-    private val stompClient: org.hildan.krossbow.stomp.StompClient
+    private val httpClient: HttpClient,
+    private val json: Json,
 ) {
 
     private var session: StompSession? = null
-
-    val json = Json {
-        encodeDefaults = true
-        ignoreUnknownKeys = true
-    }
 
     private val _connectionState = MutableStateFlow(WebSocketConnectionState())
     val connectionState: StateFlow<WebSocketConnectionState> = _connectionState.asStateFlow()
@@ -59,7 +60,33 @@ class StompWebSocketClient(
         return try {
             val connectionTime = Clock.System.now().toEpochMilliseconds()
 
-            session = stompClient.connect(webSocketUrl).withJsonConversions(json)
+            val wsClient = KtorWebSocketClient(httpClient)
+
+            val stompConfig = StompConfig().apply {
+                // Connection timeout
+                connectionTimeout = 10.seconds
+
+                // Timeout para recibir RECEIPT frames
+                receiptTimeout = 5.seconds
+
+                // Timeout para disconnect graceful
+                disconnectTimeout = 3.seconds
+
+                // Auto receipt - espera confirmación del servidor
+                autoReceipt = false // Deshabilitado para mejor rendimiento
+
+                // Graceful disconnect - cierre limpio
+                gracefulDisconnect = true
+
+                // Conectar con protocolo STOMP
+                connectWithStompCommand = true
+            }
+
+            session = StompClient(
+                webSocketClient = wsClient,
+                config = stompConfig
+            ).connect(webSocketUrl)
+                .withJsonConversions(json)
 
             _connectionState.value = _connectionState.value.copy(
                 isConnected = true,
@@ -93,7 +120,7 @@ class StompWebSocketClient(
         return currentSession.subscribeText("/topic/greenhouse/messages")
             .map { jsonString ->
                 // Deserialize JSON string to GreenhouseMessage
-                Json.decodeFromString<GreenhouseMessage>(jsonString)
+                json.decodeFromString<GreenhouseMessage>(jsonString)
             }
             .onStart {
                 println("Starting subscription to /topic/greenhouse/messages")

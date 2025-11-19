@@ -1,6 +1,7 @@
 package com.apptolast.greenhousefronts.data.remote.api
 
 import com.apptolast.greenhousefronts.data.model.GreenhouseMessage
+import com.apptolast.greenhousefronts.data.model.SensorStatistics
 import com.apptolast.greenhousefronts.data.remote.baseUrl
 import io.ktor.client.HttpClient
 import io.ktor.client.call.*
@@ -43,6 +44,27 @@ class GreenhouseApiService(
             parameter("qos", qos)
             contentType(ContentType.Application.Json)
             setBody(message)
+        }.body()
+    }
+
+    /**
+     * Retrieves historical sensor statistics for a specific greenhouse and sensor type
+     * GET /api/statistics/historical-data
+     *
+     * @param greenhouseId UUID of the greenhouse
+     * @param sensorType Type of sensor (e.g., "TEMPERATURE", "HUMIDITY")
+     * @param period Time period for the data (e.g., "24h", "7d", "30d")
+     * @return SensorStatistics containing historical data and statistics
+     */
+    suspend fun getStatistics(
+        greenhouseId: String,
+        sensorType: String,
+        period: String
+    ): SensorStatistics {
+        return httpClient.get("$baseUrl/api/statistics/historical-data") {
+            parameter("greenhouseId", greenhouseId)
+            parameter("sensorType", sensorType)
+            parameter("period", period)
         }.body()
     }
 }

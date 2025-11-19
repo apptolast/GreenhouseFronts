@@ -116,6 +116,7 @@
     <string name="error_reconnect_failed">Failed to reconnect: %1$s</string>
     <string name="error_connection_failed">Error de conexión</string>
     <string name="error_unknown">Error desconocido</string>
+    <string name="error_load_statistics">Error al cargar estadísticas: %1$s</string>
 
     <!-- ========================================================================== -->
     <!-- Accessibility (Content Descriptions) -->
@@ -145,4 +146,24 @@
     <string name="time_minutes">%1$d min</string>
     <string name="time_hours">%1$d h</string>
     <string name="time_days">%1$d días</string>
+
+    <!-- ========================================================================== -->
+    <!-- Sensor Detail Screen -->
+    <!-- ========================================================================== -->
+    <string name="sensor_detail_title">Historial de Datos</string>
+    <string name="sensor_detail_back">Atrás</string>
+    <string name="sensor_detail_no_chart_data">No hay datos de gráfica disponibles</string>
+
+    <!-- Statistics Labels -->
+    <string name="stat_average">Promedio</string>
+    <string name="stat_max">Máx</string>
+    <string name="stat_min">Mín</string>
+
+    <!-- Time Period Filters -->
+    <string name="period_last_24h">Últimas 24h</string>
+    <string name="period_last_7d">Últimos 7 días</string>
+    <string name="period_last_30d">Último Mes</string>
+
+    <!-- Sensor Type with Unit -->
+    <string name="sensor_type_with_unit">%1$s (%2$s)</string>
 </resources>

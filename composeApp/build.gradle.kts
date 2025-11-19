@@ -1,4 +1,3 @@
-import org.gradle.kotlin.dsl.implementation
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -50,6 +49,9 @@ kotlin {
 
             // Koin Android
             implementation(libs.koin.android)
+
+            // Chart Library - Vico (native platforms)
+            implementation(libs.vico.multiplatform.m3)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -93,11 +95,25 @@ kotlin {
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
+
+            // Chart Library - Vico (native platforms)
+            implementation(libs.vico.multiplatform.m3)
         }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
             implementation(libs.ktor.client.cio)
+
+            // Chart Library - Vico (native platforms)
+            implementation(libs.vico.multiplatform.m3)
+        }
+        jsMain.dependencies {
+            // Chart Library - AAY-chart (web platforms)
+            implementation(libs.aay.chart)
+        }
+        wasmJsMain.dependencies {
+            // Chart Library - AAY-chart (web platforms)
+            implementation(libs.aay.chart)
         }
     }
 }
