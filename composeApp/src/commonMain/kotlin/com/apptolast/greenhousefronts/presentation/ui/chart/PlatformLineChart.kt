@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.apptolast.greenhousefronts.data.model.SensorStatistics
 import com.apptolast.greenhousefronts.data.model.SensorType
+import com.apptolast.greenhousefronts.data.model.TimePeriod
 
 /**
  * Platform-specific line chart implementation.
@@ -19,5 +20,6 @@ import com.apptolast.greenhousefronts.data.model.SensorType
 expect fun PlatformLineChart(
     statistics: SensorStatistics,
     sensorType: SensorType,
+    selectedPeriod: TimePeriod,
     modifier: Modifier
 )

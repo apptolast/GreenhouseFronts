@@ -28,6 +28,7 @@ import kotlin.time.ExperimentalTime
 actual fun PlatformLineChart(
     statistics: SensorStatistics,
     sensorType: SensorType,
+    selectedPeriod: TimePeriod,
     modifier: Modifier
 ) {
     if (statistics.chartData.isNotEmpty()) {

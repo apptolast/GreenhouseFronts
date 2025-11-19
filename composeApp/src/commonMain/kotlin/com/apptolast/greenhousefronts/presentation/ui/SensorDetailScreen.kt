@@ -38,7 +38,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.apptolast.greenhousefronts.data.model.SensorStatistics
 import com.apptolast.greenhousefronts.data.model.SensorType
 import com.apptolast.greenhousefronts.data.model.TimePeriod
@@ -53,7 +52,6 @@ import greenhousefronts.composeapp.generated.resources.period_last_24h
 import greenhousefronts.composeapp.generated.resources.period_last_30d
 import greenhousefronts.composeapp.generated.resources.period_last_7d
 import greenhousefronts.composeapp.generated.resources.sensor_detail_back
-import greenhousefronts.composeapp.generated.resources.sensor_detail_no_chart_data
 import greenhousefronts.composeapp.generated.resources.sensor_detail_title
 import greenhousefronts.composeapp.generated.resources.sensor_type_with_unit
 import greenhousefronts.composeapp.generated.resources.stat_average
@@ -251,7 +249,8 @@ private fun SensorDetailContent(
         // Chart
         HistoricalChart(
             statistics = statistics,
-            sensorType = sensorType
+            sensorType = sensorType,
+            selectedPeriod = selectedPeriod
         )
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -339,7 +338,8 @@ private fun TrendIndicator(
 @Composable
 private fun HistoricalChart(
     statistics: SensorStatistics,
-    sensorType: SensorType
+    sensorType: SensorType,
+    selectedPeriod: TimePeriod
 ) {
     Card(
         modifier = Modifier
@@ -358,6 +358,7 @@ private fun HistoricalChart(
             PlatformLineChart(
                 statistics = statistics,
                 sensorType = sensorType,
+                selectedPeriod = selectedPeriod,
                 modifier = Modifier.fillMaxSize()
             )
         }

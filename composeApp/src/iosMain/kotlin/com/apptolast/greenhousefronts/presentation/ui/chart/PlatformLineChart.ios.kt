@@ -8,6 +8,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import com.apptolast.greenhousefronts.data.model.SensorStatistics
 import com.apptolast.greenhousefronts.data.model.SensorType
 import com.patrykandpatrick.vico.multiplatform.cartesian.CartesianChartHost
@@ -31,6 +32,7 @@ import org.jetbrains.compose.resources.stringResource
 actual fun PlatformLineChart(
     statistics: SensorStatistics,
     sensorType: SensorType,
+    selectedPeriod: TimePeriod,
     modifier: Modifier
 ) {
     if (statistics.chartData.isNotEmpty()) {
@@ -51,7 +53,20 @@ actual fun PlatformLineChart(
                 rememberLineCartesianLayer(
                     lineProvider = LineCartesianLayer.LineProvider.series(
                         LineCartesianLayer.Line(
-                            LineCartesianLayer.LineFill.single(Fill(lineColor))
+                            // Neon green line with gradient fill
+                            fill = LineCartesianLayer.LineFill.single(Fill(lineColor)),
+
+                            // Gradient area fill from bright green to transparent
+                            areaFill = LineCartesianLayer.AreaFill.single(
+                                Fill(
+                                    Brush.verticalGradient(
+                                        listOf(
+                                            lineColor.copy(alpha = 0.4f),  // Bright green with 40% opacity at top
+                                            lineColor.copy(alpha = 0.0f)   // Fully transparent at bottom
+                                        )
+                                    )
+                                )
+                            )
                         )
                     )
                 ),

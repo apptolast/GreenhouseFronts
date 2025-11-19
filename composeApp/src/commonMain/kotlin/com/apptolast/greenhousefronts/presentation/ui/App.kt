@@ -32,7 +32,7 @@ fun App() {
 
         NavHost(
             navController = navController,
-            startDestination = LoginRoute
+            startDestination = HomeRoute
         ) {
             // Login screen route
             composable<LoginRoute> {
