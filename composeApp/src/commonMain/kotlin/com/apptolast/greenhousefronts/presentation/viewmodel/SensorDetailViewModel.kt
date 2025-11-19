@@ -77,7 +77,7 @@ class SensorDetailViewModel(
                 .onFailure { exception ->
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        error = "Error al cargar estadísticas: ${exception.message}"
+                        error = exception.message
                     )
                 }
         }

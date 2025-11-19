@@ -116,6 +116,7 @@
     <string name="error_reconnect_failed">Failed to reconnect: %1$s</string>
     <string name="error_connection_failed">Error de conexión</string>
     <string name="error_unknown">Error desconocido</string>
+    <string name="error_load_statistics">Error al cargar estadísticas: %1$s</string>
 
     <!-- ========================================================================== -->
     <!-- Accessibility (Content Descriptions) -->

@@ -87,8 +87,6 @@ class StompWebSocketClient(
                 config = stompConfig
             ).connect(webSocketUrl)
                 .withJsonConversions(json)
-            println("Websocket url: $webSocketUrl")
-//            session = KtorWebSocketClient(httpClient ).connect(webSocketUrl).withJsonConversions(json)
 
             _connectionState.value = _connectionState.value.copy(
                 isConnected = true,
@@ -119,11 +117,9 @@ class StompWebSocketClient(
         val currentSession = session
             ?: throw IllegalStateException("Must connect() before subscribing")
 
-        println("Session: $session")
         return currentSession.subscribeText("/topic/greenhouse/messages")
             .map { jsonString ->
                 // Deserialize JSON string to GreenhouseMessage
-                println("----Json----: $jsonString")
                 json.decodeFromString<GreenhouseMessage>(jsonString)
             }
             .onStart {

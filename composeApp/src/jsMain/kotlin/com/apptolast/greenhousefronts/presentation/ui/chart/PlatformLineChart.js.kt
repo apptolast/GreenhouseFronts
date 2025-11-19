@@ -14,6 +14,7 @@ import com.apptolast.greenhousefronts.data.model.SensorStatistics
 import com.apptolast.greenhousefronts.data.model.SensorType
 import greenhousefronts.composeapp.generated.resources.Res
 import greenhousefronts.composeapp.generated.resources.sensor_detail_no_chart_data
+import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.stringResource
@@ -92,7 +93,7 @@ private fun formatXAxisLabels(timestamps: List<String>): List<String> {
 
         selectedTimestamps.map { timestamp ->
             try {
-                val instant = kotlin.time.Instant.parse(timestamp)
+                val instant = Instant.parse(timestamp)
                 val dateTime = instant.toLocalDateTime(TimeZone.currentSystemDefault())
 
                 // If showing 24h data, show time (HH:mm)

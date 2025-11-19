@@ -47,6 +47,7 @@ import com.apptolast.greenhousefronts.util.formatDecimals
 import greenhousefronts.composeapp.generated.resources.Res
 import greenhousefronts.composeapp.generated.resources.action_retry
 import greenhousefronts.composeapp.generated.resources.empty_state
+import greenhousefronts.composeapp.generated.resources.error_load_statistics
 import greenhousefronts.composeapp.generated.resources.error_unknown
 import greenhousefronts.composeapp.generated.resources.period_last_24h
 import greenhousefronts.composeapp.generated.resources.period_last_30d
@@ -135,7 +136,9 @@ fun SensorDetailScreen(
                         verticalArrangement = Arrangement.Center
                     ) {
                         Text(
-                            text = uiState.error ?: stringResource(Res.string.error_unknown),
+                            text = uiState.error?.let {
+                                stringResource(Res.string.error_load_statistics, it)
+                            } ?: stringResource(Res.string.error_unknown),
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.error
                         )
