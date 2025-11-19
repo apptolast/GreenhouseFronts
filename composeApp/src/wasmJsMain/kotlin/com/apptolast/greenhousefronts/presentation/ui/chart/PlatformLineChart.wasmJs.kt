@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.sp
@@ -12,16 +13,15 @@ import com.aay.compose.lineChart.model.LineParameters
 import com.aay.compose.lineChart.model.LineType
 import com.apptolast.greenhousefronts.data.model.SensorStatistics
 import com.apptolast.greenhousefronts.data.model.SensorType
+import com.apptolast.greenhousefronts.data.model.TimePeriod
+import com.apptolast.greenhousefronts.util.generateMockData
+import com.apptolast.greenhousefronts.util.selectXAxisLabels
 import greenhousefronts.composeapp.generated.resources.Res
 import greenhousefronts.composeapp.generated.resources.sensor_detail_no_chart_data
-import kotlinx.datetime.Instant
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.stringResource
-import kotlin.time.ExperimentalTime
 
 /**
- * WebAssembly platform implementation using AAY-chart.
+ * WebAssembly (Wasm) platform implementation using AAY-chart.
  * Provides web-compatible charting with smooth curved lines.
  */
 @Composable
@@ -31,9 +31,33 @@ actual fun PlatformLineChart(
     selectedPeriod: TimePeriod,
     modifier: Modifier
 ) {
-    if (statistics.chartData.isNotEmpty()) {
+    // Generate or use real data
+    val chartData = remember(selectedPeriod, statistics.chartData) {
+        // Use mock data for testing - Replace with real data when available
+        if (statistics.chartData.size < 5) {
+            generateMockData(selectedPeriod, baseValue = statistics.currentValue)
+        } else {
+            statistics.chartData
+        }
+    }
+
+    if (chartData.isNotEmpty()) {
         // Convert chartData to LineChart format
-        val chartValues = statistics.chartData.map { it.value }
+        val chartValues = chartData.map { it.value }
+
+        // Get timestamps as Long values
+        val timestamps = chartData.map { it.timestamp.toLongOrNull() ?: 0L }
+
+        // Use shared utility to select and format X-axis labels
+        val labelPairs = selectXAxisLabels(timestamps, selectedPeriod, maxLabels = 6)
+
+        // Create full list of labels (empty strings for non-selected indices)
+        val xAxisLabels = MutableList(chartData.size) { "" }
+        labelPairs.forEach { (index, label) ->
+            if (index < xAxisLabels.size) {
+                xAxisLabels[index] = label
+            }
+        }
 
         LineChart(
             modifier = modifier,
@@ -47,7 +71,7 @@ actual fun PlatformLineChart(
                 )
             ),
             gridColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-            xAxisData = formatXAxisLabels(statistics.chartData.map { it.timestamp }),
+            xAxisData = xAxisLabels,
             animateChart = true,
             showGridWithSpacer = true,
             yAxisStyle = androidx.compose.ui.text.TextStyle(
@@ -73,43 +97,5 @@ actual fun PlatformLineChart(
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )
         }
-    }
-}
-
-/**
- * Formats timestamps for X-axis labels
- * Shows time for 24h period, dates for longer periods
- */
-@OptIn(ExperimentalTime::class)
-private fun formatXAxisLabels(timestamps: List<String>): List<String> {
-    if (timestamps.isEmpty()) return emptyList()
-
-    return try {
-        // Take subset of timestamps for display (show ~5-6 labels max)
-        val step = maxOf(1, timestamps.size / 5)
-        val selectedTimestamps = timestamps.filterIndexed { index, _ ->
-            index % step == 0 || index == timestamps.lastIndex
-        }
-
-        selectedTimestamps.map { timestamp ->
-            try {
-                val instant = Instant.parse(timestamp)
-                val dateTime = instant.toLocalDateTime(TimeZone.currentSystemDefault())
-
-                // If showing 24h data, show time (HH:mm)
-                // If showing longer period, show date (MM/DD)
-                if (timestamps.size < 48) { // Less than 48 points = likely hourly data (24h or less)
-                    "${dateTime.hour.toString().padStart(2, '0')}:${
-                        dateTime.minute.toString().padStart(2, '0')
-                    }"
-                } else { // Daily or longer data
-                    "${dateTime.month.ordinal + 1}/${dateTime.day}"
-                }
-            } catch (e: Exception) {
-                ""
-            }
-        }
-    } catch (e: Exception) {
-        emptyList()
     }
 }

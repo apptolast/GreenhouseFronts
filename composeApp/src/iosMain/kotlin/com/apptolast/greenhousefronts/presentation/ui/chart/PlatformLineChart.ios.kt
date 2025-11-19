@@ -9,17 +9,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.TextStyle
 import com.apptolast.greenhousefronts.data.model.SensorStatistics
 import com.apptolast.greenhousefronts.data.model.SensorType
+import com.apptolast.greenhousefronts.data.model.TimePeriod
+import com.apptolast.greenhousefronts.util.formatXAxisLabel
+import com.apptolast.greenhousefronts.util.generateMockData
 import com.patrykandpatrick.vico.multiplatform.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.multiplatform.cartesian.axis.HorizontalAxis
 import com.patrykandpatrick.vico.multiplatform.cartesian.axis.VerticalAxis
-import com.patrykandpatrick.vico.multiplatform.cartesian.layer.rememberLineCartesianLayer
-import com.patrykandpatrick.vico.multiplatform.cartesian.rememberCartesianChart
-import com.patrykandpatrick.vico.multiplatform.common.Fill
 import com.patrykandpatrick.vico.multiplatform.cartesian.data.CartesianChartModelProducer
+import com.patrykandpatrick.vico.multiplatform.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.multiplatform.cartesian.data.lineSeries
 import com.patrykandpatrick.vico.multiplatform.cartesian.layer.LineCartesianLayer
+import com.patrykandpatrick.vico.multiplatform.cartesian.layer.rememberLineCartesianLayer
+import com.patrykandpatrick.vico.multiplatform.cartesian.rememberCartesianChart
+import com.patrykandpatrick.vico.multiplatform.cartesian.rememberVicoScrollState
+import com.patrykandpatrick.vico.multiplatform.common.Fill
+import com.patrykandpatrick.vico.multiplatform.common.component.TextComponent
 import greenhousefronts.composeapp.generated.resources.Res
 import greenhousefronts.composeapp.generated.resources.sensor_detail_no_chart_data
 import org.jetbrains.compose.resources.stringResource
@@ -35,25 +42,46 @@ actual fun PlatformLineChart(
     selectedPeriod: TimePeriod,
     modifier: Modifier
 ) {
-    if (statistics.chartData.isNotEmpty()) {
+    // Generate or use real data
+    val chartData = remember(selectedPeriod, statistics.chartData) {
+        // Use mock data for testing - Replace with real data when available
+        if (statistics.chartData.size < 5) {
+            generateMockData(selectedPeriod, baseValue = statistics.currentValue)
+        } else {
+            statistics.chartData
+        }
+    }
+
+    if (chartData.isNotEmpty()) {
         val modelProducer = remember { CartesianChartModelProducer() }
+
+        // Theme color for chart line
         val lineColor = MaterialTheme.colorScheme.primary
 
         // Update model with chart data
-        LaunchedEffect(statistics.chartData) {
+        LaunchedEffect(chartData) {
             modelProducer.runTransaction {
                 lineSeries {
-                    series(statistics.chartData.map { it.value })
+                    series(
+                        x = chartData.map { it.timestamp.toLongOrNull() ?: 0L },
+                        y = chartData.map { it.value }
+                    )
                 }
             }
         }
 
+        // Custom value formatter for X-axis
+        val xAxisValueFormatter = remember(selectedPeriod) {
+            CartesianValueFormatter { value, chartValues, _ ->
+                formatXAxisLabel(chartValues.toLong(), selectedPeriod)
+            }
+        }
+
         CartesianChartHost(
-            rememberCartesianChart(
+            chart = rememberCartesianChart(
                 rememberLineCartesianLayer(
                     lineProvider = LineCartesianLayer.LineProvider.series(
                         LineCartesianLayer.Line(
-                            // Neon green line with gradient fill
                             fill = LineCartesianLayer.LineFill.single(Fill(lineColor)),
 
                             // Gradient area fill from bright green to transparent
@@ -67,14 +95,42 @@ actual fun PlatformLineChart(
                                     )
                                 )
                             )
-                        )
-                    )
+                        ),
+                    ),
                 ),
-                startAxis = VerticalAxis.rememberStart(),
-                bottomAxis = HorizontalAxis.rememberBottom()
+                startAxis = VerticalAxis.rememberStart(
+                    guideline = null,
+                    title = sensorType.displayName,
+                    titleComponent = TextComponent(
+                        textStyle = TextStyle(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    ),
+                    label = TextComponent(
+                        textStyle = TextStyle(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    ),
+                ),
+                bottomAxis = HorizontalAxis.rememberBottom(
+                    guideline = null,
+                    valueFormatter = xAxisValueFormatter,
+                    title = "Time",
+                    titleComponent = TextComponent(
+                        textStyle = TextStyle(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    ),
+                    label = TextComponent(
+                        textStyle = TextStyle(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    ),
+                ),
             ),
-            modelProducer,
-            modifier
+            modelProducer = modelProducer,
+            modifier = modifier,
+            scrollState = rememberVicoScrollState(scrollEnabled = true)
         )
     } else {
         // No chart data

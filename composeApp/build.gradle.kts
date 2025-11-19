@@ -102,6 +102,7 @@ kotlin {
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
+            implementation(libs.ktor.client.cio)
 
             // Chart Library - Vico (native platforms)
             implementation(libs.vico.multiplatform.m3)
