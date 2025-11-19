@@ -17,22 +17,19 @@ val dataModule = module {
 
     single {
         Json {
-            // Configuración MUY permisiva para debug
+            // Permissive configuration for handling API responses
             ignoreUnknownKeys = true
             isLenient = true
             encodeDefaults = true
             coerceInputValues = true
             explicitNulls = false
             allowStructuredMapKeys = true
-            prettyPrint = false  // Mejor rendimiento
+            prettyPrint = false  // Better performance
             useArrayPolymorphism = false
-
-            // iOS específico - a veces ayuda
-//            classDiscriminator = "type"
         }
     }
-    // Provide HttpClient as singleton
-    singleOf(::createHttpClient)
+    // Provide HttpClient as singleton with injected Json configuration
+    single { createHttpClient(get()) }
 
     // Provide StompClient as singleton
 //    singleOf(::KtorWebSocketClient)
