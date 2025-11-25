@@ -10,6 +10,13 @@ import kotlinx.serialization.Serializable
 object LoginRoute
 
 /**
+ * Represents the registration screen route.
+ * Allows new tenants/companies to create an account.
+ */
+@Serializable
+object RegisterRoute
+
+/**
  * Represents the home screen route.
  * This is the main screen after successful login, showing greenhouse data.
  */

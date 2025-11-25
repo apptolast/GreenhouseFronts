@@ -5,6 +5,7 @@ import com.apptolast.greenhousefronts.data.model.TimePeriod
 import kotlinx.datetime.DayOfWeek
 import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.days
@@ -106,14 +107,13 @@ fun formatXAxisLabel(timestampMillis: Long, period: TimePeriod): String {
                 DayOfWeek.FRIDAY -> "Vie"
                 DayOfWeek.SATURDAY -> "Sáb"
                 DayOfWeek.SUNDAY -> "Dom"
-                else -> ""
             }
-            "$dayOfWeek ${dateTime.dayOfMonth}"
+            "$dayOfWeek ${dateTime.day}"
         }
 
         TimePeriod.LAST_30D -> {
             // Show day and month: "1/12", "5/12", "10/12", etc.
-            "${dateTime.dayOfMonth}/${dateTime.monthNumber}"
+            "${dateTime.day}/${dateTime.month.number}"
         }
     }
 }
