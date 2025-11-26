@@ -9,8 +9,10 @@ import com.apptolast.greenhousefronts.data.model.SensorType
 import com.apptolast.greenhousefronts.presentation.navigation.ConfigureWebNavigation
 import com.apptolast.greenhousefronts.presentation.navigation.HomeRoute
 import com.apptolast.greenhousefronts.presentation.navigation.LoginRoute
+import com.apptolast.greenhousefronts.presentation.navigation.RegisterRoute
 import com.apptolast.greenhousefronts.presentation.navigation.SensorDetailRoute
 import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
+import com.apptolast.greenhousefronts.presentation.viewmodel.AuthViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.SensorDetailViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -32,16 +34,38 @@ fun App() {
 
         NavHost(
             navController = navController,
-            startDestination = HomeRoute
+            startDestination = LoginRoute
         ) {
             // Login screen route
             composable<LoginRoute> {
+                val authViewModel: AuthViewModel = koinViewModel()
                 LoginScreen(
+                    viewModel = authViewModel,
                     onLoginSuccess = {
                         navController.navigate(HomeRoute) {
-                            // Clear login screen from back stack
+                            // Clear auth screens from back stack
                             popUpTo(LoginRoute) { inclusive = true }
                         }
+                    },
+                    onNavigateToRegister = {
+                        navController.navigate(RegisterRoute)
+                    }
+                )
+            }
+
+            // Register screen route
+            composable<RegisterRoute> {
+                val authViewModel: AuthViewModel = koinViewModel()
+                RegisterScreen(
+                    viewModel = authViewModel,
+                    onRegisterSuccess = {
+                        navController.navigate(HomeRoute) {
+                            // Clear auth screens from back stack
+                            popUpTo(LoginRoute) { inclusive = true }
+                        }
+                    },
+                    onNavigateToLogin = {
+                        navController.popBackStack()
                     }
                 )
             }

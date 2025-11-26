@@ -71,6 +71,12 @@ kotlin {
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.ktor.client.logging)
             implementation(libs.ktor.client.websockets)
+            implementation(libs.ktor.client.auth)
+
+            // Multiplatform Settings for token storage
+            implementation(libs.multiplatform.settings)
+            implementation(libs.multiplatform.settings.no.arg)
+            implementation(libs.multiplatform.settings.coroutines)
 
             // Krossbow STOMP WebSocket
             implementation(libs.krossbow.stomp.core)

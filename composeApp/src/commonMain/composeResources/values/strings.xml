@@ -21,6 +21,48 @@
     <string name="login_signup_link">Regístrate</string>
 
     <!-- ========================================================================== -->
+    <!-- Register Screen -->
+    <!-- ========================================================================== -->
+    <string name="register_title">Crear Cuenta</string>
+    <string name="register_subtitle">Completa tus datos para registrarte</string>
+
+    <!-- Company Info -->
+    <string name="register_company_name_label">Nombre de Empresa</string>
+    <string name="register_company_name_placeholder">Ingresa el nombre de tu empresa</string>
+    <string name="register_tax_id_label">NIF/CIF</string>
+    <string name="register_tax_id_placeholder">Ingresa tu NIF o CIF</string>
+
+    <!-- User Info -->
+    <string name="register_first_name_label">Nombre</string>
+    <string name="register_first_name_placeholder">Ingresa tu nombre</string>
+    <string name="register_last_name_label">Apellido</string>
+    <string name="register_last_name_placeholder">Ingresa tu apellido</string>
+    <string name="register_email_label">Email</string>
+    <string name="register_email_placeholder">Ingresa tu email</string>
+    <string name="register_password_label">Contraseña</string>
+    <string name="register_password_placeholder">Mínimo 6 caracteres</string>
+
+    <!-- Optional Fields -->
+    <string name="register_phone_label">Teléfono (opcional)</string>
+    <string name="register_phone_placeholder">Ingresa tu teléfono</string>
+    <string name="register_address_label">Dirección (opcional)</string>
+    <string name="register_address_placeholder">Ingresa tu dirección</string>
+
+    <!-- Actions -->
+    <string name="register_button">Registrarse</string>
+    <string name="register_login_prompt">¿Ya tienes una cuenta?</string>
+    <string name="register_login_link">Inicia sesión</string>
+
+    <!-- Content Descriptions for Register -->
+    <string name="cd_company_icon">Empresa</string>
+    <string name="cd_tax_id_icon">NIF/CIF</string>
+    <string name="cd_email_icon">Email</string>
+    <string name="cd_name_icon">Nombre</string>
+    <string name="cd_phone_icon">Teléfono</string>
+    <string name="cd_address_icon">Dirección</string>
+    <string name="cd_back">Volver</string>
+
+    <!-- ========================================================================== -->
     <!-- Home Screen -->
     <!-- ========================================================================== -->
     <string name="home_title">Mi Invernadero</string>
