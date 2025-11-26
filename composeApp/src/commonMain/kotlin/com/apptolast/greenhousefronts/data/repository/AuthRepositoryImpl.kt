@@ -87,8 +87,9 @@ class AuthRepositoryImpl(
             HttpStatusCode.BadRequest -> {
                 val body = try {
                     e.response.bodyAsText()
-                } catch (_: Exception) {
-                    ""
+                } catch (ex: Exception) {
+                    println("Failed to parse error response body: ${ex.message}")
+                    "Unable to parse error response"
                 }
 
                 when {
