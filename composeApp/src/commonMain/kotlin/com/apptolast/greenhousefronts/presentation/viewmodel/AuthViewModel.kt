@@ -297,6 +297,8 @@ class AuthViewModel(
      * Basic email validation.
      */
     private fun isValidEmail(email: String): Boolean {
-        return email.contains("@") && email.contains(".")
+        // Use a robust regex for email validation
+        val emailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$".toRegex()
+        return emailRegex.matches(email)
     }
 }
