@@ -149,7 +149,7 @@ private fun LoginScreenContent(
                     .background(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
                     .padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                verticalArrangement = Arrangement.Top
             ) {
                 // Logo and Title
                 Box(modifier = Modifier.size(70.dp), contentAlignment = Alignment.Center) {

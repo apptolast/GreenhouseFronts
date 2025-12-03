@@ -38,7 +38,13 @@ data class AuthUiState(
     val address: String = "",
 
     // Forgot Password fields
-    val forgotPasswordEmail: String = ""
+    val forgotPasswordEmail: String = "",
+
+    // Reset Password fields
+    val resetPasswordToken: String = "",
+    val newPassword: String = "",
+    val confirmNewPassword: String = "",
+    val isNewPasswordVisible: Boolean = false
 )
 
 /**
@@ -49,6 +55,7 @@ sealed interface AuthEvent {
     data object LoginSuccess : AuthEvent
     data object RegisterSuccess : AuthEvent
     data object ForgotPasswordSuccess : AuthEvent
+    data object ResetPasswordSuccess : AuthEvent
 }
 
 /**
@@ -125,6 +132,22 @@ class AuthViewModel(
 
     fun updateForgotPasswordEmail(value: String) {
         _uiState.update { it.copy(forgotPasswordEmail = value) }
+    }
+
+    fun updateResetPasswordToken(value: String) {
+        _uiState.update { it.copy(resetPasswordToken = value) }
+    }
+
+    fun updateNewPassword(value: String) {
+        _uiState.update { it.copy(newPassword = value) }
+    }
+
+    fun updateConfirmNewPassword(value: String) {
+        _uiState.update { it.copy(confirmNewPassword = value) }
+    }
+
+    fun toggleNewPasswordVisibility() {
+        _uiState.update { it.copy(isNewPasswordVisible = !it.isNewPasswordVisible) }
     }
 
     // ========== Auth Operations ==========
@@ -266,6 +289,55 @@ class AuthViewModel(
     }
 
     /**
+     * Resets the password using the token and new password.
+     */
+    fun resetPassword() {
+        if (_uiState.value.isLoading) return
+
+        viewModelScope.launch {
+            authMutex.withLock {
+                if (_uiState.value.isLoading) return@launch
+
+                val currentState = _uiState.value
+
+                if (currentState.newPassword.isBlank()) {
+                    _uiState.update { it.copy(error = "Por favor, ingresa la nueva contraseña") }
+                    return@launch
+                }
+
+                if (currentState.newPassword.length < 6) {
+                    _uiState.update { it.copy(error = "La contraseña debe tener al menos 6 caracteres") }
+                    return@launch
+                }
+
+                if (currentState.newPassword != currentState.confirmNewPassword) {
+                    _uiState.update { it.copy(error = "Las contraseñas no coinciden") }
+                    return@launch
+                }
+
+                _uiState.update { it.copy(isLoading = true, error = null) }
+
+                authRepository.resetPassword(
+                    currentState.resetPasswordToken,
+                    currentState.newPassword
+                )
+                    .onSuccess {
+                        _uiState.update { it.copy(isLoading = false) }
+                        _events.send(AuthEvent.ResetPasswordSuccess)
+                    }
+                    .onFailure { error ->
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                error = error.message ?: "Error al restablecer contraseña"
+                            )
+                        }
+                    }
+            }
+        }
+    }
+
+    /**
      * Logs out the current user.
      */
     fun logout() {
@@ -325,6 +397,17 @@ class AuthViewModel(
     fun clearForgotPasswordForm() {
         _uiState.update {
             it.copy(forgotPasswordEmail = "")
+        }
+    }
+
+    fun clearResetPasswordForm() {
+        _uiState.update {
+            it.copy(
+                resetPasswordToken = "",
+                newPassword = "",
+                confirmNewPassword = "",
+                isNewPasswordVisible = false
+            )
         }
     }
 

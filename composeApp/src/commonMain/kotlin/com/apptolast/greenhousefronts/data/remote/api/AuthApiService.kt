@@ -4,6 +4,7 @@ import com.apptolast.greenhousefronts.data.model.auth.ForgotPasswordRequest
 import com.apptolast.greenhousefronts.data.model.auth.JwtResponse
 import com.apptolast.greenhousefronts.data.model.auth.LoginRequest
 import com.apptolast.greenhousefronts.data.model.auth.RegisterRequest
+import com.apptolast.greenhousefronts.data.model.auth.ResetPasswordRequest
 import com.apptolast.greenhousefronts.data.remote.baseUrl
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -65,6 +66,19 @@ class AuthApiService(
      */
     suspend fun forgotPassword(request: ForgotPasswordRequest) {
         httpClient.post("$baseUrl/api/auth/forgot-password") {
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }
+    }
+
+    /**
+     * Resets the user's password using a valid token.
+     * POST /api/auth/reset-password
+     *
+     * @param request Request containing the token and new password
+     */
+    suspend fun resetPassword(request: ResetPasswordRequest) {
+        httpClient.post("$baseUrl/api/auth/reset-password") {
             contentType(ContentType.Application.Json)
             setBody(request)
         }

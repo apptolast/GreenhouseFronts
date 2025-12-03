@@ -53,7 +53,8 @@ expect fun ConfigureSystemUI(darkTheme: Boolean)
  */
 @Composable
 fun GreenhouseTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+//    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = true,
     content: @Composable () -> Unit
 ) {
     // Configure platform-specific system UI (status bar, navigation bar)

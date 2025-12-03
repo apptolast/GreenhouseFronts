@@ -1,3 +1,4 @@
+import org.apache.log4j.MDC.put
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -163,6 +164,25 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "com.apptolast.greenhousefronts"
             packageVersion = "1.0.0"
+
+            macOS {
+                bundleID =
+                    "com.apptolast.greenhousefronts.GreenhouseFronts" // Identificador único de tu app
+
+                // ESTA ES LA PARTE CLAVE
+                // Aquí registramos el esquema de URL 'http'.
+                infoPlist {
+                    put("CFBundleURLTypes", buildList {
+                        add(
+                            mapOf(
+                                "CFBundleTypeRole" to "Editor",
+                                "CFBundleURLSchemes" to buildList {
+                                    add("http")
+                                }
+                            ))
+                    })
+                }
+            }
         }
     }
 }

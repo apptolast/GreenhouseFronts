@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -38,8 +40,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,18 +50,15 @@ import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
 import com.apptolast.greenhousefronts.presentation.viewmodel.AuthEvent
 import com.apptolast.greenhousefronts.presentation.viewmodel.AuthUiState
 import com.apptolast.greenhousefronts.presentation.viewmodel.AuthViewModel
-import greenhousefronts.composeapp.generated.resources.Res
-import greenhousefronts.composeapp.generated.resources.login_username_label
-import greenhousefronts.composeapp.generated.resources.login_username_placeholder
-import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
- * Screen for password recovery (Stateful).
- * It observes the ViewModel's state and handles events.
+ * Screen for resetting password (Stateful).
+ * Triggered via deeplink.
  */
 @Composable
-fun ForgotPasswordScreen(
+fun ResetPasswordScreen(
+    token: String,
     viewModel: AuthViewModel,
     onNavigateBack: () -> Unit,
     onSuccess: () -> Unit
@@ -66,11 +66,16 @@ fun ForgotPasswordScreen(
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
+    // Initialize token
+    LaunchedEffect(token) {
+        viewModel.updateResetPasswordToken(token)
+    }
+
     // Handle one-time events
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
-                is AuthEvent.ForgotPasswordSuccess -> onSuccess()
+                is AuthEvent.ResetPasswordSuccess -> onSuccess()
                 else -> {}
             }
         }
@@ -84,32 +89,36 @@ fun ForgotPasswordScreen(
         }
     }
 
-    ForgotPasswordContent(
+    ResetPasswordContent(
         uiState = uiState,
         snackbarHostState = snackbarHostState,
-        onEmailChange = viewModel::updateForgotPasswordEmail,
-        onSendEmailClick = viewModel::forgotPassword,
+        onTokenChange = viewModel::updateResetPasswordToken,
+        onNewPasswordChange = viewModel::updateNewPassword,
+        onConfirmPasswordChange = viewModel::updateConfirmNewPassword,
+        onToggleVisibility = viewModel::toggleNewPasswordVisibility,
+        onSubmitClick = viewModel::resetPassword,
         onNavigateBack = onNavigateBack
     )
 }
 
 /**
- * Content for password recovery screen (Stateless).
- * Displays the UI and delegates user actions to the callers.
+ * Content for reset password screen (Stateless).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ForgotPasswordContent(
+private fun ResetPasswordContent(
     uiState: AuthUiState,
     snackbarHostState: SnackbarHostState,
-    onEmailChange: (String) -> Unit,
-    onSendEmailClick: () -> Unit,
-    onNavigateBack: () -> Unit,
+    onTokenChange: (String) -> Unit = {},
+    onNewPasswordChange: (String) -> Unit = {},
+    onConfirmPasswordChange: (String) -> Unit = {},
+    onToggleVisibility: () -> Unit = {},
+    onSubmitClick: () -> Unit = {},
+    onNavigateBack: () -> Unit = {},
 ) {
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-
             TopAppBar(
                 title = { },
                 navigationIcon = {
@@ -123,7 +132,7 @@ private fun ForgotPasswordContent(
                 },
                 // Es importante hacer el fondo transparente para que se vea el degradado de detrás
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent
+                    containerColor = androidx.compose.ui.graphics.Color.Transparent
                 )
             )
         }
@@ -155,7 +164,7 @@ private fun ForgotPasswordContent(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "🔑", // Key emoji
+                        text = "🔐", // Lock with key emoji
                         style = MaterialTheme.typography.headlineLarge,
                         textAlign = TextAlign.Center
                     )
@@ -164,7 +173,7 @@ private fun ForgotPasswordContent(
                 Spacer(modifier = Modifier.width(12.dp))
 
                 Text(
-                    text = "RECUPERAR",
+                    text = "RESTABLECER",
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold,
@@ -174,7 +183,7 @@ private fun ForgotPasswordContent(
                 Spacer(modifier = Modifier.height(32.dp))
 
                 Text(
-                    text = "¿Olvidaste tu contraseña?",
+                    text = "Nueva Contraseña",
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold,
@@ -184,7 +193,7 @@ private fun ForgotPasswordContent(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Ingresa tu correo electrónico y te enviaremos un enlace para restablecerla.",
+                    text = "Ingresa tu nueva contraseña a continuación.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                     textAlign = TextAlign.Center
@@ -192,23 +201,16 @@ private fun ForgotPasswordContent(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // Email field
+                // Token field
                 OutlinedTextField(
-                    value = uiState.forgotPasswordEmail,
-                    onValueChange = onEmailChange,
-                    label = {
-                        Text(stringResource(Res.string.login_username_label))
-                    },
-                    placeholder = {
-                        Text(
-                            stringResource(Res.string.login_username_placeholder),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    },
+                    value = uiState.resetPasswordToken,
+                    onValueChange = onTokenChange,
+                    label = { Text("Código de verificación") },
+                    placeholder = { Text("Token del correo") },
                     leadingIcon = {
                         Icon(
-                            imageVector = Icons.Default.Email,
-                            contentDescription = "Email",
+                            imageVector = Icons.Default.Lock, // Using Lock icon as a placeholder or Key if available
+                            contentDescription = "Token",
                             tint = MaterialTheme.colorScheme.primary
                         )
                     },
@@ -223,14 +225,77 @@ private fun ForgotPasswordContent(
                     )
                 )
 
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // New Password field
+                OutlinedTextField(
+                    value = uiState.newPassword,
+                    onValueChange = onNewPasswordChange,
+                    label = { Text("Nueva contraseña") },
+                    placeholder = { Text("Mínimo 6 caracteres") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "Contraseña",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    trailingIcon = {
+                        IconButton(onClick = onToggleVisibility) {
+                            Icon(
+                                imageVector = if (uiState.isNewPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = if (uiState.isNewPasswordVisible) "Ocultar" else "Mostrar",
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                    },
+                    visualTransformation = if (uiState.isNewPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = !uiState.isLoading,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedLabelColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Confirm Password field
+                OutlinedTextField(
+                    value = uiState.confirmNewPassword,
+                    onValueChange = onConfirmPasswordChange,
+                    label = { Text("Confirmar contraseña") },
+                    placeholder = { Text("Repite la contraseña") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "Confirmar Contraseña",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    visualTransformation = if (uiState.isNewPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = !uiState.isLoading,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedLabelColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Button(
-                    onClick = onSendEmailClick,
+                    onClick = onSubmitClick,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp),
-                    enabled = !uiState.isLoading && uiState.forgotPasswordEmail.isNotBlank(),
+                    enabled = !uiState.isLoading && uiState.newPassword.isNotBlank() && uiState.confirmNewPassword.isNotBlank(),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
@@ -247,7 +312,7 @@ private fun ForgotPasswordContent(
                         )
                     } else {
                         Text(
-                            text = "ENVIAR CORREO",
+                            text = "CAMBIAR CONTRASEÑA",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold
                         )
@@ -260,33 +325,14 @@ private fun ForgotPasswordContent(
 
 @Preview
 @Composable
-private fun ForgotPasswordContentPreview() {
+private fun ResetPasswordContentPreview() {
     GreenhouseTheme {
-        ForgotPasswordContent(
+        ResetPasswordContent(
             uiState = AuthUiState(
-                forgotPasswordEmail = "test@example.com"
+                newPassword = "",
+                confirmNewPassword = ""
             ),
             snackbarHostState = SnackbarHostState(),
-            onEmailChange = {},
-            onSendEmailClick = {},
-            onNavigateBack = {}
-        )
-    }
-}
-
-@Preview
-@Composable
-private fun ForgotPasswordContentLoadingPreview() {
-    GreenhouseTheme {
-        ForgotPasswordContent(
-            uiState = AuthUiState(
-                isLoading = true,
-                forgotPasswordEmail = "test@example.com"
-            ),
-            snackbarHostState = SnackbarHostState(),
-            onEmailChange = {},
-            onSendEmailClick = {},
-            onNavigateBack = {}
         )
     }
 }

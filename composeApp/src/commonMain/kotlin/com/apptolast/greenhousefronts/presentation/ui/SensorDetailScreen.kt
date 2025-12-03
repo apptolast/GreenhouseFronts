@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -287,12 +290,21 @@ private fun SensorDetailSuccessContent(
             selectedPeriod = selectedPeriod
         )
         Spacer(modifier = Modifier.height(32.dp))
-        StatisticsCardsGrid(
-            avgValue = statistics.avgValue,
-            maxValue = statistics.maxValue,
-            minValue = statistics.minValue,
-            unit = statistics.unit
+        val stats = listOf(
+            StatItem(
+                label = stringResource(Res.string.stat_average),
+                value = "${statistics.avgValue.formatDecimals(1)}${statistics.unit}"
+            ),
+            StatItem(
+                label = stringResource(Res.string.stat_max),
+                value = "${statistics.maxValue.formatDecimals(1)}${statistics.unit}"
+            ),
+            StatItem(
+                label = stringResource(Res.string.stat_min),
+                value = "${statistics.minValue.formatDecimals(1)}${statistics.unit}"
+            )
         )
+        StatisticsCardsGrid(stats = stats)
     }
 }
 
@@ -378,34 +390,33 @@ private fun HistoricalChart(
     }
 }
 
+private data class StatItem(val label: String, val value: String)
+
 @Composable
-private fun StatisticsCardsGrid(
-    avgValue: Double,
-    maxValue: Double,
-    minValue: Double,
-    unit: String
-) {
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+private fun StatisticsCardsGrid(stats: List<StatItem>) {
+    // We must provide a fixed height to a lazy component inside a scrollable column to avoid performance issues and crashes.
+    // Calculate row count: ceiling division of stats.size by 2.
+    val rowCount = (stats.size + 1) / 2
+    // Estimate height: (card height * rows) + (spacing * (rows - 1)).
+    // A single card is roughly 100dp tall. We add 12dp for vertical spacing between rows.
+    val gridHeight = (rowCount * 100 + (rowCount - 1) * 12).dp
+
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(gridHeight),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        // The parent is already scrolling, so we disable scrolling for the grid itself.
+        userScrollEnabled = false
+    ) {
+        items(stats) { stat ->
             StatCard(
-                label = stringResource(Res.string.stat_average),
-                value = "${avgValue.formatDecimals(1)}$unit",
-                modifier = Modifier.weight(1f)
-            )
-            StatCard(
-                label = stringResource(Res.string.stat_max),
-                value = "${maxValue.formatDecimals(1)}$unit",
-                modifier = Modifier.weight(1f)
+                label = stat.label,
+                value = stat.value
             )
         }
-        StatCard(
-            label = stringResource(Res.string.stat_min),
-            value = "${minValue.formatDecimals(1)}$unit",
-            modifier = Modifier.fillMaxWidth()
-        )
     }
 }
 
@@ -414,20 +425,21 @@ private fun StatCard(label: String, value: String, modifier: Modifier = Modifier
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+        )
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Text(
                 label,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 value,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }
