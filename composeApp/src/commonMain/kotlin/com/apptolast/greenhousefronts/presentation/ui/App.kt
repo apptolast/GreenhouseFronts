@@ -1,12 +1,14 @@
 package com.apptolast.greenhousefronts.presentation.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.apptolast.greenhousefronts.data.model.SensorType
 import com.apptolast.greenhousefronts.presentation.navigation.ConfigureWebNavigation
+import com.apptolast.greenhousefronts.presentation.navigation.ForgotPasswordRoute
 import com.apptolast.greenhousefronts.presentation.navigation.HomeRoute
 import com.apptolast.greenhousefronts.presentation.navigation.LoginRoute
 import com.apptolast.greenhousefronts.presentation.navigation.RegisterRoute
@@ -28,6 +30,9 @@ import org.koin.compose.viewmodel.koinViewModel
 fun App() {
     GreenhouseTheme(darkTheme = true) {
         val navController = rememberNavController()
+        // Used for global snackbars if needed, or we can pass a host state
+        val scope = rememberCoroutineScope()
+        // Note: Simple snackbar for global feedback if screens don't handle it
 
         // Configure platform-specific navigation (e.g., browser integration on Web)
         ConfigureWebNavigation(navController)
@@ -49,6 +54,29 @@ fun App() {
                     },
                     onNavigateToRegister = {
                         navController.navigate(RegisterRoute)
+                    },
+                    onNavigateToForgotPassword = {
+                        navController.navigate(ForgotPasswordRoute)
+                    }
+                )
+            }
+
+            // Forgot Password screen route
+            composable<ForgotPasswordRoute> {
+                val authViewModel: AuthViewModel = koinViewModel()
+                ForgotPasswordScreen(
+                    viewModel = authViewModel,
+                    onNavigateBack = {
+                        authViewModel.clearForgotPasswordForm()
+                        navController.popBackStack()
+                    },
+                    onSuccess = {
+                        // Show success message and go back to login
+                        // Since we can't easily pass data back in this simple setup without a shared result handle,
+                        // we'll rely on the screen showing a confirmation or just pop back.
+                        // Ideally, show a snackbar on Login screen, but for now just pop.
+                        authViewModel.clearForgotPasswordForm()
+                        navController.popBackStack()
                     }
                 )
             }

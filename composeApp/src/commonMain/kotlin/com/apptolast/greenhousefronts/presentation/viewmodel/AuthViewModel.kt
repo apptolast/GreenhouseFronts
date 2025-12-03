@@ -35,7 +35,10 @@ data class AuthUiState(
     val registerPassword: String = "",
     val isRegisterPasswordVisible: Boolean = false,
     val phone: String = "",
-    val address: String = ""
+    val address: String = "",
+
+    // Forgot Password fields
+    val forgotPasswordEmail: String = ""
 )
 
 /**
@@ -45,6 +48,7 @@ data class AuthUiState(
 sealed interface AuthEvent {
     data object LoginSuccess : AuthEvent
     data object RegisterSuccess : AuthEvent
+    data object ForgotPasswordSuccess : AuthEvent
 }
 
 /**
@@ -117,6 +121,10 @@ class AuthViewModel(
 
     fun updateAddress(value: String) {
         _uiState.update { it.copy(address = value) }
+    }
+
+    fun updateForgotPasswordEmail(value: String) {
+        _uiState.update { it.copy(forgotPasswordEmail = value) }
     }
 
     // ========== Auth Operations ==========
@@ -217,6 +225,47 @@ class AuthViewModel(
     }
 
     /**
+     * Requests a password reset email.
+     */
+    fun forgotPassword() {
+        if (_uiState.value.isLoading) return
+
+        viewModelScope.launch {
+            authMutex.withLock {
+                if (_uiState.value.isLoading) return@launch
+
+                val currentState = _uiState.value
+
+                if (currentState.forgotPasswordEmail.isBlank()) {
+                    _uiState.update { it.copy(error = "Por favor, ingresa tu email") }
+                    return@launch
+                }
+
+                if (!isValidEmail(currentState.forgotPasswordEmail)) {
+                    _uiState.update { it.copy(error = "El email no es válido") }
+                    return@launch
+                }
+
+                _uiState.update { it.copy(isLoading = true, error = null) }
+
+                authRepository.forgotPassword(currentState.forgotPasswordEmail.trim())
+                    .onSuccess {
+                        _uiState.update { it.copy(isLoading = false) }
+                        _events.send(AuthEvent.ForgotPasswordSuccess)
+                    }
+                    .onFailure { error ->
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                error = error.message ?: "Error al solicitar recuperación"
+                            )
+                        }
+                    }
+            }
+        }
+    }
+
+    /**
      * Logs out the current user.
      */
     fun logout() {
@@ -270,6 +319,12 @@ class AuthViewModel(
                 phone = "",
                 address = ""
             )
+        }
+    }
+
+    fun clearForgotPasswordForm() {
+        _uiState.update {
+            it.copy(forgotPasswordEmail = "")
         }
     }
 

@@ -2,6 +2,7 @@ package com.apptolast.greenhousefronts.data.repository
 
 import com.apptolast.greenhousefronts.data.local.auth.TokenStorage
 import com.apptolast.greenhousefronts.data.model.auth.AuthError
+import com.apptolast.greenhousefronts.data.model.auth.ForgotPasswordRequest
 import com.apptolast.greenhousefronts.data.model.auth.JwtResponse
 import com.apptolast.greenhousefronts.data.model.auth.LoginRequest
 import com.apptolast.greenhousefronts.data.model.auth.RegisterRequest
@@ -54,6 +55,22 @@ class AuthRepositoryImpl(
             Result.success(response)
         } catch (e: ClientRequestException) {
             Result.failure(mapClientError(e))
+        } catch (e: Exception) {
+            Result.failure(AuthError.NetworkError(e.message ?: "Error de conexión"))
+        }
+    }
+
+    override suspend fun forgotPassword(email: String): Result<Unit> {
+        return try {
+            val request = ForgotPasswordRequest(email = email)
+            authApiService.forgotPassword(request)
+            Result.success(Unit)
+        } catch (e: ClientRequestException) {
+            // Generally we return success even if email doesn't exist for security,
+            // unless the backend explicitly returns an error we want to show.
+            // Assuming backend returns 200 even if user not found, or 400/404 if we want to handle it.
+            // The backend code provided says: @ApiResponse(responseCode = "200", description = "Email sent if user exists")
+            Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(AuthError.NetworkError(e.message ?: "Error de conexión"))
         }

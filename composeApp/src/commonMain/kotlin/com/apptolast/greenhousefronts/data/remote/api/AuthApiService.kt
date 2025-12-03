@@ -1,5 +1,6 @@
 package com.apptolast.greenhousefronts.data.remote.api
 
+import com.apptolast.greenhousefronts.data.model.auth.ForgotPasswordRequest
 import com.apptolast.greenhousefronts.data.model.auth.JwtResponse
 import com.apptolast.greenhousefronts.data.model.auth.LoginRequest
 import com.apptolast.greenhousefronts.data.model.auth.RegisterRequest
@@ -54,5 +55,18 @@ class AuthApiService(
             contentType(ContentType.Application.Json)
             setBody(request)
         }.body()
+    }
+
+    /**
+     * Requests a password reset email.
+     * POST /api/auth/forgot-password
+     *
+     * @param request Request containing the user's email
+     */
+    suspend fun forgotPassword(request: ForgotPasswordRequest) {
+        httpClient.post("$baseUrl/api/auth/forgot-password") {
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }
     }
 }

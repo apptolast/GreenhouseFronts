@@ -87,7 +87,8 @@ import org.jetbrains.compose.resources.stringResource
 fun LoginScreen(
     viewModel: AuthViewModel,
     onLoginSuccess: () -> Unit = {},
-    onNavigateToRegister: () -> Unit = {}
+    onNavigateToRegister: () -> Unit = {},
+    onNavigateToForgotPassword: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -274,7 +275,7 @@ fun LoginScreen(
 
                 // Forgot password link
                 TextButton(
-                    onClick = { /* TODO: Navigate to password recovery */ },
+                    onClick = onNavigateToForgotPassword,
                     modifier = Modifier.align(Alignment.End),
                     enabled = !uiState.isLoading
                 ) {

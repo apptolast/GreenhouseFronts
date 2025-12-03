@@ -17,6 +17,13 @@ object LoginRoute
 object RegisterRoute
 
 /**
+ * Represents the forgot password screen route.
+ * Allows users to request a password reset email.
+ */
+@Serializable
+object ForgotPasswordRoute
+
+/**
  * Represents the home screen route.
  * This is the main screen after successful login, showing greenhouse data.
  */

@@ -58,6 +58,15 @@ data class JwtResponse(
 )
 
 /**
+ * Request object for forgot password.
+ * Matches the backend's ForgotPasswordRequest DTO.
+ */
+@Serializable
+data class ForgotPasswordRequest(
+    val email: String
+)
+
+/**
  * Sealed class representing authentication errors.
  * Used for type-safe error handling in the auth flow.
  */
