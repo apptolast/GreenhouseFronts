@@ -2,6 +2,8 @@ package com.apptolast.greenhousefronts.presentation.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.navigation.NavHostController
+import androidx.navigation.Navigator
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -23,6 +25,15 @@ import io.ktor.client.engine.ProxyBuilder.http
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
+object StaticNavigator {
+    lateinit var navController: NavHostController
+
+    // Almacena deeplinks recibidos antes de que el NavController esté listo
+    var pendingResetToken: String? = null
+
+    fun isReady(): Boolean = ::navController.isInitialized
+}
+
 /**
  * Main application composable that sets up the navigation graph.
  * Uses androidx.navigation.compose for type-safe navigation between screens.
@@ -33,6 +44,8 @@ import org.koin.compose.viewmodel.koinViewModel
 fun App() {
     GreenhouseTheme(darkTheme = true) {
         val navController = rememberNavController()
+        StaticNavigator.navController = navController
+
         // Used for global snackbars if needed, or we can pass a host state
         val scope = rememberCoroutineScope()
         // Note: Simple snackbar for global feedback if screens don't handle it
@@ -90,11 +103,19 @@ fun App() {
                     // Web
                     navDeepLink {
                         uriPattern =
-                            "http://localhost:8080/#com.apptolast.greenhousefronts.presentation.navigation.ResetPasswordRoute?token={token}"
+                            "http://localhost:8080/#ResetPasswordRoute?token={token}"
+                    },
+                    // Web
+                    navDeepLink {
+                        uriPattern =
+                            "https://localhost/#ResetPasswordRoute?token={token}"
                     },
                     // Mobile
                     navDeepLink {
                         uriPattern = "http://apptolast.com/?token={token}"
+                    },
+                    navDeepLink {
+                        uriPattern = "https://apptolast.com/?token={token}"
                     }
                 )
             ) { backStackEntry ->

@@ -1,5 +1,8 @@
 package com.apptolast.greenhousefronts.util
 
+import com.apptolast.greenhousefronts.presentation.navigation.ResetPasswordRoute
+import com.apptolast.greenhousefronts.presentation.ui.StaticNavigator
+
 object ExternalUriHandler {
     // Storage for when a URI arrives before the listener is set up
     private var cached: String? = null

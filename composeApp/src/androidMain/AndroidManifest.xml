@@ -21,7 +21,7 @@
             </intent-filter>
 
             <!-- Deep Link for Reset Password (HTTP) -->
-            <intent-filter android:autoVerify="true">
+            <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
 
                 <category android:name="android.intent.category.DEFAULT" />
@@ -29,10 +29,12 @@
 
                 <data
                     android:host="apptolast.com"
+                    android:path="/"
                     android:scheme="http" />
 
                 <data
                     android:host="apptolast.com"
+                    android:path="/"
                     android:scheme="https" />
             </intent-filter>
 
