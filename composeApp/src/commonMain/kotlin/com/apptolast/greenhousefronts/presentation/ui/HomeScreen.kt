@@ -45,8 +45,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.apptolast.greenhousefronts.data.model.GreenhouseData
+import com.apptolast.greenhousefronts.data.remote.websocket.WebSocketConnectionState
 import com.apptolast.greenhousefronts.presentation.ui.components.ConnectionStatsDialog
 import com.apptolast.greenhousefronts.presentation.ui.components.WebSocketStatusIndicator
+import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
+import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseUiState
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseViewModel
 import com.apptolast.greenhousefronts.util.GreenhouseConstants
 import com.apptolast.greenhousefronts.util.formatDecimals
@@ -64,15 +67,12 @@ import greenhousefronts.composeapp.generated.resources.status_closed
 import greenhousefronts.composeapp.generated.resources.status_open
 import greenhousefronts.composeapp.generated.resources.success_changes_saved
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
- * Home screen displaying greenhouse sensor data with a modern UI design.
- * Shows 3 greenhouses with tabs for navigation and detailed sensor/actuator controls.
- *
- * @param viewModel The GreenhouseViewModel managing the state and business logic
- * @param onNavigateToSensorDetail Callback for navigating to sensor detail screen
+ * Home screen (Stateful) displaying greenhouse sensor data.
+ * It observes the ViewModel's state and handles events.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: GreenhouseViewModel,
@@ -82,10 +82,8 @@ fun HomeScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var showStatsDialog by remember { mutableStateOf(false) }
 
-    // Get localized strings
     val successMessage = stringResource(Res.string.success_changes_saved)
 
-    // Show error or success messages
     LaunchedEffect(uiState.error) {
         uiState.error?.let {
             snackbarHostState.showSnackbar(it)
@@ -100,6 +98,42 @@ fun HomeScreen(
         }
     }
 
+    HomeScreenContent(
+        uiState = uiState,
+        snackbarHostState = snackbarHostState,
+        showStatsDialog = showStatsDialog,
+        onSelectGreenhouse = viewModel::selectGreenhouse,
+        onNavigateToSensorDetail = onNavigateToSensorDetail,
+        onSectorChange = { greenhouseId, sectorIndex, value ->
+            viewModel.updateSector(greenhouseId, sectorIndex, value)
+        },
+        onExtractorChange = { greenhouseId, value ->
+            viewModel.updateExtractor(greenhouseId, value)
+        },
+        onStatusClick = { showStatsDialog = true },
+        onDismissDialog = { showStatsDialog = false },
+        onReconnect = viewModel::reconnectWebSocket
+    )
+}
+
+/**
+ * Content for the home screen (Stateless).
+ * Displays the UI and delegates user actions to the callers.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HomeScreenContent(
+    uiState: GreenhouseUiState,
+    snackbarHostState: SnackbarHostState,
+    showStatsDialog: Boolean,
+    onSelectGreenhouse: (Int) -> Unit = {},
+    onNavigateToSensorDetail: (greenhouseId: String, sensorType: String) -> Unit = { _, _ -> },
+    onSectorChange: (greenhouseId: Int, sectorIndex: Int, value: Double) -> Unit = { _, _, _ -> },
+    onExtractorChange: (greenhouseId: Int, value: Double) -> Unit = { _, _ -> },
+    onStatusClick: () -> Unit = {},
+    onDismissDialog: () -> Unit = {},
+    onReconnect: () -> Unit = {},
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -109,20 +143,11 @@ fun HomeScreen(
                         fontWeight = FontWeight.Bold
                     )
                 },
-//                navigationIcon = {
-//                    IconButton(onClick = { /* TODO: Open menu */ }) {
-//                        Icon(Icons.Default.Menu, contentDescription = "Menu")
-//                    }
-//                },
                 actions = {
-//                    IconButton(onClick = { /* TODO: Open notifications */ }) {
-//                        Icon(Icons.Default.Notifications, contentDescription = "Notifications")
-//                    }
-                    // WebSocket status indicator (moved below tabs)
                     WebSocketStatusIndicator(
                         isConnected = uiState.webSocketState.isConnected,
                         dataSource = uiState.dataSource,
-                        onStatusClick = { showStatsDialog = true },
+                        onStatusClick = onStatusClick,
                         modifier = Modifier.padding(8.dp)
                     )
                 },
@@ -132,9 +157,7 @@ fun HomeScreen(
                 )
             )
         },
-        snackbarHost = {
-            SnackbarHost(hostState = snackbarHostState)
-        }
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -142,20 +165,16 @@ fun HomeScreen(
                 .padding(paddingValues)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            // Tabs for greenhouse selection
-            PrimaryTabRow(
-                selectedTabIndex = uiState.selectedGreenhouseId - 1
-            ) {
+            PrimaryTabRow(selectedTabIndex = uiState.selectedGreenhouseId - 1) {
                 repeat(3) { index ->
                     Tab(
                         selected = uiState.selectedGreenhouseId == index + 1,
-                        onClick = { viewModel.selectGreenhouse(index + 1) },
+                        onClick = { onSelectGreenhouse(index + 1) },
                         text = { Text(stringResource(Res.string.greenhouse_number, index + 1)) }
                     )
                 }
             }
 
-            // Get the selected greenhouse data
             val selectedGreenhouse =
                 uiState.greenhouses.find { it.id == uiState.selectedGreenhouseId }
 
@@ -166,45 +185,42 @@ fun HomeScreen(
                         .verticalScroll(rememberScrollState())
                         .padding(16.dp)
                 ) {
-                    // Monitoring Section
                     Text(
                         stringResource(Res.string.home_monitoring_section_title),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
-
                     SensorCards(
                         greenhouse = selectedGreenhouse,
                         onNavigateToSensorDetail = onNavigateToSensorDetail
                     )
-
                     Spacer(modifier = Modifier.height(24.dp))
-
-                    // Actuators Section
                     Text(
                         stringResource(Res.string.home_actuators_section_title),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
-
                     ActuatorControls(
                         greenhouse = selectedGreenhouse,
                         onSectorChange = { sectorIndex, value ->
-                            viewModel.updateSector(selectedGreenhouse.id, sectorIndex, value)
+                            onSectorChange(
+                                selectedGreenhouse.id,
+                                sectorIndex,
+                                value
+                            )
                         },
                         onExtractorChange = { value ->
-                            viewModel.updateExtractor(selectedGreenhouse.id, value)
+                            onExtractorChange(
+                                selectedGreenhouse.id,
+                                value
+                            )
                         }
                     )
                 }
             } else {
-                // No data available
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         stringResource(Res.string.empty_state),
                         style = MaterialTheme.typography.titleMedium,
@@ -215,32 +231,50 @@ fun HomeScreen(
         }
     }
 
-    // Connection statistics dialog
     ConnectionStatsDialog(
         isVisible = showStatsDialog,
         connectionState = uiState.webSocketState,
         dataSource = uiState.dataSource,
-        onDismiss = { showStatsDialog = false },
-        onReconnect = { viewModel.reconnectWebSocket() }
+        onDismiss = onDismissDialog,
+        onReconnect = onReconnect
     )
 }
 
-/**
- * Sensor monitoring cards showing temperature and humidity
- */
+@Preview
+@Composable
+private fun HomeScreenContentPreview() {
+    val greenhouse = GreenhouseData(
+        id = 1,
+        temperatura = 25.5,
+        humedad = 60.0,
+        sectores = listOf(50.0, 75.0, 25.0, 0.0),
+        extractor = 1.0
+    )
+    val uiState = GreenhouseUiState(
+        greenhouses = listOf(greenhouse),
+        selectedGreenhouseId = 1,
+        webSocketState = WebSocketConnectionState(isConnected = true),
+        dataSource = com.apptolast.greenhousefronts.presentation.viewmodel.DataSource.WEBSOCKET
+    )
+    GreenhouseTheme {
+        HomeScreenContent(
+            uiState = uiState,
+            snackbarHostState = remember { SnackbarHostState() },
+            showStatsDialog = false,
+        )
+    }
+}
+
 @Composable
 private fun SensorCards(
     greenhouse: GreenhouseData,
-    onNavigateToSensorDetail: (greenhouseId: String, sensorType: String) -> Unit
+    onNavigateToSensorDetail: (greenhouseId: String, sensorType: String) -> Unit = { _, _ -> }
 ) {
-    // Get real greenhouse UUID from backend mapping
     val greenhouseUuid = GreenhouseConstants.getGreenhouseUuid(greenhouse.id)
-
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Temperature Card
         SensorCard(
             title = stringResource(Res.string.sensor_temperature_label),
             value = greenhouse.temperatura?.let { "${it.formatDecimals(1)}°C" } ?: "-- °C",
@@ -249,8 +283,6 @@ private fun SensorCards(
             onClick = { onNavigateToSensorDetail(greenhouseUuid, "TEMPERATURE") },
             modifier = Modifier.weight(1f)
         )
-
-        // Humidity Card
         SensorCard(
             title = stringResource(Res.string.sensor_humidity_label),
             value = greenhouse.humedad?.let { "${it.formatDecimals(0)}%" } ?: "-- %",
@@ -262,30 +294,35 @@ private fun SensorCards(
     }
 }
 
-/**
- * Individual sensor card component
- */
+@Preview
+@Composable
+private fun SensorCardsPreview() {
+    val greenhouse = GreenhouseData(
+        id = 1, temperatura = 25.5, humedad = 60.2,
+        sectores = listOf(50.0, 75.0, 25.0, 0.0), extractor = 1.0
+    )
+    GreenhouseTheme {
+        SensorCards(greenhouse = greenhouse)
+    }
+}
+
 @Composable
 private fun SensorCard(
     title: String,
     value: String,
     icon: String,
     color: Color,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit = {},
-    modifier: Modifier = Modifier
 ) {
     Card(
         modifier = modifier.height(120.dp),
         onClick = onClick,
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(16.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
@@ -293,17 +330,13 @@ private fun SensorCard(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    icon,
-                    fontSize = 24.sp
-                )
+                Text(icon, fontSize = 24.sp)
                 Text(
                     title,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
             }
-
             Text(
                 value,
                 style = MaterialTheme.typography.headlineMedium,
@@ -314,62 +347,68 @@ private fun SensorCard(
     }
 }
 
-/**
- * Actuator controls section with sliders and switches
- */
+@Preview
 @Composable
-private fun ActuatorControls(
-    greenhouse: GreenhouseData,
-    onSectorChange: (Int, Double) -> Unit,
-    onExtractorChange: (Double) -> Unit
-) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Sector sliders (irrigation valves)
-        greenhouse.sectores.forEachIndexed { index, value ->
-            SectorSlider(
-                label = stringResource(Res.string.actuator_sector_label, index + 1),
-                value = value ?: 0.0,
-                onValueChange = { newValue ->
-                    onSectorChange(index, newValue)
-                }
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Extractor (ventilation) toggle
-        ExtractorToggle(
-            isOn = greenhouse.extractor == 1.0,
-            onToggle = { isOn ->
-                onExtractorChange(if (isOn) 1.0 else 0.0)
-            }
+private fun SensorCardPreview() {
+    GreenhouseTheme {
+        SensorCard(
+            title = "Temperature",
+            value = "25.5°C",
+            icon = "🌡️",
+            color = Color(0xFFFF6B6B)
         )
     }
 }
 
-/**
- * Slider for sector control
- */
+@Composable
+private fun ActuatorControls(
+    greenhouse: GreenhouseData,
+    onSectorChange: (Int, Double) -> Unit = { _, _ -> },
+    onExtractorChange: (Double) -> Unit = {},
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        greenhouse.sectores.forEachIndexed { index, value ->
+            SectorSlider(
+                label = stringResource(Res.string.actuator_sector_label, index + 1),
+                value = value ?: 0.0,
+                onValueChange = { newValue -> onSectorChange(index, newValue) }
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        ExtractorToggle(
+            isOn = greenhouse.extractor == 1.0,
+            onToggle = { isOn -> onExtractorChange(if (isOn) 1.0 else 0.0) }
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ActuatorControlsPreview() {
+    val greenhouse = GreenhouseData(
+        id = 1, temperatura = null, humedad = null,
+        sectores = listOf(50.0, 75.0, 25.0, 0.0), extractor = 1.0
+    )
+    GreenhouseTheme {
+        ActuatorControls(
+            greenhouse = greenhouse,
+        )
+    }
+}
+
 @Composable
 private fun SectorSlider(
     label: String,
     value: Double,
-    onValueChange: (Double) -> Unit
+    onValueChange: (Double) -> Unit = {}
 ) {
     var sliderValue by remember(value) { mutableFloatStateOf(value.toFloat()) }
-
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -391,15 +430,11 @@ private fun SectorSlider(
                     color = Color(0xFF4ECDC4)
                 )
             }
-
             Spacer(modifier = Modifier.height(8.dp))
-
             Slider(
                 value = sliderValue,
                 onValueChange = { sliderValue = it },
-                onValueChangeFinished = {
-                    onValueChange(sliderValue.toDouble())
-                },
+                onValueChangeFinished = { onValueChange(sliderValue.toDouble()) },
                 valueRange = 0f..100f,
                 colors = SliderDefaults.colors(
                     thumbColor = Color(0xFF4ECDC4),
@@ -411,30 +446,33 @@ private fun SectorSlider(
     }
 }
 
-/**
- * Toggle switch for extractor control
- */
+@Preview
+@Composable
+private fun SectorSliderPreview() {
+    GreenhouseTheme {
+        SectorSlider(
+            label = "Sector 1",
+            value = 50.0,
+        )
+    }
+}
+
 @Composable
 private fun ExtractorToggle(
     isOn: Boolean,
-    onToggle: (Boolean) -> Unit
+    onToggle: (Boolean) -> Unit = {}
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Ventilation Toggle
         Card(
             modifier = Modifier.weight(1f),
             shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -455,7 +493,6 @@ private fun ExtractorToggle(
                         color = if (isOn) Color(0xFF4ECDC4) else MaterialTheme.colorScheme.outline
                     )
                 }
-
                 Switch(
                     checked = isOn,
                     onCheckedChange = onToggle,
@@ -468,5 +505,15 @@ private fun ExtractorToggle(
                 )
             }
         }
+    }
+}
+
+@Preview
+@Composable
+private fun ExtractorTogglePreview() {
+    GreenhouseTheme {
+        ExtractorToggle(
+            isOn = true,
+        )
     }
 }

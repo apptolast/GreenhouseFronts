@@ -42,6 +42,8 @@ import com.apptolast.greenhousefronts.data.model.SensorStatistics
 import com.apptolast.greenhousefronts.data.model.SensorType
 import com.apptolast.greenhousefronts.data.model.TimePeriod
 import com.apptolast.greenhousefronts.presentation.ui.chart.PlatformLineChart
+import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
+import com.apptolast.greenhousefronts.presentation.viewmodel.SensorDetailUiState
 import com.apptolast.greenhousefronts.presentation.viewmodel.SensorDetailViewModel
 import com.apptolast.greenhousefronts.util.formatDecimals
 import greenhousefronts.composeapp.generated.resources.Res
@@ -59,14 +61,11 @@ import greenhousefronts.composeapp.generated.resources.stat_average
 import greenhousefronts.composeapp.generated.resources.stat_max
 import greenhousefronts.composeapp.generated.resources.stat_min
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
- * Sensor detail screen showing historical data and statistics.
- *
- * @param greenhouseId UUID of the greenhouse
- * @param sensorType Type of sensor (TEMPERATURE or HUMIDITY)
- * @param viewModel The ViewModel managing state and business logic
- * @param onNavigateBack Callback for back navigation
+ * Sensor detail screen (Stateful).
+ * It observes the ViewModel's state and handles events.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,7 +77,6 @@ fun SensorDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // Initialize ViewModel with parameters
     LaunchedEffect(greenhouseId, sensorType) {
         viewModel.initialize(greenhouseId, sensorType)
     }
@@ -107,81 +105,132 @@ fun SensorDetailScreen(
             )
         }
     ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(MaterialTheme.colorScheme.background)
-        ) {
-            when {
-                uiState.isLoading -> {
-                    // Loading state
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
+        SensorDetailContent(
+            uiState = uiState,
+            sensorType = sensorType,
+            onPeriodChange = { viewModel.changePeriod(it) },
+            onRetry = { viewModel.retry() },
+            modifier = Modifier.fillMaxSize().padding(paddingValues)
+        )
+    }
+}
 
-                uiState.error != null -> {
-                    // Error state
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = uiState.error?.let {
-                                stringResource(Res.string.error_load_statistics, it)
-                            } ?: stringResource(Res.string.error_unknown),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(onClick = { viewModel.retry() }) {
-                            Text(stringResource(Res.string.action_retry))
-                        }
-                    }
+/**
+ * Content for the sensor detail screen (Stateless).
+ * Displays the appropriate UI based on the uiState.
+ */
+@Composable
+private fun SensorDetailContent(
+    uiState: SensorDetailUiState,
+    sensorType: SensorType,
+    modifier: Modifier = Modifier,
+    onPeriodChange: (TimePeriod) -> Unit = {},
+    onRetry: () -> Unit = {},
+) {
+    Box(
+        modifier = modifier.background(MaterialTheme.colorScheme.background)
+    ) {
+        when {
+            uiState.isLoading -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
+            }
 
-                uiState.statistics != null -> {
-                    // Success state - show data
-                    SensorDetailContent(
-                        statistics = uiState.statistics!!,
-                        sensorType = sensorType,
-                        selectedPeriod = uiState.selectedPeriod,
-                        onPeriodChange = { viewModel.changePeriod(it) }
+            uiState.error != null -> {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = uiState.error?.let {
+                            stringResource(
+                                Res.string.error_load_statistics,
+                                it
+                            )
+                        } ?: stringResource(Res.string.error_unknown),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.error
                     )
-                }
-
-                else -> {
-                    // Empty state
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = stringResource(Res.string.empty_state),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                        )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = onRetry) {
+                        Text(stringResource(Res.string.action_retry))
                     }
+                }
+            }
+
+            uiState.statistics != null -> {
+                SensorDetailSuccessContent(
+                    statistics = uiState.statistics,
+                    sensorType = sensorType,
+                    selectedPeriod = uiState.selectedPeriod,
+                    onPeriodChange = onPeriodChange
+                )
+            }
+
+            else -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = stringResource(Res.string.empty_state),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                    )
                 }
             }
         }
     }
 }
 
+@Preview
+@Composable
+private fun SensorDetailContentLoadingPreview() {
+    GreenhouseTheme {
+        SensorDetailContent(
+            uiState = SensorDetailUiState(isLoading = true),
+            sensorType = SensorType.TEMPERATURE,
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun SensorDetailContentErrorPreview() {
+    GreenhouseTheme {
+        SensorDetailContent(
+            uiState = SensorDetailUiState(isLoading = false, error = "Network error"),
+            sensorType = SensorType.TEMPERATURE,
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun SensorDetailContentSuccessPreview() {
+    SensorDetailContent(
+        uiState = SensorDetailUiState(
+            isLoading = false,
+            statistics = SensorStatistics.dummyData(),
+            selectedPeriod = TimePeriod.LAST_7D
+        ),
+        sensorType = SensorType.TEMPERATURE,
+    )
+}
+
+@Preview
+@Composable
+private fun SensorDetailContentEmptyPreview() {
+    SensorDetailContent(
+        uiState = SensorDetailUiState(isLoading = false, statistics = null, error = null),
+        sensorType = SensorType.TEMPERATURE,
+    )
+}
+
 /**
- * Content displayed when data is loaded successfully
+ * Content displayed when data is loaded successfully.
  */
 @Composable
-private fun SensorDetailContent(
+private fun SensorDetailSuccessContent(
     statistics: SensorStatistics,
     sensorType: SensorType,
     selectedPeriod: TimePeriod,
@@ -193,25 +242,15 @@ private fun SensorDetailContent(
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        // Sensor title
         Text(
-            text = sensorType.displayName,
+            sensorType.displayName,
             style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
         )
-
         Spacer(modifier = Modifier.height(16.dp))
-
-        // Period filter chips
-        PeriodFilterRow(
-            selectedPeriod = selectedPeriod,
-            onPeriodChange = onPeriodChange
-        )
-
+        PeriodFilterRow(selectedPeriod = selectedPeriod, onPeriodChange = onPeriodChange)
         Spacer(modifier = Modifier.height(24.dp))
-
-        // Current value section
         Column {
             Text(
                 text = stringResource(
@@ -222,9 +261,7 @@ private fun SensorDetailContent(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
             Spacer(modifier = Modifier.height(8.dp))
-
             Row(
                 verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -236,29 +273,20 @@ private fun SensorDetailContent(
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
-
             Spacer(modifier = Modifier.height(8.dp))
-
-            // Trend indicator
             TrendIndicator(
                 period = getPeriodDisplayName(selectedPeriod),
                 trendPercent = statistics.trendPercent,
                 trendDirection = statistics.trendDirection
             )
         }
-
         Spacer(modifier = Modifier.height(32.dp))
-
-        // Chart
         HistoricalChart(
             statistics = statistics,
             sensorType = sensorType,
             selectedPeriod = selectedPeriod
         )
-
         Spacer(modifier = Modifier.height(32.dp))
-
-        // Statistics cards
         StatisticsCardsGrid(
             avgValue = statistics.avgValue,
             maxValue = statistics.maxValue,
@@ -268,18 +296,22 @@ private fun SensorDetailContent(
     }
 }
 
-/**
- * Row of period filter chips
- */
+@Preview
 @Composable
-private fun PeriodFilterRow(
-    selectedPeriod: TimePeriod,
-    onPeriodChange: (TimePeriod) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+private fun SensorDetailSuccessContentPreview() {
+    GreenhouseTheme {
+        SensorDetailSuccessContent(
+            statistics = SensorStatistics.dummyData(),
+            sensorType = SensorType.TEMPERATURE,
+            selectedPeriod = TimePeriod.LAST_7D,
+            onPeriodChange = {}
+        )
+    }
+}
+
+@Composable
+private fun PeriodFilterRow(selectedPeriod: TimePeriod, onPeriodChange: (TimePeriod) -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         TimePeriod.entries.forEach { period ->
             FilterChip(
                 selected = selectedPeriod == period,
@@ -294,38 +326,29 @@ private fun PeriodFilterRow(
     }
 }
 
-/**
- * Trend indicator showing percentage change and direction
- */
 @Composable
-private fun TrendIndicator(
-    period: String,
-    trendPercent: Double,
-    trendDirection: String
-) {
+private fun TrendIndicator(period: String, trendPercent: Double, trendDirection: String) {
     val arrow = when (trendDirection) {
         "INCREASING" -> "↑"
         "DECREASING" -> "↓"
         else -> "→"
     }
-
     val color = when (trendDirection) {
-        "INCREASING" -> Color(0xFF00E676) // Green
-        "DECREASING" -> Color(0xFFFF6B6B) // Red
+        "INCREASING" -> Color(0xFF00E676)
+        "DECREASING" -> Color(0xFFFF6B6B)
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
-            text = period,
+            period,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            text = "$arrow ${if (trendPercent >= 0) "+" else ""}${trendPercent.formatDecimals(1)}%",
+            "$arrow ${if (trendPercent >= 0) "+" else ""}${trendPercent.formatDecimals(1)}%",
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Bold,
             color = color
@@ -333,11 +356,6 @@ private fun TrendIndicator(
     }
 }
 
-/**
- * Historical data line chart using platform-specific implementation.
- * - Vico for Android, iOS, Desktop
- * - AAY-chart for Web (JS, WasmJS)
- */
 @Composable
 private fun HistoricalChart(
     statistics: SensorStatistics,
@@ -345,19 +363,11 @@ private fun HistoricalChart(
     selectedPeriod: TimePeriod
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(250.dp),
+        modifier = Modifier.fillMaxWidth().height(250.dp),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-        ) {
+        Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             PlatformLineChart(
                 statistics = statistics,
                 sensorType = sensorType,
@@ -368,9 +378,6 @@ private fun HistoricalChart(
     }
 }
 
-/**
- * Grid of statistics cards (Average, Max, Min)
- */
 @Composable
 private fun StatisticsCardsGrid(
     avgValue: Double,
@@ -378,11 +385,7 @@ private fun StatisticsCardsGrid(
     minValue: Double,
     unit: String
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        // First row: Average and Max
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -398,8 +401,6 @@ private fun StatisticsCardsGrid(
                 modifier = Modifier.weight(1f)
             )
         }
-
-        // Second row: Min (full width)
         StatCard(
             label = stringResource(Res.string.stat_min),
             value = "${minValue.formatDecimals(1)}$unit",
@@ -408,35 +409,22 @@ private fun StatisticsCardsGrid(
     }
 }
 
-/**
- * Individual statistics card
- */
 @Composable
-private fun StatCard(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier
-) {
+private fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp)
-        ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Text(
-                text = label,
+                label,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = value,
+                value,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
@@ -445,9 +433,6 @@ private fun StatCard(
     }
 }
 
-/**
- * Helper function to get localized display name for a time period
- */
 @Composable
 private fun getPeriodDisplayName(period: TimePeriod): String {
     return when (period) {

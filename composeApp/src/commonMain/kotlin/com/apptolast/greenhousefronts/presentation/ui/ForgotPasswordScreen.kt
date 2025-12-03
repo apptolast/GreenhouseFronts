@@ -39,16 +39,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
 import com.apptolast.greenhousefronts.presentation.viewmodel.AuthEvent
+import com.apptolast.greenhousefronts.presentation.viewmodel.AuthUiState
 import com.apptolast.greenhousefronts.presentation.viewmodel.AuthViewModel
 import greenhousefronts.composeapp.generated.resources.Res
 import greenhousefronts.composeapp.generated.resources.login_username_label
 import greenhousefronts.composeapp.generated.resources.login_username_placeholder
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
- * Screen for password recovery.
- * Allows users to enter their email to receive a reset token.
+ * Screen for password recovery (Stateful).
+ * It observes the ViewModel's state and handles events.
  */
 @Composable
 fun ForgotPasswordScreen(
@@ -63,10 +66,7 @@ fun ForgotPasswordScreen(
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
-                is AuthEvent.ForgotPasswordSuccess -> {
-                    onSuccess()
-                }
-
+                is AuthEvent.ForgotPasswordSuccess -> onSuccess()
                 else -> {}
             }
         }
@@ -80,6 +80,27 @@ fun ForgotPasswordScreen(
         }
     }
 
+    ForgotPasswordContent(
+        uiState = uiState,
+        snackbarHostState = snackbarHostState,
+        onEmailChange = viewModel::updateForgotPasswordEmail,
+        onSendEmailClick = viewModel::forgotPassword,
+        onNavigateBack = onNavigateBack
+    )
+}
+
+/**
+ * Content for password recovery screen (Stateless).
+ * Displays the UI and delegates user actions to the callers.
+ */
+@Composable
+private fun ForgotPasswordContent(
+    uiState: AuthUiState,
+    snackbarHostState: SnackbarHostState,
+    onEmailChange: (String) -> Unit,
+    onSendEmailClick: () -> Unit,
+    onNavigateBack: () -> Unit,
+) {
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
@@ -125,7 +146,7 @@ fun ForgotPasswordScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "\uD83D\uDD11", // Key emoji
+                        text = "🔑", // Key emoji
                         style = MaterialTheme.typography.headlineLarge,
                         textAlign = TextAlign.Center
                     )
@@ -165,7 +186,7 @@ fun ForgotPasswordScreen(
                 // Email field
                 OutlinedTextField(
                     value = uiState.forgotPasswordEmail,
-                    onValueChange = viewModel::updateForgotPasswordEmail,
+                    onValueChange = onEmailChange,
                     label = {
                         Text(stringResource(Res.string.login_username_label))
                     },
@@ -196,7 +217,7 @@ fun ForgotPasswordScreen(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Button(
-                    onClick = viewModel::forgotPassword,
+                    onClick = onSendEmailClick,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp),
@@ -225,5 +246,38 @@ fun ForgotPasswordScreen(
                 }
             }
         }
+    }
+}
+
+@Preview
+@Composable
+private fun ForgotPasswordContentPreview() {
+    GreenhouseTheme {
+        ForgotPasswordContent(
+            uiState = AuthUiState(
+                forgotPasswordEmail = "test@example.com"
+            ),
+            snackbarHostState = SnackbarHostState(),
+            onEmailChange = {},
+            onSendEmailClick = {},
+            onNavigateBack = {}
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ForgotPasswordContentLoadingPreview() {
+    GreenhouseTheme {
+        ForgotPasswordContent(
+            uiState = AuthUiState(
+                isLoading = true,
+                forgotPasswordEmail = "test@example.com"
+            ),
+            snackbarHostState = SnackbarHostState(),
+            onEmailChange = {},
+            onSendEmailClick = {},
+            onNavigateBack = {}
+        )
     }
 }
