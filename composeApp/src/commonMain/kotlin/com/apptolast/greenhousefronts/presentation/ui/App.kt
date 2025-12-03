@@ -3,12 +3,11 @@ package com.apptolast.greenhousefronts.presentation.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation.NavHostController
-import androidx.navigation.Navigator
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.toRoute
 import androidx.navigation.navDeepLink
+import androidx.navigation.toRoute
 import com.apptolast.greenhousefronts.data.model.SensorType
 import com.apptolast.greenhousefronts.presentation.navigation.ConfigureWebNavigation
 import com.apptolast.greenhousefronts.presentation.navigation.ForgotPasswordRoute
@@ -21,7 +20,6 @@ import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
 import com.apptolast.greenhousefronts.presentation.viewmodel.AuthViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.SensorDetailViewModel
-import io.ktor.client.engine.ProxyBuilder.http
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -87,12 +85,13 @@ fun App() {
                         navController.popBackStack()
                     },
                     onSuccess = {
-                        // Show success message and go back to login
-                        // Since we can't easily pass data back in this simple setup without a shared result handle,
-                        // we'll rely on the screen showing a confirmation or just pop back.
-                        // Ideally, show a snackbar on Login screen, but for now just pop.
                         authViewModel.clearForgotPasswordForm()
-                        navController.popBackStack()
+                        // Navigate to ResetPasswordScreen with test token for development
+                        // TODO: Replace with actual token from backend response
+                        navController.navigate(ResetPasswordRoute(token = "")) {
+                            // Remove ForgotPasswordScreen from back stack
+                            popUpTo(LoginRoute)
+                        }
                     }
                 )
             }
@@ -100,22 +99,23 @@ fun App() {
             // Reset Password screen route (Deeplink)
             composable<ResetPasswordRoute>(
                 deepLinks = listOf(
-                    // Web
+                    // Web local - URL-encoded path (/ = %2F)
+                    // Use: http://localhost:8080/#ResetPasswordRoute%2F<token>
                     navDeepLink {
                         uriPattern =
-                            "http://localhost:8080/#ResetPasswordRoute?token={token}"
+                            "http://localhost:8080/#com.apptolast.greenhousefronts.presentation.navigation.ResetPasswordRoute%2F{token}"
+
                     },
-                    // Web
-                    navDeepLink {
-                        uriPattern =
-                            "https://localhost/#ResetPasswordRoute?token={token}"
-                    },
-                    // Mobile
+                    // Mobile deep links
                     navDeepLink {
                         uriPattern = "http://apptolast.com/?token={token}"
                     },
                     navDeepLink {
                         uriPattern = "https://apptolast.com/?token={token}"
+                    },
+                    // Mobile custom scheme
+                    navDeepLink {
+                        uriPattern = "greenhouse://reset?token={token}"
                     }
                 )
             ) { backStackEntry ->
