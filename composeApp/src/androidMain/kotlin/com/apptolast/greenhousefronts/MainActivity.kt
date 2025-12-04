@@ -1,5 +1,7 @@
 package com.apptolast.greenhousefronts
 
+import android.app.ComponentCaller
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -29,6 +31,19 @@ class MainActivity : ComponentActivity() {
         setContent {
             App()
         }
+    }
+
+    override fun onNewIntent(intent: Intent, caller: ComponentCaller) {
+        super.onNewIntent(intent, caller)
+        logInboundIntent(intent)
+    }
+
+    private fun logInboundIntent(intent: Intent) {
+        val data = intent.data
+        // Loggea la URI completa y el token
+        android.util.Log.d("DEEPLINK", "URI: ${data?.toString()}")
+        android.util.Log.d("DEEPLINK", "host=${data?.host} path=${data?.path} query=${data?.query}")
+        android.util.Log.d("DEEPLINK", "token=${data?.getQueryParameter("token")}")
     }
 }
 

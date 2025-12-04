@@ -29,6 +29,23 @@ interface AuthRepository {
     suspend fun register(request: RegisterRequest): Result<JwtResponse>
 
     /**
+     * Requests a password reset email.
+     *
+     * @param email The email address to send the reset token to
+     * @return Result success if the request was sent successfully (or if the user doesn't exist, for security)
+     */
+    suspend fun forgotPassword(email: String): Result<Unit>
+
+    /**
+     * Resets the password using a token.
+     *
+     * @param token The reset token received via email
+     * @param password The new password
+     * @return Result success if password was reset
+     */
+    suspend fun resetPassword(token: String, password: String): Result<Unit>
+
+    /**
      * Logs out the current user by clearing stored credentials.
      */
     suspend fun logout()

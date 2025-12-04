@@ -4,5 +4,16 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.apptolast.greenhousefronts</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>apptolast</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

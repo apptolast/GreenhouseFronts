@@ -44,4 +44,37 @@ data class SensorStatistics(
     val period: String = "",
     val startTime: String = "",
     val endTime: String = ""
-)
+) {
+    companion object {
+        /**
+         * Creates a realistic-looking dummy SensorStatistics object for previews and tests.
+         * Simulates a temperature sensor's data over the last 24 hours.
+         */
+        fun dummyData(): SensorStatistics {
+            return SensorStatistics(
+                greenhouseId = Uuid.random(),
+                tenantId = Uuid.random(),
+                sensorType = "TEMPERATURE",
+                unit = "°C",
+                currentValue = 25.5,
+                currentValueTimestamp = "2025-10-27T10:00:00Z",
+                avgValue = 24.8,
+                minValue = 22.1,
+                maxValue = 26.3,
+                medianValue = 24.9,
+                trendPercent = 1.2,
+                trendDirection = "INCREASING",
+                chartData = listOf(
+                    ChartDataPoint("2025-10-27T08:00:00Z", 23.5),
+                    ChartDataPoint("2025-10-27T08:30:00Z", 24.1),
+                    ChartDataPoint("2025-10-27T09:00:00Z", 24.8),
+                    ChartDataPoint("2025-10-27T09:30:00Z", 25.2),
+                    ChartDataPoint("2025-10-27T10:00:00Z", 25.5)
+                ),
+                period = "24h",
+                startTime = "2025-10-26T10:00:00Z",
+                endTime = "2025-10-27T10:00:00Z"
+            )
+        }
+    }
+}

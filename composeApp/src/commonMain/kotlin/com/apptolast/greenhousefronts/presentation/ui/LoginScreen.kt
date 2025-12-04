@@ -47,7 +47,9 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
 import com.apptolast.greenhousefronts.presentation.viewmodel.AuthEvent
+import com.apptolast.greenhousefronts.presentation.viewmodel.AuthUiState
 import com.apptolast.greenhousefronts.presentation.viewmodel.AuthViewModel
 import greenhousefronts.composeapp.generated.resources.Res
 import greenhousefronts.composeapp.generated.resources.cd_password_hide
@@ -65,63 +67,69 @@ import greenhousefronts.composeapp.generated.resources.login_username_label
 import greenhousefronts.composeapp.generated.resources.login_username_placeholder
 import greenhousefronts.composeapp.generated.resources.login_welcome_title
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
- * Modern login screen with greenhouse monitoring theme.
- * Uses AuthViewModel for state management and authentication.
- *
- * Features:
- * - Dark theme with neon green accents
- * - Username/email and password fields with icons
- * - Password visibility toggle
- * - "Forgot password" link
- * - "Sign up" link for registration
- * - Loading state with CircularProgressIndicator
- * - Error handling via Snackbar
- *
- * @param viewModel AuthViewModel for state and authentication
- * @param onLoginSuccess Callback invoked when login succeeds
- * @param onNavigateToRegister Callback to navigate to registration screen
+ * Login screen (Stateful).
+ * It observes the ViewModel's state and handles authentication events.
  */
 @Composable
 fun LoginScreen(
     viewModel: AuthViewModel,
     onLoginSuccess: () -> Unit = {},
-    onNavigateToRegister: () -> Unit = {}
+    onNavigateToRegister: () -> Unit = {},
+    onNavigateToForgotPassword: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var hasNavigated by remember { mutableStateOf(false) }
 
-    // Handle one-time navigation events
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
-            when (event) {
-                is AuthEvent.LoginSuccess -> {
-                    if (!hasNavigated) {
-                        hasNavigated = true
-                        onLoginSuccess()
-                    }
-                }
-
-                else -> { /* Register events handled in RegisterScreen */
-                }
+            if (event is AuthEvent.LoginSuccess && !hasNavigated) {
+                hasNavigated = true
+                onLoginSuccess()
             }
         }
     }
 
-    // Show error in snackbar
     LaunchedEffect(uiState.error) {
-        uiState.error?.let { error ->
-            snackbarHostState.showSnackbar(error)
+        uiState.error?.let {
+            snackbarHostState.showSnackbar(it)
             viewModel.clearError()
         }
     }
 
+    LoginScreenContent(
+        uiState = uiState,
+        snackbarHostState = snackbarHostState,
+        onEmailChange = viewModel::updateEmail,
+        onPasswordChange = viewModel::updatePassword,
+        onLoginClick = viewModel::login,
+        onTogglePasswordVisibility = viewModel::togglePasswordVisibility,
+        onNavigateToRegister = onNavigateToRegister,
+        onNavigateToForgotPassword = onNavigateToForgotPassword
+    )
+}
+
+/**
+ * Content for the login screen (Stateless).
+ * Displays the UI and delegates user actions to the callers.
+ */
+@Composable
+private fun LoginScreenContent(
+    uiState: AuthUiState,
+    snackbarHostState: SnackbarHostState,
+    onEmailChange: (String) -> Unit = {},
+    onPasswordChange: (String) -> Unit = {},
+    onLoginClick: () -> Unit = {},
+    onTogglePasswordVisibility: () -> Unit = {},
+    onNavigateToRegister: () -> Unit = {},
+    onNavigateToForgotPassword: () -> Unit = {},
+) {
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
-        // Background with gradient overlay
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -141,22 +149,17 @@ fun LoginScreen(
                     .background(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
                     .padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                verticalArrangement = Arrangement.Top
             ) {
-                // Logo placeholder with icon and text
-                Box(
-                    modifier = Modifier.size(70.dp),
-                    contentAlignment = Alignment.Center
-                ) {
+                // Logo and Title
+                Box(modifier = Modifier.size(70.dp), contentAlignment = Alignment.Center) {
                     Text(
-                        text = "\uD83C\uDF3F",
+                        "🌿",
                         style = MaterialTheme.typography.headlineLarge,
                         textAlign = TextAlign.Center
                     )
                 }
-
                 Spacer(modifier = Modifier.width(12.dp))
-
                 Text(
                     text = "GREENHOUSE",
                     style = MaterialTheme.typography.titleLarge,
@@ -164,44 +167,37 @@ fun LoginScreen(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 2.sp
                 )
-
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // Welcome title
+                // Welcome Text
                 Text(
                     text = stringResource(Res.string.login_welcome_title),
                     style = MaterialTheme.typography.headlineMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold
                 )
-
                 Spacer(modifier = Modifier.height(8.dp))
-
-                // Subtitle
                 Text(
                     text = stringResource(Res.string.login_subtitle),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
-
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // Username/Email field
+                // Input Fields
                 OutlinedTextField(
                     value = uiState.email,
-                    onValueChange = viewModel::updateEmail,
-                    label = {
-                        Text(stringResource(Res.string.login_username_label))
-                    },
+                    onValueChange = onEmailChange,
+                    label = { Text(stringResource(Res.string.login_username_label)) },
                     placeholder = {
                         Text(
                             stringResource(Res.string.login_username_placeholder),
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodyMedium
                         )
                     },
                     leadingIcon = {
                         Icon(
-                            imageVector = Icons.Default.Person,
+                            Icons.Default.Person,
                             contentDescription = stringResource(Res.string.cd_user_icon),
                             tint = MaterialTheme.colorScheme.primary
                         )
@@ -216,49 +212,36 @@ fun LoginScreen(
                         focusedLabelColor = MaterialTheme.colorScheme.primary
                     )
                 )
-
                 Spacer(modifier = Modifier.height(16.dp))
-
-                // Password field
                 OutlinedTextField(
                     value = uiState.password,
-                    onValueChange = viewModel::updatePassword,
+                    onValueChange = onPasswordChange,
                     label = { Text(stringResource(Res.string.login_password_label)) },
                     placeholder = {
                         Text(
                             stringResource(Res.string.login_password_placeholder),
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodyMedium
                         )
                     },
                     leadingIcon = {
                         Icon(
-                            imageVector = Icons.Default.Lock,
+                            Icons.Default.Lock,
                             contentDescription = stringResource(Res.string.cd_password_icon),
                             tint = MaterialTheme.colorScheme.primary
                         )
                     },
                     trailingIcon = {
-                        IconButton(onClick = viewModel::togglePasswordVisibility) {
+                        IconButton(onClick = onTogglePasswordVisibility) {
                             Icon(
-                                imageVector = if (uiState.isPasswordVisible) {
-                                    Icons.Default.Visibility
-                                } else {
-                                    Icons.Default.VisibilityOff
-                                },
-                                contentDescription = if (uiState.isPasswordVisible) {
-                                    stringResource(Res.string.cd_password_hide)
-                                } else {
-                                    stringResource(Res.string.cd_password_show)
-                                },
+                                imageVector = if (uiState.isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = if (uiState.isPasswordVisible) stringResource(
+                                    Res.string.cd_password_hide
+                                ) else stringResource(Res.string.cd_password_show),
                                 tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
                         }
                     },
-                    visualTransformation = if (uiState.isPasswordVisible) {
-                        VisualTransformation.None
-                    } else {
-                        PasswordVisualTransformation()
-                    },
+                    visualTransformation = if (uiState.isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     enabled = !uiState.isLoading,
@@ -269,12 +252,11 @@ fun LoginScreen(
                         focusedLabelColor = MaterialTheme.colorScheme.primary
                     )
                 )
-
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Forgot password link
+                // Forgot Password
                 TextButton(
-                    onClick = { /* TODO: Navigate to password recovery */ },
+                    onClick = onNavigateToForgotPassword,
                     modifier = Modifier.align(Alignment.End),
                     enabled = !uiState.isLoading
                 ) {
@@ -284,18 +266,13 @@ fun LoginScreen(
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
-
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Login button
+                // Login Button
                 Button(
-                    onClick = viewModel::login,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    enabled = !uiState.isLoading &&
-                            uiState.email.isNotBlank() &&
-                            uiState.password.isNotBlank(),
+                    onClick = onLoginClick,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    enabled = !uiState.isLoading && uiState.email.isNotBlank() && uiState.password.isNotBlank(),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
@@ -318,10 +295,9 @@ fun LoginScreen(
                         )
                     }
                 }
-
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Sign up link
+                // Sign Up Link
                 Row(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
@@ -331,13 +307,8 @@ fun LoginScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
-
                     Spacer(modifier = Modifier.width(4.dp))
-
-                    TextButton(
-                        onClick = onNavigateToRegister,
-                        enabled = !uiState.isLoading
-                    ) {
+                    TextButton(onClick = onNavigateToRegister, enabled = !uiState.isLoading) {
                         Text(
                             text = stringResource(Res.string.login_signup_link),
                             style = MaterialTheme.typography.bodySmall,
@@ -348,5 +319,54 @@ fun LoginScreen(
                 }
             }
         }
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun LoginScreenContentPreview() {
+    val uiState = AuthUiState(
+        email = "user@example.com",
+        password = "password"
+    )
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    GreenhouseTheme {
+        LoginScreenContent(
+            uiState = uiState,
+            snackbarHostState = snackbarHostState,
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun LoginScreenContentLoadingPreview() {
+    val uiState = AuthUiState(
+        email = "user@example.com",
+        password = "password",
+        isLoading = true
+    )
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    GreenhouseTheme {
+        LoginScreenContent(
+            uiState = uiState,
+            snackbarHostState = snackbarHostState,
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun LoginScreenContentEmptyPreview() {
+    val uiState = AuthUiState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    GreenhouseTheme {
+        LoginScreenContent(
+            uiState = uiState,
+            snackbarHostState = snackbarHostState,
+        )
     }
 }
