@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apptolast.greenhousefronts.data.model.SensorStatistics
 import com.apptolast.greenhousefronts.data.model.SensorType
 import com.apptolast.greenhousefronts.data.model.TimePeriod
@@ -78,7 +79,7 @@ fun SensorDetailScreen(
     viewModel: SensorDetailViewModel,
     onNavigateBack: () -> Unit
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     LaunchedEffect(greenhouseId, sensorType) {
         viewModel.initialize(greenhouseId, sensorType)

@@ -7,7 +7,6 @@ import com.apptolast.greenhousefronts.domain.repository.AuthRepository
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -68,8 +67,8 @@ class AuthViewModel(
     private val authRepository: AuthRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(AuthUiState())
-    val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
+    val uiState: StateFlow<AuthUiState>
+        field = MutableStateFlow(AuthUiState())
 
     // Channel for one-time events (navigation)
     private val _events = Channel<AuthEvent>(Channel.BUFFERED)
@@ -81,73 +80,73 @@ class AuthViewModel(
     // ========== Login Field Updates ==========
 
     fun updateEmail(email: String) {
-        _uiState.update { it.copy(email = email) }
+        uiState.update { it.copy(email = email) }
     }
 
     fun updatePassword(password: String) {
-        _uiState.update { it.copy(password = password) }
+        uiState.update { it.copy(password = password) }
     }
 
     fun togglePasswordVisibility() {
-        _uiState.update { it.copy(isPasswordVisible = !it.isPasswordVisible) }
+        uiState.update { it.copy(isPasswordVisible = !it.isPasswordVisible) }
     }
 
     // ========== Register Field Updates ==========
 
     fun updateCompanyName(value: String) {
-        _uiState.update { it.copy(companyName = value) }
+        uiState.update { it.copy(companyName = value) }
     }
 
     fun updateTaxId(value: String) {
-        _uiState.update { it.copy(taxId = value) }
+        uiState.update { it.copy(taxId = value) }
     }
 
     fun updateFirstName(value: String) {
-        _uiState.update { it.copy(firstName = value) }
+        uiState.update { it.copy(firstName = value) }
     }
 
     fun updateLastName(value: String) {
-        _uiState.update { it.copy(lastName = value) }
+        uiState.update { it.copy(lastName = value) }
     }
 
     fun updateRegisterEmail(value: String) {
-        _uiState.update { it.copy(registerEmail = value) }
+        uiState.update { it.copy(registerEmail = value) }
     }
 
     fun updateRegisterPassword(value: String) {
-        _uiState.update { it.copy(registerPassword = value) }
+        uiState.update { it.copy(registerPassword = value) }
     }
 
     fun toggleRegisterPasswordVisibility() {
-        _uiState.update { it.copy(isRegisterPasswordVisible = !it.isRegisterPasswordVisible) }
+        uiState.update { it.copy(isRegisterPasswordVisible = !it.isRegisterPasswordVisible) }
     }
 
     fun updatePhone(value: String) {
-        _uiState.update { it.copy(phone = value) }
+        uiState.update { it.copy(phone = value) }
     }
 
     fun updateAddress(value: String) {
-        _uiState.update { it.copy(address = value) }
+        uiState.update { it.copy(address = value) }
     }
 
     fun updateForgotPasswordEmail(value: String) {
-        _uiState.update { it.copy(forgotPasswordEmail = value) }
+        uiState.update { it.copy(forgotPasswordEmail = value) }
     }
 
     fun updateResetPasswordToken(value: String) {
-        _uiState.update { it.copy(resetPasswordToken = value) }
+        uiState.update { it.copy(resetPasswordToken = value) }
     }
 
     fun updateNewPassword(value: String) {
-        _uiState.update { it.copy(newPassword = value) }
+        uiState.update { it.copy(newPassword = value) }
     }
 
     fun updateConfirmNewPassword(value: String) {
-        _uiState.update { it.copy(confirmNewPassword = value) }
+        uiState.update { it.copy(confirmNewPassword = value) }
     }
 
     fun toggleNewPasswordVisibility() {
-        _uiState.update { it.copy(isNewPasswordVisible = !it.isNewPasswordVisible) }
+        uiState.update { it.copy(isNewPasswordVisible = !it.isNewPasswordVisible) }
     }
 
     // ========== Auth Operations ==========
@@ -158,34 +157,34 @@ class AuthViewModel(
      */
     fun login() {
         // Fast path - early return if already loading
-        if (_uiState.value.isLoading) return
+        if (uiState.value.isLoading) return
 
         viewModelScope.launch {
             authMutex.withLock {
                 // Double-check after acquiring mutex
-                if (_uiState.value.isLoading) return@launch
+                if (uiState.value.isLoading) return@launch
 
-                val currentState = _uiState.value
+                val currentState = uiState.value
 
                 // Basic validation
                 if (currentState.email.isBlank() || currentState.password.isBlank()) {
-                    _uiState.update { it.copy(error = "Por favor, completa todos los campos") }
+                    uiState.update { it.copy(error = "Por favor, completa todos los campos") }
                     return@launch
                 }
 
                 // Set loading state atomically
-                _uiState.update { it.copy(isLoading = true, error = null) }
+                uiState.update { it.copy(isLoading = true, error = null) }
 
                 authRepository.login(
                     email = currentState.email.trim(),
                     password = currentState.password
                 )
                     .onSuccess {
-                        _uiState.update { it.copy(isLoading = false) }
+                        uiState.update { it.copy(isLoading = false) }
                         _events.send(AuthEvent.LoginSuccess)
                     }
                     .onFailure { error ->
-                        _uiState.update {
+                        uiState.update {
                             it.copy(
                                 isLoading = false,
                                 error = error.message ?: "Error al iniciar sesión"
@@ -202,22 +201,22 @@ class AuthViewModel(
      */
     fun register() {
         // Fast path
-        if (_uiState.value.isLoading) return
+        if (uiState.value.isLoading) return
 
         viewModelScope.launch {
             authMutex.withLock {
-                if (_uiState.value.isLoading) return@launch
+                if (uiState.value.isLoading) return@launch
 
-                val currentState = _uiState.value
+                val currentState = uiState.value
 
                 // Basic validation
                 val validationError = validateRegistration(currentState)
                 if (validationError != null) {
-                    _uiState.update { it.copy(error = validationError) }
+                    uiState.update { it.copy(error = validationError) }
                     return@launch
                 }
 
-                _uiState.update { it.copy(isLoading = true, error = null) }
+                uiState.update { it.copy(isLoading = true, error = null) }
 
                 val request = RegisterRequest(
                     companyName = currentState.companyName.trim(),
@@ -232,11 +231,11 @@ class AuthViewModel(
 
                 authRepository.register(request)
                     .onSuccess {
-                        _uiState.update { it.copy(isLoading = false) }
+                        uiState.update { it.copy(isLoading = false) }
                         _events.send(AuthEvent.RegisterSuccess)
                     }
                     .onFailure { error ->
-                        _uiState.update {
+                        uiState.update {
                             it.copy(
                                 isLoading = false,
                                 error = error.message ?: "Error en el registro"
@@ -251,33 +250,33 @@ class AuthViewModel(
      * Requests a password reset email.
      */
     fun forgotPassword() {
-        if (_uiState.value.isLoading) return
+        if (uiState.value.isLoading) return
 
         viewModelScope.launch {
             authMutex.withLock {
-                if (_uiState.value.isLoading) return@launch
+                if (uiState.value.isLoading) return@launch
 
-                val currentState = _uiState.value
+                val currentState = uiState.value
 
                 if (currentState.forgotPasswordEmail.isBlank()) {
-                    _uiState.update { it.copy(error = "Por favor, ingresa tu email") }
+                    uiState.update { it.copy(error = "Por favor, ingresa tu email") }
                     return@launch
                 }
 
                 if (!isValidEmail(currentState.forgotPasswordEmail)) {
-                    _uiState.update { it.copy(error = "El email no es válido") }
+                    uiState.update { it.copy(error = "El email no es válido") }
                     return@launch
                 }
 
-                _uiState.update { it.copy(isLoading = true, error = null) }
+                uiState.update { it.copy(isLoading = true, error = null) }
 
                 authRepository.forgotPassword(currentState.forgotPasswordEmail.trim())
                     .onSuccess {
-                        _uiState.update { it.copy(isLoading = false) }
+                        uiState.update { it.copy(isLoading = false) }
                         _events.send(AuthEvent.ForgotPasswordSuccess)
                     }
                     .onFailure { error ->
-                        _uiState.update {
+                        uiState.update {
                             it.copy(
                                 isLoading = false,
                                 error = error.message ?: "Error al solicitar recuperación"
@@ -292,41 +291,41 @@ class AuthViewModel(
      * Resets the password using the token and new password.
      */
     fun resetPassword() {
-        if (_uiState.value.isLoading) return
+        if (uiState.value.isLoading) return
 
         viewModelScope.launch {
             authMutex.withLock {
-                if (_uiState.value.isLoading) return@launch
+                if (uiState.value.isLoading) return@launch
 
-                val currentState = _uiState.value
+                val currentState = uiState.value
 
                 if (currentState.newPassword.isBlank()) {
-                    _uiState.update { it.copy(error = "Por favor, ingresa la nueva contraseña") }
+                    uiState.update { it.copy(error = "Por favor, ingresa la nueva contraseña") }
                     return@launch
                 }
 
                 if (currentState.newPassword.length < 6) {
-                    _uiState.update { it.copy(error = "La contraseña debe tener al menos 6 caracteres") }
+                    uiState.update { it.copy(error = "La contraseña debe tener al menos 6 caracteres") }
                     return@launch
                 }
 
                 if (currentState.newPassword != currentState.confirmNewPassword) {
-                    _uiState.update { it.copy(error = "Las contraseñas no coinciden") }
+                    uiState.update { it.copy(error = "Las contraseñas no coinciden") }
                     return@launch
                 }
 
-                _uiState.update { it.copy(isLoading = true, error = null) }
+                uiState.update { it.copy(isLoading = true, error = null) }
 
                 authRepository.resetPassword(
                     currentState.resetPasswordToken,
                     currentState.newPassword
                 )
                     .onSuccess {
-                        _uiState.update { it.copy(isLoading = false) }
+                        uiState.update { it.copy(isLoading = false) }
                         _events.send(AuthEvent.ResetPasswordSuccess)
                     }
                     .onFailure { error ->
-                        _uiState.update {
+                        uiState.update {
                             it.copy(
                                 isLoading = false,
                                 error = error.message ?: "Error al restablecer contraseña"
@@ -344,7 +343,7 @@ class AuthViewModel(
         viewModelScope.launch {
             authRepository.logout()
             // Reset state
-            _uiState.update { AuthUiState() }
+            uiState.update { AuthUiState() }
         }
     }
 
@@ -352,7 +351,7 @@ class AuthViewModel(
      * Clears the current error message.
      */
     fun clearError() {
-        _uiState.update { it.copy(error = null) }
+        uiState.update { it.copy(error = null) }
     }
 
     /**
@@ -366,7 +365,7 @@ class AuthViewModel(
      * Clears login form fields.
      */
     fun clearLoginForm() {
-        _uiState.update {
+        uiState.update {
             it.copy(
                 email = "",
                 password = "",
@@ -379,7 +378,7 @@ class AuthViewModel(
      * Clears register form fields.
      */
     fun clearRegisterForm() {
-        _uiState.update {
+        uiState.update {
             it.copy(
                 companyName = "",
                 taxId = "",
@@ -395,13 +394,13 @@ class AuthViewModel(
     }
 
     fun clearForgotPasswordForm() {
-        _uiState.update {
+        uiState.update {
             it.copy(forgotPasswordEmail = "")
         }
     }
 
     fun clearResetPasswordForm() {
-        _uiState.update {
+        uiState.update {
             it.copy(
                 resetPasswordToken = "",
                 newPassword = "",

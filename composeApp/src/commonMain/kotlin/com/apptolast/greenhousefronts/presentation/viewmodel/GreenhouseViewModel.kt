@@ -6,14 +6,13 @@ import com.apptolast.greenhousefronts.data.model.GreenhouseData
 import com.apptolast.greenhousefronts.data.model.GreenhouseMessage
 import com.apptolast.greenhousefronts.data.model.toGroupedData
 import com.apptolast.greenhousefronts.data.remote.websocket.WebSocketConnectionState
-import com.apptolast.greenhousefronts.data.repository.GreenhouseRepositoryImpl
 import com.apptolast.greenhousefronts.domain.repository.GreenhouseRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -45,8 +44,8 @@ class GreenhouseViewModel(
     private val repository: GreenhouseRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(GreenhouseUiState())
-    val uiState: StateFlow<GreenhouseUiState> = _uiState.asStateFlow()
+    val uiState: StateFlow<GreenhouseUiState>
+        field = MutableStateFlow(GreenhouseUiState())
 
     private var webSocketJob: Job? = null
     private var connectionStateJob: Job? = null
@@ -61,19 +60,19 @@ class GreenhouseViewModel(
      */
     fun loadRecentMessages() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            uiState.update { it.copy(isLoading = true, error = null) }
 
             repository.getRecentMessages()
                 .onSuccess { messages ->
                     val greenhouseDataList = messages.firstOrNull()?.toGroupedData() ?: emptyList()
-                    _uiState.value = _uiState.value.copy(
+                    uiState.value = uiState.value.copy(
                         isLoading = false,
                         greenhouses = greenhouseDataList,
                         error = null
                     )
                 }
                 .onFailure { exception ->
-                    _uiState.value = _uiState.value.copy(
+                    uiState.value = uiState.value.copy(
                         isLoading = false,
                         error = "Error al cargar mensajes: ${exception.message}"
                     )
@@ -90,7 +89,7 @@ class GreenhouseViewModel(
      */
     fun updateSector(greenhouseId: Int, sectorIndex: Int, value: Double) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null, publishSuccess = false)
+            uiState.update { it.copy(isLoading = true, error = null, publishSuccess = false) }
 
             // Create message with the updated sector value
             val message = when (greenhouseId) {
@@ -123,7 +122,7 @@ class GreenhouseViewModel(
 
             repository.publishMessage(message, topic = "GREENHOUSE/MOBILE")
                 .onSuccess {
-                    _uiState.value = _uiState.value.copy(
+                    uiState.value = uiState.value.copy(
                         isLoading = false,
                         publishSuccess = true,
                         error = null
@@ -132,7 +131,7 @@ class GreenhouseViewModel(
                     loadRecentMessages()
                 }
                 .onFailure { exception ->
-                    _uiState.value = _uiState.value.copy(
+                    uiState.value = uiState.value.copy(
                         isLoading = false,
                         publishSuccess = false,
                         error = "Error al publicar mensaje: ${exception.message}"
@@ -149,8 +148,8 @@ class GreenhouseViewModel(
      */
     fun updateExtractor(greenhouseId: Int, value: Double) {
         viewModelScope.launch {
-            _uiState.value =
-                _uiState.value.copy(isLoading = true, error = null, publishSuccess = false)
+            uiState.value =
+                uiState.value.copy(isLoading = true, error = null, publishSuccess = false)
 
             val message = when (greenhouseId) {
                 1 -> GreenhouseMessage(invernadero01Extractor = value)
@@ -161,7 +160,7 @@ class GreenhouseViewModel(
 
             repository.publishMessage(message, topic = "GREENHOUSE/MOBILE")
                 .onSuccess {
-                    _uiState.value = _uiState.value.copy(
+                    uiState.value = uiState.value.copy(
                         isLoading = false,
                         publishSuccess = true,
                         error = null
@@ -169,7 +168,7 @@ class GreenhouseViewModel(
                     loadRecentMessages()
                 }
                 .onFailure { exception ->
-                    _uiState.value = _uiState.value.copy(
+                    uiState.value = uiState.value.copy(
                         isLoading = false,
                         publishSuccess = false,
                         error = "Error al publicar mensaje: ${exception.message}"
@@ -182,21 +181,21 @@ class GreenhouseViewModel(
      * Selects a greenhouse to view its details
      */
     fun selectGreenhouse(greenhouseId: Int) {
-        _uiState.value = _uiState.value.copy(selectedGreenhouseId = greenhouseId)
+        uiState.value = uiState.value.copy(selectedGreenhouseId = greenhouseId)
     }
 
     /**
      * Clears the publish success state
      */
     fun clearPublishSuccess() {
-        _uiState.value = _uiState.value.copy(publishSuccess = false)
+        uiState.value = uiState.value.copy(publishSuccess = false)
     }
 
     /**
      * Clears the error message
      */
     fun clearError() {
-        _uiState.value = _uiState.value.copy(error = null)
+        uiState.value = uiState.value.copy(error = null)
     }
 
     // WebSocket methods
@@ -207,14 +206,14 @@ class GreenhouseViewModel(
      */
     private fun connectToWebSocket() {
         viewModelScope.launch {
-            val currentAttempts = _uiState.value.webSocketState.reconnectAttempts
+            val currentAttempts = uiState.value.webSocketState.reconnectAttempts
 
             if (currentAttempts >= maxReconnectAttempts) {
                 // Max attempts reached, fallback to HTTP
                 println("Max WebSocket reconnect attempts reached, using HTTP fallback")
-                _uiState.value = _uiState.value.copy(
+                uiState.value = uiState.value.copy(
                     dataSource = DataSource.HTTP,
-                    webSocketState = _uiState.value.webSocketState.copy(
+                    webSocketState = uiState.value.webSocketState.copy(
                         lastError = "Failed to connect after $maxReconnectAttempts attempts. Using HTTP fallback."
                     )
                 )
@@ -223,7 +222,7 @@ class GreenhouseViewModel(
 
             repository.connectWebSocket()
                 .onSuccess {
-                    _uiState.value = _uiState.value.copy(
+                    uiState.value = uiState.value.copy(
                         dataSource = DataSource.WEBSOCKET
                     )
                     observeRealtimeMessages()
@@ -248,7 +247,7 @@ class GreenhouseViewModel(
             repository.observeRealtimeMessages()
                 .catch { e ->
                     println("Error observing messages: ${e.message}")
-                    _uiState.value = _uiState.value.copy(
+                    uiState.value = uiState.value.copy(
                         dataSource = DataSource.HTTP,
                         error = "WebSocket error: ${e.message}. Switching to HTTP."
                     )
@@ -258,7 +257,7 @@ class GreenhouseViewModel(
                 }
                 .collect { message ->
                     val greenhouseDataList = message.toGroupedData()
-                    _uiState.value = _uiState.value.copy(
+                    uiState.value = uiState.value.copy(
                         greenhouses = greenhouseDataList
                     )
                 }
@@ -272,12 +271,12 @@ class GreenhouseViewModel(
         connectionStateJob?.cancel()
         connectionStateJob = viewModelScope.launch {
             repository.getConnectionState().collect { state ->
-                _uiState.value = _uiState.value.copy(
+                uiState.value = uiState.value.copy(
                     webSocketState = state
                 )
 
                 // If disconnected unexpectedly, try to reconnect
-                if (!state.isConnected && _uiState.value.dataSource == DataSource.WEBSOCKET) {
+                if (!state.isConnected && uiState.value.dataSource == DataSource.WEBSOCKET) {
                     delay(3000)
                     connectToWebSocket()
                 }
@@ -291,21 +290,21 @@ class GreenhouseViewModel(
      */
     fun reconnectWebSocket() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(
-                webSocketState = _uiState.value.webSocketState.copy(
+            uiState.value = uiState.value.copy(
+                webSocketState = uiState.value.webSocketState.copy(
                     reconnectAttempts = 0 // Reset attempts for manual reconnection
                 )
             )
             repository.reconnectWebSocket()
                 .onSuccess {
-                    _uiState.value = _uiState.value.copy(
+                    uiState.value = uiState.value.copy(
                         dataSource = DataSource.WEBSOCKET
                     )
                     observeRealtimeMessages()
                     observeConnectionState()
                 }
                 .onFailure { exception ->
-                    _uiState.value = _uiState.value.copy(
+                    uiState.value = uiState.value.copy(
                         error = "Failed to reconnect: ${exception.message}"
                     )
                 }

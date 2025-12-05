@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apptolast.greenhousefronts.data.model.GreenhouseData
 import com.apptolast.greenhousefronts.data.remote.websocket.WebSocketConnectionState
 import com.apptolast.greenhousefronts.presentation.ui.components.ConnectionStatsDialog
@@ -84,7 +85,7 @@ fun HomeScreen(
     onNavigateToSensorDetail: (greenhouseId: String, sensorType: String) -> Unit = { _, _ -> },
     onNavigateToSettings: () -> Unit = {}
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var showStatsDialog by remember { mutableStateOf(false) }
 

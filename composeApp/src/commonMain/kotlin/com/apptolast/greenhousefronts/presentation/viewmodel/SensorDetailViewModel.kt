@@ -8,7 +8,6 @@ import com.apptolast.greenhousefronts.data.model.TimePeriod
 import com.apptolast.greenhousefronts.domain.repository.GreenhouseRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
@@ -31,8 +30,8 @@ class SensorDetailViewModel(
     private val repository: GreenhouseRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(SensorDetailUiState())
-    val uiState: StateFlow<SensorDetailUiState> = _uiState.asStateFlow()
+    val uiState: StateFlow<SensorDetailUiState>
+        field = MutableStateFlow(SensorDetailUiState())
 
     private var currentGreenhouseId: String? = null
     private var currentSensorType: SensorType? = null
@@ -57,10 +56,10 @@ class SensorDetailViewModel(
     fun loadStatistics() {
         val greenhouseId = currentGreenhouseId ?: return
         val sensorType = currentSensorType ?: return
-        val period = _uiState.value.selectedPeriod
+        val period = uiState.value.selectedPeriod
 
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            uiState.value = uiState.value.copy(isLoading = true, error = null)
 
             repository.getStatistics(
                 greenhouseId = greenhouseId,
@@ -68,14 +67,14 @@ class SensorDetailViewModel(
                 period = period
             )
                 .onSuccess { statistics ->
-                    _uiState.value = _uiState.value.copy(
+                    uiState.value = uiState.value.copy(
                         isLoading = false,
                         statistics = statistics,
                         error = null
                     )
                 }
                 .onFailure { exception ->
-                    _uiState.value = _uiState.value.copy(
+                    uiState.value = uiState.value.copy(
                         isLoading = false,
                         error = exception.message
                     )
@@ -87,8 +86,8 @@ class SensorDetailViewModel(
      * Changes the selected time period and reloads data
      */
     fun changePeriod(period: TimePeriod) {
-        if (_uiState.value.selectedPeriod != period) {
-            _uiState.value = _uiState.value.copy(selectedPeriod = period)
+        if (uiState.value.selectedPeriod != period) {
+            uiState.value = uiState.value.copy(selectedPeriod = period)
             loadStatistics()
         }
     }
@@ -104,6 +103,6 @@ class SensorDetailViewModel(
      * Clears any error messages
      */
     fun clearError() {
-        _uiState.value = _uiState.value.copy(error = null)
+        uiState.value = uiState.value.copy(error = null)
     }
 }
