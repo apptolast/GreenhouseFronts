@@ -90,6 +90,11 @@ class AuthRepositoryImpl(
     }
 
     override suspend fun logout() {
+        try {
+            authApiService.logout()
+        } catch (_: Exception) {
+            // Ignore errors - always clear local tokens
+        }
         tokenStorage.clearAll()
     }
 

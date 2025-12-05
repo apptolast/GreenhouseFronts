@@ -16,10 +16,12 @@ import com.apptolast.greenhousefronts.presentation.navigation.LoginRoute
 import com.apptolast.greenhousefronts.presentation.navigation.RegisterRoute
 import com.apptolast.greenhousefronts.presentation.navigation.ResetPasswordRoute
 import com.apptolast.greenhousefronts.presentation.navigation.SensorDetailRoute
+import com.apptolast.greenhousefronts.presentation.navigation.SettingsRoute
 import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
 import com.apptolast.greenhousefronts.presentation.viewmodel.AuthViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.SensorDetailViewModel
+import com.apptolast.greenhousefronts.presentation.viewmodel.SettingsViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -170,6 +172,23 @@ fun App() {
                                 sensorType = sensorType
                             )
                         )
+                    },
+                    onNavigateToSettings = {
+                        navController.navigate(SettingsRoute)
+                    }
+                )
+            }
+
+            // Settings screen route
+            composable<SettingsRoute> {
+                val viewModel: SettingsViewModel = koinViewModel()
+                SettingsScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = { navController.popBackStack() },
+                    onLogoutSuccess = {
+                        navController.navigate(LoginRoute) {
+                            popUpTo(0) { inclusive = true }
+                        }
                     }
                 )
             }

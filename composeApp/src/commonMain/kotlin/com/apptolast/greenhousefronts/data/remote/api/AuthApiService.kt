@@ -83,4 +83,12 @@ class AuthApiService(
             setBody(request)
         }
     }
+
+    /**
+     * Logs out the current user.
+     * POST /api/auth/logout
+     */
+    suspend fun logout() {
+        httpClient.post("$baseUrl/api/auth/logout")
+    }
 }
