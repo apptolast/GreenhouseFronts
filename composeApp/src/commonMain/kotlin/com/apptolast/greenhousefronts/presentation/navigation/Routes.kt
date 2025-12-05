@@ -53,3 +53,10 @@ data class SensorDetailRoute(
     val greenhouseId: String,
     val sensorType: String
 )
+
+/**
+ * Represents the settings screen route.
+ * Provides access to app configuration and logout functionality.
+ */
+@Serializable
+object SettingsRoute

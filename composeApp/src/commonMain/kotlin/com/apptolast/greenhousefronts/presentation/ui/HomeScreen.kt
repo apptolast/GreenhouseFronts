@@ -14,9 +14,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
@@ -44,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apptolast.greenhousefronts.data.model.GreenhouseData
 import com.apptolast.greenhousefronts.data.remote.websocket.WebSocketConnectionState
 import com.apptolast.greenhousefronts.presentation.ui.components.ConnectionStatsDialog
@@ -56,6 +61,7 @@ import com.apptolast.greenhousefronts.util.formatDecimals
 import greenhousefronts.composeapp.generated.resources.Res
 import greenhousefronts.composeapp.generated.resources.actuator_sector_label
 import greenhousefronts.composeapp.generated.resources.actuator_ventilation_label
+import greenhousefronts.composeapp.generated.resources.cd_settings
 import greenhousefronts.composeapp.generated.resources.empty_state
 import greenhousefronts.composeapp.generated.resources.greenhouse_number
 import greenhousefronts.composeapp.generated.resources.home_actuators_section_title
@@ -76,9 +82,10 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 fun HomeScreen(
     viewModel: GreenhouseViewModel,
-    onNavigateToSensorDetail: (greenhouseId: String, sensorType: String) -> Unit = { _, _ -> }
+    onNavigateToSensorDetail: (greenhouseId: String, sensorType: String) -> Unit = { _, _ -> },
+    onNavigateToSettings: () -> Unit = {}
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var showStatsDialog by remember { mutableStateOf(false) }
 
@@ -104,6 +111,7 @@ fun HomeScreen(
         showStatsDialog = showStatsDialog,
         onSelectGreenhouse = viewModel::selectGreenhouse,
         onNavigateToSensorDetail = onNavigateToSensorDetail,
+        onNavigateToSettings = onNavigateToSettings,
         onSectorChange = { greenhouseId, sectorIndex, value ->
             viewModel.updateSector(greenhouseId, sectorIndex, value)
         },
@@ -128,6 +136,7 @@ private fun HomeScreenContent(
     showStatsDialog: Boolean,
     onSelectGreenhouse: (Int) -> Unit = {},
     onNavigateToSensorDetail: (greenhouseId: String, sensorType: String) -> Unit = { _, _ -> },
+    onNavigateToSettings: () -> Unit = {},
     onSectorChange: (greenhouseId: Int, sectorIndex: Int, value: Double) -> Unit = { _, _, _ -> },
     onExtractorChange: (greenhouseId: Int, value: Double) -> Unit = { _, _ -> },
     onStatusClick: () -> Unit = {},
@@ -150,6 +159,13 @@ private fun HomeScreenContent(
                         onStatusClick = onStatusClick,
                         modifier = Modifier.padding(8.dp)
                     )
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = stringResource(Res.string.cd_settings),
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,

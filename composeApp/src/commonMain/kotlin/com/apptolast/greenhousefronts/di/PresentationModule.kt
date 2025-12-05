@@ -3,6 +3,7 @@ package com.apptolast.greenhousefronts.di
 import com.apptolast.greenhousefronts.presentation.viewmodel.AuthViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.SensorDetailViewModel
+import com.apptolast.greenhousefronts.presentation.viewmodel.SettingsViewModel
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
 
@@ -16,4 +17,5 @@ val presentationModule = module {
     viewModelOf(::AuthViewModel)
     viewModelOf(::GreenhouseViewModel)
     viewModelOf(::SensorDetailViewModel)
+    viewModelOf(::SettingsViewModel)
 }
