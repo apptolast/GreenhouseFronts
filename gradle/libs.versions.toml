@@ -20,7 +20,7 @@ kotlinx-datetime = "0.7.1"
 krossbow = "9.3.0"
 ktor = "3.3.3"
 multiplatform-settings = "1.3.0"
-vico = "2.3.6"
+vico = "2.4.0"
 aay-chart = "1.1.0"
 
 [libraries]
