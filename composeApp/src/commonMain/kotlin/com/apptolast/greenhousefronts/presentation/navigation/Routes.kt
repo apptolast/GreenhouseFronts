@@ -50,3 +50,13 @@ object GreenhousesRoute
 data class GreenhouseDetailRoute(
     val greenhouseId: Long,
 )
+
+/**
+ * Represents the irrigation configuration screen route.
+ *
+ * @property greenhouseId ID of the greenhouse to configure irrigation for
+ */
+@Serializable
+data class IrrigationConfigRoute(
+    val greenhouseId: Long,
+)

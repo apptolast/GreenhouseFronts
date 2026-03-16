@@ -21,8 +21,8 @@ data class AuthUiState(
     val error: String? = null,
 
     // Login fields
-    val email: String = "",
-    val password: String = "",
+    val email: String = "adminfronts@adminfronts.com",
+    val password: String = "123456",
     val isPasswordVisible: Boolean = false,
 
     // Register fields

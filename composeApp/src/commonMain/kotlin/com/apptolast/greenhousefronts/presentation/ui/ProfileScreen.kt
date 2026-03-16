@@ -1,7 +1,6 @@
 package com.apptolast.greenhousefronts.presentation.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -49,10 +48,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.apptolast.greenhousefronts.domain.model.UserProfile
+import com.apptolast.greenhousefronts.getPlatform
 import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
 import com.apptolast.greenhousefronts.presentation.viewmodel.ProfileEvent
 import com.apptolast.greenhousefronts.presentation.viewmodel.ProfileUiState
-import com.apptolast.greenhousefronts.getPlatform
 import com.apptolast.greenhousefronts.presentation.viewmodel.ProfileViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -121,42 +120,43 @@ private fun ProfileContent(
             val profile = uiState.profile ?: return
 
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
+                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Avatar
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center,
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = profile.username.take(2).uppercase(),
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
+                    // Avatar
+                    Box(
+                        modifier = Modifier.size(80.dp).clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = profile.username.take(2).uppercase(),
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
+
+                    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        // Name
+                        Text(
+                            text = profile.username,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+
+                        // Role badge
+                        RoleBadge(role = profile.role)
+                    }
                 }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Name
-                Text(
-                    text = profile.username,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-
-                // Role badge
-                RoleBadge(role = profile.role)
 
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -293,10 +293,7 @@ private fun RoleBadge(role: String) {
     }
 
     Box(
-        modifier = Modifier
-            .padding(top = 6.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(backgroundColor)
+        modifier = Modifier.padding(top = 6.dp).clip(RoundedCornerShape(20.dp)).background(backgroundColor)
             .padding(horizontal = 12.dp, vertical = 4.dp),
     ) {
         Text(

@@ -42,9 +42,10 @@ class GreenhouseRepositoryImpl(
                     alertCount = alertsByGreenhouse[dto.id]?.size ?: 0,
                     sectorNames = sectorsByGreenhouse[dto.id]
                         ?.mapNotNull { it.name }
+                        ?.sorted()
                         ?: emptyList(),
                 )
-            }
+            }.sortedBy { it.name }
 
             Result.success(result)
         } catch (e: Exception) {
@@ -77,7 +78,7 @@ class GreenhouseRepositoryImpl(
                     areaM2 = dto.areaM2,
                     sectorCount = greenhouseSectors.size,
                     alertCount = greenhouseAlerts.size,
-                    sectorNames = greenhouseSectors.mapNotNull { it.name },
+                    sectorNames = greenhouseSectors.mapNotNull { it.name }.sorted(),
                 ),
             )
         } catch (e: Exception) {

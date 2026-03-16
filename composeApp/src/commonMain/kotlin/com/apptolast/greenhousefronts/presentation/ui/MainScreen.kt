@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
@@ -68,6 +70,10 @@ fun MainScreen(
         ) {
             when (selectedTab) {
                 BottomNavTab.GREENHOUSES -> {
+                    LifecycleResumeEffect(Unit) {
+                        greenhouseListViewModel.loadGreenhouses()
+                        onPauseOrDispose { }
+                    }
                     val uiState by greenhouseListViewModel.uiState.collectAsState()
                     GreenhouseListContent(
                         uiState = uiState,
