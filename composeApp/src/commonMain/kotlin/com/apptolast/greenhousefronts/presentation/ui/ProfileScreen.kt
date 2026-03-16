@@ -30,6 +30,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -87,17 +88,15 @@ private fun ProfileContent(
     onLogout: () -> Unit,
     onRetry: () -> Unit,
 ) {
-    when {
-        uiState.isLoading -> {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-            }
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (uiState.isLoading) {
+            LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.primary,
+            )
         }
 
-        uiState.error != null && uiState.profile == null -> {
+        if (uiState.error != null && uiState.profile == null) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
@@ -116,9 +115,7 @@ private fun ProfileContent(
             }
         }
 
-        else -> {
-            val profile = uiState.profile ?: return
-
+        uiState.profile?.let { profile ->
             Column(
                 modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 16.dp),

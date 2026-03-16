@@ -25,7 +25,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -142,20 +142,17 @@ private fun GreenhouseDetailContent(
         },
         containerColor = MaterialTheme.colorScheme.background,
     ) { paddingValues ->
-        when {
-            uiState.isLoading -> {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(paddingValues),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                }
+        Column(modifier = Modifier.padding(paddingValues)) {
+            if (uiState.isLoading) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
 
-            uiState.greenhouse != null -> {
+            uiState.greenhouse?.let { greenhouse ->
                 GreenhouseDetailBody(
-                    greenhouse = uiState.greenhouse,
-                    modifier = Modifier.padding(paddingValues),
+                    greenhouse = greenhouse,
                     onNavigateToIrrigationConfig = onNavigateToIrrigationConfig,
                 )
             }

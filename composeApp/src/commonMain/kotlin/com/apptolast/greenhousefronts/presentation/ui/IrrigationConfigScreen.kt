@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -144,21 +145,18 @@ private fun IrrigationConfigContent(
         },
         containerColor = MaterialTheme.colorScheme.background,
     ) { paddingValues ->
-        when {
-            uiState.isLoading -> {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(paddingValues),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                }
+        Column(modifier = Modifier.padding(paddingValues)) {
+            if (uiState.isLoading) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
 
-            uiState.config != null -> {
+            uiState.config?.let { config ->
                 IrrigationConfigBody(
-                    config = uiState.config,
+                    config = config,
                     isSaving = uiState.isSaving,
-                    modifier = Modifier.padding(paddingValues),
                     onToggleDay = onToggleDay,
                     onStartHourChanged = onStartHourChanged,
                     onStartMinuteChanged = onStartMinuteChanged,

@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.material3.MaterialTheme
@@ -101,97 +101,92 @@ private fun GreenhouseListContent(
     onRetry: () -> Unit,
     onGreenhouseClick: (Greenhouse) -> Unit,
 ) {
-    Box(modifier = Modifier.fillMaxSize()) {
-        when {
-            uiState.isLoading -> {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center),
-                    color = MaterialTheme.colorScheme.primary,
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Fixed header
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
+            Text(
+                text = "🌱 GreenhouseFronts",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            if (uiState.displayName.isNotBlank()) {
+                Text(
+                    text = "Hola, ${uiState.displayName} 🌿",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            }
-
-            else -> {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    // Header
-                    item {
-                        Column {
-                            Text(
-                                text = "🌱 GreenhouseFronts",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground,
-                            )
-                            if (uiState.displayName.isNotBlank()) {
-                                Text(
-                                    text = "Hola, ${uiState.displayName} 🌿",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(20.dp))
-                        }
-                    }
-
-                    // Section title
-                    item {
-                        Text(
-                            text = "Mis Invernaderos",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onBackground,
-                        )
-                    }
-
-                    // Greenhouse cards
-                    if (uiState.greenhouses.isEmpty() && !uiState.isLoading) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 32.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    text = "No hay invernaderos registrados",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    } else {
-                        items(
-                            items = uiState.greenhouses,
-                            key = { it.id },
-                        ) { greenhouse ->
-                            GreenhouseCard(
-                                greenhouse = greenhouse,
-                                onClick = { onGreenhouseClick(greenhouse) },
-                            )
-                        }
-                    }
-                }
             }
         }
 
-        // Error snackbar
-        uiState.error?.let { error ->
-            Snackbar(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(16.dp),
-                action = {
-                    TextButton(onClick = onRetry) {
-                        Text("Reintentar", color = MaterialTheme.colorScheme.primary)
-                    }
-                },
-                containerColor = MaterialTheme.colorScheme.errorContainer,
-                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        if (uiState.isLoading) {
+            LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+
+        Box(modifier = Modifier.weight(1f)) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(error)
+                // Section title
+                item {
+                    Text(
+                        text = "Mis Invernaderos",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
+
+                // Greenhouse cards
+                if (uiState.greenhouses.isEmpty() && !uiState.isLoading) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 32.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = "No hay invernaderos registrados",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                } else {
+                    items(
+                        items = uiState.greenhouses,
+                        key = { it.id },
+                    ) { greenhouse ->
+                        GreenhouseCard(
+                            greenhouse = greenhouse,
+                            onClick = { onGreenhouseClick(greenhouse) },
+                        )
+                    }
+                }
+            }
+
+            // Error snackbar
+            uiState.error?.let { error ->
+                Snackbar(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(16.dp),
+                    action = {
+                        TextButton(onClick = onRetry) {
+                            Text("Reintentar", color = MaterialTheme.colorScheme.primary)
+                        }
+                    },
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                ) {
+                    Text(error)
+                }
             }
         }
     }
