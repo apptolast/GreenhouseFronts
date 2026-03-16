@@ -3,19 +3,12 @@ package com.apptolast.greenhousefronts.di
 import com.apptolast.greenhousefronts.data.local.auth.TokenStorage
 import com.apptolast.greenhousefronts.data.local.auth.TokenStorageImpl
 import com.apptolast.greenhousefronts.data.remote.api.AuthApiService
-import com.apptolast.greenhousefronts.data.remote.api.GreenhouseApiService
 import com.apptolast.greenhousefronts.data.remote.createAuthenticatedHttpClient
-import com.apptolast.greenhousefronts.data.remote.createHttpClient
 import com.apptolast.greenhousefronts.data.remote.createUnauthenticatedHttpClient
-import com.apptolast.greenhousefronts.data.remote.websocket.StompWebSocketClient
 import com.apptolast.greenhousefronts.data.repository.AuthRepositoryImpl
-import com.apptolast.greenhousefronts.data.repository.GreenhouseRepositoryImpl
 import com.apptolast.greenhousefronts.domain.repository.AuthRepository
-import com.apptolast.greenhousefronts.domain.repository.GreenhouseRepository
 import kotlinx.serialization.json.Json
-import org.koin.core.module.dsl.singleOf
 import org.koin.core.qualifier.named
-import org.koin.dsl.bind
 import org.koin.dsl.module
 
 // Named qualifiers for different HttpClient instances
@@ -54,9 +47,6 @@ val dataModule = module {
         createAuthenticatedHttpClient(get(), get())
     }
 
-    // Legacy HttpClient for backward compatibility with existing code
-    single { createHttpClient(get()) }
-
     // Auth API Service - uses unauthenticated client
     single { AuthApiService(get(UNAUTHENTICATED_CLIENT)) }
 
@@ -64,16 +54,7 @@ val dataModule = module {
     single<AuthRepository> {
         AuthRepositoryImpl(
             authApiService = get(),
-            tokenStorage = get()
+            tokenStorage = get(),
         )
     }
-
-    // Greenhouse API Service - uses authenticated client
-    single { GreenhouseApiService(get(AUTHENTICATED_CLIENT)) }
-
-    // WebSocket Client
-    singleOf(::StompWebSocketClient)
-
-    // Greenhouse Repository
-    singleOf(::GreenhouseRepositoryImpl) bind GreenhouseRepository::class
 }

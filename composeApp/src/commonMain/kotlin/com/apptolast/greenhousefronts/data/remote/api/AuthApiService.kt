@@ -35,7 +35,7 @@ class AuthApiService(
      * @throws ClientRequestException 401 if credentials are invalid
      */
     suspend fun login(request: LoginRequest): JwtResponse {
-        return httpClient.post("$baseUrl/api/auth/login") {
+        return httpClient.post("$baseUrl/auth/login") {
             contentType(ContentType.Application.Json)
             setBody(request)
         }.body()
@@ -52,7 +52,7 @@ class AuthApiService(
      * @throws ClientRequestException 400 if validation fails or email is already in use
      */
     suspend fun register(request: RegisterRequest): JwtResponse {
-        return httpClient.post("$baseUrl/api/auth/register") {
+        return httpClient.post("$baseUrl/auth/register") {
             contentType(ContentType.Application.Json)
             setBody(request)
         }.body()
@@ -65,7 +65,7 @@ class AuthApiService(
      * @param request Request containing the user's email
      */
     suspend fun forgotPassword(request: ForgotPasswordRequest) {
-        httpClient.post("$baseUrl/api/auth/forgot-password") {
+        httpClient.post("$baseUrl/auth/forgot-password") {
             contentType(ContentType.Application.Json)
             setBody(request)
         }
@@ -78,7 +78,7 @@ class AuthApiService(
      * @param request Request containing the token and new password
      */
     suspend fun resetPassword(request: ResetPasswordRequest) {
-        httpClient.post("$baseUrl/api/auth/reset-password") {
+        httpClient.post("$baseUrl/auth/reset-password") {
             contentType(ContentType.Application.Json)
             setBody(request)
         }
@@ -89,6 +89,6 @@ class AuthApiService(
      * POST /api/auth/logout
      */
     suspend fun logout() {
-        httpClient.post("$baseUrl/api/auth/logout")
+        httpClient.post("$baseUrl/auth/logout")
     }
 }

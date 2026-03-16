@@ -87,29 +87,6 @@ fun createAuthenticatedHttpClient(
 }
 
 /**
- * Legacy factory function - kept for backward compatibility.
- * Creates an HttpClient without authentication.
- * @deprecated Use createAuthenticatedHttpClient or createUnauthenticatedHttpClient instead.
- */
-fun createHttpClient(jsonConfig: Json) = HttpClient {
-    install(ContentNegotiation) {
-        json(jsonConfig)
-    }
-
-    install(Logging) {
-        logger = Logger.SIMPLE
-        level = LogLevel.ALL
-    }
-
-    install(WebSockets) {
-        pingInterval = 20.toDuration(DurationUnit.SECONDS)
-        contentConverter = null
-    }
-
-    expectSuccess = true
-}
-
-/**
  * Base URL accessor for environment-based API endpoints
  */
 val baseUrl: String

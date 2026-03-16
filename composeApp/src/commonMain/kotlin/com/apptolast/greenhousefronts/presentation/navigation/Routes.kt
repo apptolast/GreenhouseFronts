@@ -36,27 +36,7 @@ data class ResetPasswordRoute(
 
 /**
  * Represents the home screen route.
- * This is the main screen after successful login, showing greenhouse data.
+ * This is the main screen after successful login.
  */
 @Serializable
 object HomeRoute
-
-/**
- * Represents the sensor detail screen route.
- * Shows historical data and statistics for a specific sensor in a greenhouse.
- *
- * @property greenhouseId UUID of the greenhouse
- * @property sensorType Type of sensor (e.g., "TEMPERATURE", "HUMIDITY")
- */
-@Serializable
-data class SensorDetailRoute(
-    val greenhouseId: String,
-    val sensorType: String
-)
-
-/**
- * Represents the settings screen route.
- * Provides access to app configuration and logout functionality.
- */
-@Serializable
-object SettingsRoute
