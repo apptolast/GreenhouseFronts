@@ -35,8 +35,8 @@ data class ResetPasswordRoute(
 )
 
 /**
- * Represents the home screen route.
- * This is the main screen after successful login.
+ * Represents the greenhouses screen route.
+ * This is the main screen after successful login, showing the greenhouse list.
  */
 @Serializable
-object HomeRoute
+object GreenhousesRoute

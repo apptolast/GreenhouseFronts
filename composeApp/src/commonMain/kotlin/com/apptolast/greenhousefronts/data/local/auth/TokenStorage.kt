@@ -41,6 +41,30 @@ interface TokenStorage {
     suspend fun clearAll()
 
     /**
+     * Saves the tenant ID extracted from the JWT token.
+     * @param tenantId The tenant's numeric ID
+     */
+    suspend fun saveTenantId(tenantId: Long)
+
+    /**
+     * Retrieves the stored tenant ID.
+     * @return The tenant ID or null
+     */
+    suspend fun getTenantId(): Long?
+
+    /**
+     * Saves the user display name for greeting UI.
+     * @param displayName The user's first name or display name
+     */
+    suspend fun saveDisplayName(displayName: String)
+
+    /**
+     * Retrieves the stored display name.
+     * @return The display name or null
+     */
+    suspend fun getDisplayName(): String?
+
+    /**
      * Checks if a valid token is currently stored.
      * Note: Does not validate token expiration, only presence.
      * @return true if a token exists
@@ -56,4 +80,6 @@ internal object TokenStorageKeys {
     private const val PREFIX = "greenhouse_auth_"
     const val ACCESS_TOKEN = "${PREFIX}access_token"
     const val USERNAME = "${PREFIX}username"
+    const val TENANT_ID = "${PREFIX}tenant_id"
+    const val DISPLAY_NAME = "${PREFIX}display_name"
 }

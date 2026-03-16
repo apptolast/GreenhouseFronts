@@ -30,9 +30,31 @@ class TokenStorageImpl : TokenStorage {
         return settings.getStringOrNull(TokenStorageKeys.USERNAME)
     }
 
+    override suspend fun saveTenantId(tenantId: Long) {
+        settings.putLong(TokenStorageKeys.TENANT_ID, tenantId)
+    }
+
+    override suspend fun getTenantId(): Long? {
+        return if (settings.hasKey(TokenStorageKeys.TENANT_ID)) {
+            settings.getLong(TokenStorageKeys.TENANT_ID, 0L)
+        } else {
+            null
+        }
+    }
+
+    override suspend fun saveDisplayName(displayName: String) {
+        settings.putString(TokenStorageKeys.DISPLAY_NAME, displayName)
+    }
+
+    override suspend fun getDisplayName(): String? {
+        return settings.getStringOrNull(TokenStorageKeys.DISPLAY_NAME)
+    }
+
     override suspend fun clearAll() {
         settings.remove(TokenStorageKeys.ACCESS_TOKEN)
         settings.remove(TokenStorageKeys.USERNAME)
+        settings.remove(TokenStorageKeys.TENANT_ID)
+        settings.remove(TokenStorageKeys.DISPLAY_NAME)
     }
 
     override fun hasToken(): Boolean {

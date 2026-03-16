@@ -71,4 +71,11 @@ interface AuthRepository {
      * @return The username or null if not authenticated
      */
     suspend fun getUsername(): String?
+
+    /**
+     * Retrieves the stored display name for greeting UI.
+     *
+     * @return The display name or null
+     */
+    suspend fun getDisplayName(): String?
 }

@@ -9,6 +9,7 @@ import com.apptolast.greenhousefronts.data.model.auth.RegisterRequest
 import com.apptolast.greenhousefronts.data.model.auth.ResetPasswordRequest
 import com.apptolast.greenhousefronts.data.remote.api.AuthApiService
 import com.apptolast.greenhousefronts.domain.repository.AuthRepository
+import com.apptolast.greenhousefronts.util.JwtDecoder
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
@@ -33,9 +34,10 @@ class AuthRepositoryImpl(
             )
             val response = authApiService.login(request)
 
-            // Store token and username
+            // Store token, username, and extract JWT claims
             tokenStorage.saveToken(response.token)
             tokenStorage.saveUsername(response.username)
+            extractAndSaveJwtClaims(response.token)
 
             Result.success(response)
         } catch (e: ClientRequestException) {
@@ -49,9 +51,10 @@ class AuthRepositoryImpl(
         return try {
             val response = authApiService.register(request)
 
-            // Store token and username (auto-login)
+            // Store token, username, and extract JWT claims (auto-login)
             tokenStorage.saveToken(response.token)
             tokenStorage.saveUsername(response.username)
+            extractAndSaveJwtClaims(response.token)
 
             Result.success(response)
         } catch (e: ClientRequestException) {
@@ -108,6 +111,28 @@ class AuthRepositoryImpl(
 
     override suspend fun getUsername(): String? {
         return tokenStorage.getUsername()
+    }
+
+    override suspend fun getDisplayName(): String? {
+        return tokenStorage.getDisplayName()
+    }
+
+    /**
+     * Extracts tenantId and display name from JWT token and saves them.
+     */
+    private suspend fun extractAndSaveJwtClaims(token: String) {
+        // Try common claim names for tenantId
+        val tenantId = JwtDecoder.extractLongClaim(token, "tenantId")
+            ?: JwtDecoder.extractLongClaim(token, "tenant_id")
+            ?: JwtDecoder.extractStringClaim(token, "tenantId")?.toLongOrNull()
+            ?: JwtDecoder.extractStringClaim(token, "tenant_id")?.toLongOrNull()
+        tenantId?.let { tokenStorage.saveTenantId(it) }
+
+        // Try to extract display name
+        val displayName = JwtDecoder.extractStringClaim(token, "firstName")
+            ?: JwtDecoder.extractStringClaim(token, "first_name")
+            ?: JwtDecoder.extractStringClaim(token, "name")
+        displayName?.let { tokenStorage.saveDisplayName(it) }
     }
 
     /**

@@ -3,12 +3,20 @@ package com.apptolast.greenhousefronts.di
 import com.apptolast.greenhousefronts.data.local.auth.TokenStorage
 import com.apptolast.greenhousefronts.data.local.auth.TokenStorageImpl
 import com.apptolast.greenhousefronts.data.remote.api.AuthApiService
+import com.apptolast.greenhousefronts.data.remote.api.GreenhouseApiService
+import com.apptolast.greenhousefronts.data.remote.api.UserApiService
 import com.apptolast.greenhousefronts.data.remote.createAuthenticatedHttpClient
 import com.apptolast.greenhousefronts.data.remote.createUnauthenticatedHttpClient
 import com.apptolast.greenhousefronts.data.repository.AuthRepositoryImpl
+import com.apptolast.greenhousefronts.data.repository.GreenhouseRepositoryImpl
+import com.apptolast.greenhousefronts.data.repository.UserRepositoryImpl
 import com.apptolast.greenhousefronts.domain.repository.AuthRepository
+import com.apptolast.greenhousefronts.domain.repository.GreenhouseRepository
+import com.apptolast.greenhousefronts.domain.repository.UserRepository
 import kotlinx.serialization.json.Json
+import org.koin.core.module.dsl.singleOf
 import org.koin.core.qualifier.named
+import org.koin.dsl.bind
 import org.koin.dsl.module
 
 // Named qualifiers for different HttpClient instances
@@ -50,6 +58,12 @@ val dataModule = module {
     // Auth API Service - uses unauthenticated client
     single { AuthApiService(get(UNAUTHENTICATED_CLIENT)) }
 
+    // Greenhouse API Service - uses authenticated client
+    single { GreenhouseApiService(get(AUTHENTICATED_CLIENT)) }
+
+    // User API Service - uses authenticated client
+    single { UserApiService(get(AUTHENTICATED_CLIENT)) }
+
     // Auth Repository
     single<AuthRepository> {
         AuthRepositoryImpl(
@@ -57,4 +71,10 @@ val dataModule = module {
             tokenStorage = get(),
         )
     }
+
+    // Greenhouse Repository
+    singleOf(::GreenhouseRepositoryImpl) bind GreenhouseRepository::class
+
+    // User Repository
+    singleOf(::UserRepositoryImpl) bind UserRepository::class
 }
