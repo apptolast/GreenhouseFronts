@@ -42,9 +42,25 @@ data class SectorResponse(
  * Response from GET /api/v1/alerts/unresolved/tenant/{tenantId}
  * Only fields needed for counting per greenhouse.
  */
+/**
+ * Response from GET /api/v1/alerts/unresolved/tenant/{tenantId}
+ * Only fields needed for counting per greenhouse.
+ */
 @Serializable
 data class AlertResponse(
     val id: Long,
     val sectorId: Long,
     val isResolved: Boolean = false,
+)
+
+/**
+ * Request for PUT /api/v1/tenants/{tenantId}/greenhouses/{greenhouseId}
+ * All fields are nullable — partial update (null fields are not modified).
+ */
+@Serializable
+data class GreenhouseUpdateRequest(
+    val name: String? = null,
+    val isActive: Boolean? = null,
+    val areaM2: Double? = null,
+    val timezone: String? = null,
 )

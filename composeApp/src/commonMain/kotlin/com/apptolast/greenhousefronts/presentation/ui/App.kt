@@ -9,12 +9,14 @@ import androidx.navigation.navDeepLink
 import androidx.navigation.toRoute
 import com.apptolast.greenhousefronts.presentation.navigation.ConfigureWebNavigation
 import com.apptolast.greenhousefronts.presentation.navigation.ForgotPasswordRoute
+import com.apptolast.greenhousefronts.presentation.navigation.GreenhouseDetailRoute
 import com.apptolast.greenhousefronts.presentation.navigation.GreenhousesRoute
 import com.apptolast.greenhousefronts.presentation.navigation.LoginRoute
 import com.apptolast.greenhousefronts.presentation.navigation.RegisterRoute
 import com.apptolast.greenhousefronts.presentation.navigation.ResetPasswordRoute
 import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
 import com.apptolast.greenhousefronts.presentation.viewmodel.AuthViewModel
+import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseDetailViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -144,6 +146,21 @@ fun App() {
                             popUpTo(0) { inclusive = true }
                         }
                     },
+                    onNavigateToGreenhouseDetail = { greenhouseId ->
+                        navController.navigate(GreenhouseDetailRoute(greenhouseId))
+                    },
+                )
+            }
+
+            // Greenhouse detail screen
+            composable<GreenhouseDetailRoute> { backStackEntry ->
+                val route = backStackEntry.toRoute<GreenhouseDetailRoute>()
+                val viewModel: GreenhouseDetailViewModel = koinViewModel()
+                GreenhouseDetailScreen(
+                    greenhouseId = route.greenhouseId,
+                    viewModel = viewModel,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToIrrigationConfig = { /* TODO: Navigate to irrigation config */ },
                 )
             }
         }

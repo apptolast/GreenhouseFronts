@@ -40,3 +40,13 @@ data class ResetPasswordRoute(
  */
 @Serializable
 object GreenhousesRoute
+
+/**
+ * Represents the greenhouse detail screen route.
+ *
+ * @property greenhouseId ID of the greenhouse to display
+ */
+@Serializable
+data class GreenhouseDetailRoute(
+    val greenhouseId: Long,
+)

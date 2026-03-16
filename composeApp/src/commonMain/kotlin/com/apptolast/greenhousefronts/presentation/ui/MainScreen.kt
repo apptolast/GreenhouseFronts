@@ -48,6 +48,7 @@ fun MainScreen(
     greenhouseListViewModel: GreenhouseListViewModel = koinViewModel(),
     profileViewModel: ProfileViewModel = koinViewModel(),
     onLogoutSuccess: () -> Unit = {},
+    onNavigateToGreenhouseDetail: (Long) -> Unit = {},
 ) {
     var selectedTab by remember { mutableStateOf(BottomNavTab.GREENHOUSES) }
 
@@ -71,7 +72,7 @@ fun MainScreen(
                     GreenhouseListContent(
                         uiState = uiState,
                         onRetry = greenhouseListViewModel::loadGreenhouses,
-                        onGreenhouseClick = { /* TODO: Navigate to detail */ },
+                        onGreenhouseClick = { onNavigateToGreenhouseDetail(it.id) },
                     )
                 }
 
