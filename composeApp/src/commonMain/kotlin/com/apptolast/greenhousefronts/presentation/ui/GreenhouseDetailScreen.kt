@@ -51,6 +51,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.apptolast.greenhousefronts.domain.model.Device
+import com.apptolast.greenhousefronts.presentation.ui.components.LoadingBar
 import com.apptolast.greenhousefronts.domain.model.Greenhouse
 import com.apptolast.greenhousefronts.domain.model.SectorWithDevices
 import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
@@ -64,6 +65,7 @@ fun GreenhouseDetailScreen(
     viewModel: GreenhouseDetailViewModel,
     onNavigateBack: () -> Unit,
     onNavigateToIrrigationConfig: (Long) -> Unit,
+    onNavigateToDeviceDetail: (String) -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -77,6 +79,7 @@ fun GreenhouseDetailScreen(
         onToggleActive = viewModel::toggleActive,
         onNavigateToIrrigationConfig = onNavigateToIrrigationConfig,
         onSelectSector = viewModel::selectSector,
+        onDeviceClick = onNavigateToDeviceDetail,
     )
 }
 
@@ -88,6 +91,7 @@ private fun GreenhouseDetailContent(
     onToggleActive: () -> Unit,
     onNavigateToIrrigationConfig: (Long) -> Unit,
     onSelectSector: (Int) -> Unit,
+    onDeviceClick: (String) -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -144,12 +148,7 @@ private fun GreenhouseDetailContent(
         containerColor = MaterialTheme.colorScheme.background,
     ) { paddingValues ->
         Column(modifier = Modifier.padding(paddingValues)) {
-            if (uiState.isLoading) {
-                LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
+            LoadingBar(isLoading = uiState.isLoading)
 
             uiState.greenhouse?.let { greenhouse ->
                 GreenhouseDetailBody(
@@ -158,6 +157,7 @@ private fun GreenhouseDetailContent(
                     selectedSectorIndex = uiState.selectedSectorIndex,
                     onNavigateToIrrigationConfig = onNavigateToIrrigationConfig,
                     onSelectSector = onSelectSector,
+                    onDeviceClick = onDeviceClick,
                 )
             }
         }
@@ -172,6 +172,7 @@ private fun GreenhouseDetailBody(
     selectedSectorIndex: Int,
     onNavigateToIrrigationConfig: (Long) -> Unit,
     onSelectSector: (Int) -> Unit,
+    onDeviceClick: (String) -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -283,7 +284,10 @@ private fun GreenhouseDetailBody(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     row.forEach { device ->
-                        DeviceCard(device = device, modifier = Modifier.weight(1f))
+                        DeviceCard(
+                            device = device,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onDeviceClick(device.code) })
                     }
                     // Fill empty space if odd number
                     if (row.size == 1) {
@@ -392,6 +396,7 @@ private fun SectionTitle(title: String) {
 private fun DeviceCard(
     device: Device,
     modifier: Modifier = Modifier,
+    onClick: () -> Unit = {},
 ) {
     val statusColor = when {
         device.currentValue == null -> Color(0xFF666666)
@@ -402,6 +407,7 @@ private fun DeviceCard(
     val displayValue = formatDeviceValue(device.currentValue, device.unitSymbol)
 
     Card(
+        onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(

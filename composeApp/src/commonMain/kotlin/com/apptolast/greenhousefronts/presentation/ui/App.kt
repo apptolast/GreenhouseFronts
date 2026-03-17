@@ -11,12 +11,14 @@ import com.apptolast.greenhousefronts.presentation.navigation.ConfigureWebNaviga
 import com.apptolast.greenhousefronts.presentation.navigation.ForgotPasswordRoute
 import com.apptolast.greenhousefronts.presentation.navigation.GreenhouseDetailRoute
 import com.apptolast.greenhousefronts.presentation.navigation.GreenhousesRoute
+import com.apptolast.greenhousefronts.presentation.navigation.DeviceDetailRoute
 import com.apptolast.greenhousefronts.presentation.navigation.IrrigationConfigRoute
 import com.apptolast.greenhousefronts.presentation.navigation.LoginRoute
 import com.apptolast.greenhousefronts.presentation.navigation.RegisterRoute
 import com.apptolast.greenhousefronts.presentation.navigation.ResetPasswordRoute
 import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
 import com.apptolast.greenhousefronts.presentation.viewmodel.AuthViewModel
+import com.apptolast.greenhousefronts.presentation.viewmodel.DeviceDetailViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseDetailViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.IrrigationConfigViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -165,6 +167,9 @@ fun App() {
                     onNavigateToIrrigationConfig = { greenhouseId ->
                         navController.navigate(IrrigationConfigRoute(greenhouseId))
                     },
+                    onNavigateToDeviceDetail = { deviceCode ->
+                        navController.navigate(DeviceDetailRoute(deviceCode, route.greenhouseId))
+                    },
                 )
             }
 
@@ -173,6 +178,18 @@ fun App() {
                 val route = backStackEntry.toRoute<IrrigationConfigRoute>()
                 val viewModel: IrrigationConfigViewModel = koinViewModel()
                 IrrigationConfigScreen(
+                    greenhouseId = route.greenhouseId,
+                    viewModel = viewModel,
+                    onNavigateBack = { navController.popBackStack() },
+                )
+            }
+
+            // Device detail screen
+            composable<DeviceDetailRoute> { backStackEntry ->
+                val route = backStackEntry.toRoute<DeviceDetailRoute>()
+                val viewModel: DeviceDetailViewModel = koinViewModel()
+                DeviceDetailScreen(
+                    deviceCode = route.deviceCode,
                     greenhouseId = route.greenhouseId,
                     viewModel = viewModel,
                     onNavigateBack = { navController.popBackStack() },

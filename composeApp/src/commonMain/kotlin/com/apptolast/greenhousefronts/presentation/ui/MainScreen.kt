@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.apptolast.greenhousefronts.domain.model.Greenhouse
 import com.apptolast.greenhousefronts.presentation.ui.components.BottomNavBar
+import com.apptolast.greenhousefronts.presentation.ui.components.LoadingBar
 import com.apptolast.greenhousefronts.presentation.ui.components.BottomNavTab
 import com.apptolast.greenhousefronts.presentation.ui.components.GreenhouseCard
 import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
@@ -120,12 +121,7 @@ private fun GreenhouseListContent(
             }
         }
 
-        if (uiState.isLoading) {
-            LinearProgressIndicator(
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
+        LoadingBar(isLoading = uiState.isLoading)
 
         Box(modifier = Modifier.weight(1f)) {
             LazyColumn(

@@ -60,3 +60,15 @@ data class GreenhouseDetailRoute(
 data class IrrigationConfigRoute(
     val greenhouseId: Long,
 )
+
+/**
+ * Represents the device detail screen route.
+ *
+ * @property deviceCode Device code (e.g., "DEV-00031")
+ * @property greenhouseId Greenhouse ID for WebSocket context
+ */
+@Serializable
+data class DeviceDetailRoute(
+    val deviceCode: String,
+    val greenhouseId: Long,
+)

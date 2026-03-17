@@ -55,6 +55,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.apptolast.greenhousefronts.domain.model.DayOfWeek
+import com.apptolast.greenhousefronts.presentation.ui.components.LoadingBar
 import com.apptolast.greenhousefronts.domain.model.IrrigationConfig
 import com.apptolast.greenhousefronts.domain.model.SectorIrrigationConfig
 import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
@@ -172,12 +173,7 @@ private fun IrrigationConfigContent(
         containerColor = MaterialTheme.colorScheme.background,
     ) { paddingValues ->
         Column(modifier = Modifier.padding(paddingValues)) {
-            if (uiState.isLoading) {
-                LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
+            LoadingBar(isLoading = uiState.isLoading)
 
             uiState.config?.let { config ->
                 IrrigationConfigBody(

@@ -4,6 +4,7 @@ import com.apptolast.greenhousefronts.data.local.auth.TokenStorage
 import com.apptolast.greenhousefronts.data.local.auth.TokenStorageImpl
 import com.apptolast.greenhousefronts.data.remote.api.AuthApiService
 import com.apptolast.greenhousefronts.data.remote.api.GreenhouseApiService
+import com.apptolast.greenhousefronts.data.remote.api.SensorApiService
 import com.apptolast.greenhousefronts.data.remote.api.SettingsApiService
 import com.apptolast.greenhousefronts.data.remote.api.UserApiService
 import com.apptolast.greenhousefronts.data.remote.createAuthenticatedHttpClient
@@ -65,6 +66,9 @@ val dataModule = module {
 
     // User API Service - uses authenticated client
     single { UserApiService(get(AUTHENTICATED_CLIENT)) }
+
+    // Sensor API Service - uses authenticated client
+    single { SensorApiService(get(AUTHENTICATED_CLIENT)) }
 
     // Settings API Service - uses authenticated client
     single { SettingsApiService(get(AUTHENTICATED_CLIENT)) }

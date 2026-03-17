@@ -49,6 +49,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.apptolast.greenhousefronts.domain.model.UserProfile
+import com.apptolast.greenhousefronts.presentation.ui.components.LoadingBar
 import com.apptolast.greenhousefronts.getPlatform
 import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
 import com.apptolast.greenhousefronts.presentation.viewmodel.ProfileEvent
@@ -89,12 +90,7 @@ private fun ProfileContent(
     onRetry: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        if (uiState.isLoading) {
-            LinearProgressIndicator(
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
+        LoadingBar(isLoading = uiState.isLoading)
 
         if (uiState.error != null && uiState.profile == null) {
             Box(
