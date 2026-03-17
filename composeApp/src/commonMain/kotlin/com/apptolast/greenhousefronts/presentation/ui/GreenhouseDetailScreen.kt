@@ -2,6 +2,7 @@ package com.apptolast.greenhousefronts.presentation.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -25,10 +27,10 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -45,17 +47,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.apptolast.greenhousefronts.domain.model.Device
 import com.apptolast.greenhousefronts.domain.model.Greenhouse
+import com.apptolast.greenhousefronts.domain.model.SectorWithDevices
 import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseDetailUiState
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseDetailViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-/**
- * Greenhouse detail screen (stateful).
- */
 @Composable
 fun GreenhouseDetailScreen(
     greenhouseId: Long,
@@ -74,6 +76,7 @@ fun GreenhouseDetailScreen(
         onNavigateBack = onNavigateBack,
         onToggleActive = viewModel::toggleActive,
         onNavigateToIrrigationConfig = onNavigateToIrrigationConfig,
+        onSelectSector = viewModel::selectSector,
     )
 }
 
@@ -84,6 +87,7 @@ private fun GreenhouseDetailContent(
     onNavigateBack: () -> Unit,
     onToggleActive: () -> Unit,
     onNavigateToIrrigationConfig: (Long) -> Unit,
+    onSelectSector: (Int) -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -112,11 +116,8 @@ private fun GreenhouseDetailContent(
                             Text(
                                 text = if (greenhouse.isActive) "Activo" else "Inactivo",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = if (greenhouse.isActive) {
-                                    Color(0xFF4CAF50)
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
+                                color = if (greenhouse.isActive) Color(0xFF4CAF50)
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Switch(
@@ -153,7 +154,10 @@ private fun GreenhouseDetailContent(
             uiState.greenhouse?.let { greenhouse ->
                 GreenhouseDetailBody(
                     greenhouse = greenhouse,
+                    sectors = uiState.sectors,
+                    selectedSectorIndex = uiState.selectedSectorIndex,
                     onNavigateToIrrigationConfig = onNavigateToIrrigationConfig,
+                    onSelectSector = onSelectSector,
                 )
             }
         }
@@ -164,11 +168,13 @@ private fun GreenhouseDetailContent(
 @Composable
 private fun GreenhouseDetailBody(
     greenhouse: Greenhouse,
-    modifier: Modifier = Modifier,
+    sectors: List<SectorWithDevices>,
+    selectedSectorIndex: Int,
     onNavigateToIrrigationConfig: (Long) -> Unit,
+    onSelectSector: (Int) -> Unit,
 ) {
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp),
@@ -210,11 +216,7 @@ private fun GreenhouseDetailBody(
                 } else {
                     "$area m²"
                 }
-                StatCard(
-                    value = formatted,
-                    label = "Área",
-                    modifier = Modifier.weight(1f),
-                )
+                StatCard(value = formatted, label = "Área", modifier = Modifier.weight(1f))
             }
 
             if (greenhouse.alertCount > 0) {
@@ -227,32 +229,81 @@ private fun GreenhouseDetailBody(
             }
         }
 
-        // Configuración de Riego card
+        // Irrigation config card
         IrrigationConfigCard(
             onClick = { onNavigateToIrrigationConfig(greenhouse.id) },
         )
 
-        // Sector chips
-        if (greenhouse.sectorNames.isNotEmpty()) {
+        // Selectable sector chips
+        if (sectors.isNotEmpty()) {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                greenhouse.sectorNames.forEach { name ->
-                    SectorChip(name = name)
+                sectors.forEachIndexed { index, sector ->
+                    SectorChip(
+                        name = sector.name,
+                        isSelected = index == selectedSectorIndex,
+                        onClick = { onSelectSector(index) },
+                    )
                 }
             }
         }
 
-        // Dispositivos section (empty)
-        SectionTitle(title = "Dispositivos")
+        // Devices section
+        val selectedSector = sectors.getOrNull(selectedSectorIndex)
+        val deviceCount = selectedSector?.devices?.size ?: 0
 
-        // Actuadores section (empty)
-        SectionTitle(title = "Actuadores")
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SectionTitle(title = "Dispositivos")
+            if (deviceCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = deviceCount.toString(),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+
+        if (selectedSector != null && selectedSector.devices.isNotEmpty()) {
+            // Grid layout: 2 columns
+            val chunked = selectedSector.devices.chunked(2)
+            chunked.forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    row.forEach { device ->
+                        DeviceCard(device = device, modifier = Modifier.weight(1f))
+                    }
+                    // Fill empty space if odd number
+                    if (row.size == 1) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        } else {
+            Text(
+                text = "Sin dispositivos en este sector",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
     }
 }
+
+// --- Components ---
 
 @Composable
 private fun StatCard(
@@ -280,11 +331,8 @@ private fun StatCard(
                 text = value,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = if (highlighted) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
+                color = if (highlighted) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = label,
@@ -296,17 +344,36 @@ private fun StatCard(
 }
 
 @Composable
-private fun SectorChip(name: String) {
+private fun SectorChip(
+    name: String,
+    isSelected: Boolean = false,
+    onClick: () -> Unit = {},
+) {
+    val bgColor = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent
+    val borderColor = if (isSelected) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+    }
+    val textColor = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimary
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+            .background(bgColor)
+            .border(1.dp, borderColor, RoundedCornerShape(20.dp))
+            .clickable { onClick() }
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
         Text(
             text = name,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+            color = textColor,
         )
     }
 }
@@ -322,6 +389,133 @@ private fun SectionTitle(title: String) {
 }
 
 @Composable
+private fun DeviceCard(
+    device: Device,
+    modifier: Modifier = Modifier,
+) {
+    val statusColor = when {
+        device.currentValue == null -> Color(0xFF666666)
+        !device.isActive -> Color(0xFFEF5350)
+        else -> Color(0xFF4CAF50)
+    }
+
+    val displayValue = formatDeviceValue(device.currentValue, device.unitSymbol)
+
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+        ) {
+            // Top row: icon area + status dot
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top,
+            ) {
+                // Device type icon placeholder
+                Text(
+                    text = deviceTypeEmoji(device.typeName),
+                    fontSize = 22.sp,
+                )
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(statusColor),
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Device name
+            Text(
+                text = device.name,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Value + unit inline
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = displayValue,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                device.unitSymbol?.let { unit ->
+                    Text(
+                        text = unit,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 2.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun formatDeviceValue(value: String?, unitSymbol: String?): String {
+    if (value == null) return "--"
+    // Format boolean values
+    if (value.lowercase() == "true") return "ON"
+    if (value.lowercase() == "false") return "OFF"
+    // Format large numbers (e.g., 45000 lux → 45K)
+    val numValue = value.toDoubleOrNull()
+    if (numValue != null && numValue >= 10000) {
+        return "${(numValue / 1000).toInt()}K"
+    }
+    // Format decimals: remove unnecessary trailing zeros
+    if (numValue != null && numValue == numValue.toLong().toDouble()) {
+        return numValue.toLong().toString()
+    }
+    return value
+}
+
+private fun deviceTypeEmoji(typeName: String): String {
+    return when (typeName.uppercase()) {
+        "TEMPERATURE", "TEMPERATURA DE DIA" -> "🌡️"
+        "HUMIDITY", "SOIL MOISTURE" -> "💧"
+        "CO2 LEVEL" -> "☁️"
+        "LIGHT INTENSITY", "ILLUMINANCE" -> "☀️"
+        "ATMOSPHERIC PRESSURE" -> "🌀"
+        "WIND SPEED", "WIND GUST" -> "💨"
+        "WIND DIRECTION" -> "🧭"
+        "RAINFALL" -> "🌧️"
+        "SOLAR RADIATION" -> "☀️"
+        "PH" -> "🧪"
+        "EC" -> "⚡"
+        "UV INDEX" -> "🔆"
+        "DEWPOINT" -> "🌡️"
+        "VENTILATOR", "FAN", "EXTRACTOR" -> "🌀"
+        "HEATER" -> "🔥"
+        "COOLER" -> "❄️"
+        "IRRIGATOR" -> "🚿"
+        "LIGHTING" -> "💡"
+        "CURTAIN", "WINDOW" -> "🪟"
+        "VALVE" -> "🔧"
+        "PUMP" -> "⛽"
+        "MISTING" -> "🌊"
+        "DEHUMIDIFIER" -> "🌬️"
+        "CO2 INJECTOR" -> "🫧"
+        "REGANDO" -> "🚿"
+        "EN COLA" -> "⏳"
+        "LIFE BEAT" -> "💓"
+        else -> "📡"
+    }
+}
+
+@Composable
 private fun IrrigationConfigCard(onClick: () -> Unit) {
     Card(
         onClick = onClick,
@@ -332,9 +526,7 @@ private fun IrrigationConfigCard(onClick: () -> Unit) {
         ),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -366,6 +558,8 @@ private fun IrrigationConfigCard(onClick: () -> Unit) {
     }
 }
 
+// --- Previews ---
+
 @Preview
 @Composable
 private fun PreviewGreenhouseDetail() {
@@ -374,44 +568,85 @@ private fun PreviewGreenhouseDetail() {
             uiState = GreenhouseDetailUiState(
                 isLoading = false,
                 greenhouse = Greenhouse(
-                    id = 1L,
-                    code = "GRH-00001",
-                    name = "Invernadero Norte",
-                    isActive = true,
-                    areaM2 = 2500.0,
-                    sectorCount = 3,
-                    alertCount = 3,
+                    id = 1L, code = "GRH-00001", name = "Invernadero Norte",
+                    isActive = true, areaM2 = 2500.0, sectorCount = 3, alertCount = 3,
                     sectorNames = listOf("Sector A", "Sector B", "Sector C"),
                 ),
-            ),
-            onNavigateBack = {},
-            onToggleActive = {},
-            onNavigateToIrrigationConfig = {},
-        )
-    }
-}
-
-@Preview
-@Composable
-private fun PreviewGreenhouseDetailInactive() {
-    GreenhouseTheme(darkTheme = true) {
-        GreenhouseDetailContent(
-            uiState = GreenhouseDetailUiState(
-                isLoading = false,
-                greenhouse = Greenhouse(
-                    id = 2L,
-                    code = "GRH-00002",
-                    name = "Invernadero Este",
-                    isActive = false,
-                    areaM2 = 3200.0,
-                    sectorCount = 5,
-                    alertCount = 0,
-                    sectorNames = listOf("Sector A", "Sector B", "Sector C", "Sector D", "Sector E"),
+                sectors = listOf(
+                    SectorWithDevices(
+                        1L, "SEC-00001", "Sector A",
+                        devices = listOf(
+                            Device(
+                                1L,
+                                "DEV-001",
+                                "Temperatura",
+                                true,
+                                "SENSOR",
+                                "TEMPERATURE",
+                                1,
+                                "°C",
+                                "23.5",
+                                null,
+                                -50.0,
+                                100.0,
+                                null
+                            ),
+                            Device(
+                                2L,
+                                "DEV-002",
+                                "Humedad",
+                                true,
+                                "SENSOR",
+                                "HUMIDITY",
+                                2,
+                                "%",
+                                "65",
+                                null,
+                                0.0,
+                                100.0,
+                                null
+                            ),
+                            Device(
+                                3L,
+                                "DEV-003",
+                                "CO2",
+                                true,
+                                "SENSOR",
+                                "CO2 LEVEL",
+                                5,
+                                "ppm",
+                                "820",
+                                null,
+                                0.0,
+                                5000.0,
+                                null
+                            ),
+                            Device(
+                                4L,
+                                "DEV-004",
+                                "Extractor",
+                                true,
+                                "ACTUATOR",
+                                "EXTRACTOR",
+                                24,
+                                "%",
+                                "75",
+                                null,
+                                null,
+                                null,
+                                "CONTINUOUS"
+                            ),
+                        ),
+                    ),
+                    SectorWithDevices(2L, "SEC-00002", "Sector B", devices = emptyList()),
+                    SectorWithDevices(3L, "SEC-00003", "Sector C", devices = emptyList()),
                 ),
+                selectedSectorIndex = 0,
             ),
             onNavigateBack = {},
             onToggleActive = {},
             onNavigateToIrrigationConfig = {},
+            onSelectSector = {},
         )
     }
 }
