@@ -8,6 +8,8 @@ data class IrrigationConfig(
     val greenhouseName: String,
     val isIrrigating: Boolean = false,
     val irrigationStatus: String? = null,
+    val isInQueue: Boolean = false,
+    val queueStatus: String? = null,
     val activeDays: Set<DayOfWeek> = setOf(
         DayOfWeek.MONDAY,
         DayOfWeek.TUESDAY,

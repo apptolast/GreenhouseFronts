@@ -89,7 +89,9 @@ fun IrrigationConfigScreen(
         onSectorOpeningChanged = viewModel::updateSectorOpening,
         onSectorWaitChanged = viewModel::updateSectorWait,
         onToggleSectorActive = viewModel::toggleSectorActive,
-        onSave = viewModel::saveConfig,
+        onSave = viewModel::requestSave,
+        onConfirmSave = viewModel::confirmSave,
+        onDismissConfirmDialog = viewModel::dismissConfirmDialog,
     )
 }
 
@@ -108,7 +110,31 @@ private fun IrrigationConfigContent(
     onSectorWaitChanged: (Int, Int) -> Unit,
     onToggleSectorActive: (Int) -> Unit,
     onSave: () -> Unit,
+    onConfirmSave: () -> Unit = {},
+    onDismissConfirmDialog: () -> Unit = {},
 ) {
+    // Confirmation dialog
+    if (uiState.showConfirmDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = onDismissConfirmDialog,
+            title = { Text("Guardar configuración") },
+            text = { Text("¿Estás seguro de que deseas guardar los cambios de riego?") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = onConfirmSave) {
+                    Text("Guardar", color = MaterialTheme.colorScheme.primary)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = onDismissConfirmDialog) {
+                    Text("Cancelar")
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -196,11 +222,24 @@ private fun IrrigationConfigBody(
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        // Irrigating status banner
-        IrrigationStatusBanner(
-            isIrrigating = config.isIrrigating,
-            statusText = config.irrigationStatus,
-        )
+        // Status banners: Regando + En Cola
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            IrrigationStatusBanner(
+                isActive = config.isIrrigating,
+                label = "Regando",
+                statusText = config.irrigationStatus,
+                modifier = Modifier.weight(1f),
+            )
+            IrrigationStatusBanner(
+                isActive = config.isInQueue,
+                label = "En espera",
+                statusText = config.queueStatus,
+                modifier = Modifier.weight(1f),
+            )
+        }
 
         // Manual irrigation toggle (disabled — not yet implemented)
         ManualIrrigationToggle()
@@ -270,52 +309,58 @@ private fun IrrigationConfigBody(
 
 @Composable
 private fun IrrigationStatusBanner(
-    isIrrigating: Boolean,
+    isActive: Boolean,
+    label: String,
     statusText: String?,
+    modifier: Modifier = Modifier,
 ) {
-    val containerColor = if (isIrrigating) {
+    val containerColor = if (isActive) {
         MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
     } else {
         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     }
-    val dotColor = if (isIrrigating) MaterialTheme.colorScheme.primary else Color(0xFF666666)
+    val dotColor = if (isActive) MaterialTheme.colorScheme.primary else Color(0xFF666666)
+    val inactiveLabel = if (label == "Regando") "Sin riego" else "Sin espera"
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
+    Column(
+        modifier = modifier
             .clip(RoundedCornerShape(12.dp))
             .background(containerColor)
             .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            imageVector = Icons.Default.WaterDrop,
-            contentDescription = null,
-            tint = if (isIrrigating) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(24.dp),
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(
+                imageVector = Icons.Default.WaterDrop,
+                contentDescription = null,
+                tint = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = if (isIrrigating) "Regando" else "Sin riego activo",
+                text = if (isActive) label else inactiveLabel,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = if (isIrrigating) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
             )
-            statusText?.let { text ->
-                Text(
-                    text = text,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(dotColor),
+            )
         }
-        Box(
-            modifier = Modifier
-                .size(10.dp)
-                .clip(CircleShape)
-                .background(dotColor),
-        )
+        statusText?.let { text ->
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
     }
 }
 
@@ -690,6 +735,8 @@ private fun PreviewIrrigationConfig() {
                     greenhouseName = "Invernadero Norte",
                     isIrrigating = true,
                     irrigationStatus = "Sector A - Válvula abierta",
+                    isInQueue = true,
+                    queueStatus = "Sector B - En espera",
                     sectorConfigs = listOf(
                         SectorIrrigationConfig(1L, "Sector A", 0, 4, true),
                         SectorIrrigationConfig(2L, "Sector B", 3, 4, false),

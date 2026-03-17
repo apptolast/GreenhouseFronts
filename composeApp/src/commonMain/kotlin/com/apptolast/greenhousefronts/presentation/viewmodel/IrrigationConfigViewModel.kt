@@ -2,6 +2,8 @@ package com.apptolast.greenhousefronts.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.apptolast.greenhousefronts.data.local.auth.TokenStorage
+import com.apptolast.greenhousefronts.data.remote.api.SettingsApiService
 import com.apptolast.greenhousefronts.data.remote.websocket.GreenhouseStatusWebSocket
 import com.apptolast.greenhousefronts.data.remote.websocket.WsSectorResponse
 import com.apptolast.greenhousefronts.data.remote.websocket.WsSettingResponse
@@ -13,24 +15,19 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/**
- * UI state for the irrigation configuration screen.
- */
 data class IrrigationConfigUiState(
     val isLoading: Boolean = true,
     val config: IrrigationConfig? = null,
     val error: String? = null,
     val isSaving: Boolean = false,
     val saveSuccess: Boolean = false,
+    val showConfirmDialog: Boolean = false,
 )
 
-// parameterId=18 identifies all irrigation-related settings
 private const val IRRIGATOR_PARAM_ID: Short = 18
-
-// Device type id=35 "REGANDO" indicates real-time irrigation status
 private const val REGANDO_DEVICE_TYPE_ID: Short = 35
+private const val EN_COLA_DEVICE_TYPE_ID: Short = 36
 
-// actuatorState.name values used by the backend for individual settings
 private const val SETTING_HORA_INICIO = "HORA INICIO"
 private const val SETTING_MINUTO_INICIO = "MINUTO INICIO"
 private const val SETTING_HORA_FIN = "HORA FIN"
@@ -40,7 +37,6 @@ private const val SETTING_RIEGO_MANUAL = "RIEGO MANUAL"
 private const val SETTING_TIEMPO_APERTURA = "TIEMPO APERTURA"
 private const val SETTING_TIEMPO_ESPERA = "TIEMPO ESPERA"
 
-// Map day names from actuatorState.name to DayOfWeek
 private val DAY_NAME_MAP = mapOf(
     "LUNES" to DayOfWeek.MONDAY,
     "MARTES" to DayOfWeek.TUESDAY,
@@ -53,21 +49,20 @@ private val DAY_NAME_MAP = mapOf(
 
 /**
  * ViewModel for the irrigation configuration screen.
- * Loads data from the WebSocket STOMP status endpoint.
- *
- * The backend stores irrigation config as individual settings per field:
- * - Each setting has parameterId=18 (IRRIGATOR)
- * - actuatorState.name identifies the field (e.g., "HORA INICIO", "LUNES", "TIEMPO APERTURA")
- * - currentValue holds the actual value from TimescaleDB
- * - Global settings (schedule, days) are on Sector 00 (the first sector)
- * - Per-sector settings (TIEMPO APERTURA, TIEMPO ESPERA) are on each sector
+ * Loads data via WebSocket STOMP, saves via REST PUT per setting.
  */
 class IrrigationConfigViewModel(
     private val webSocket: GreenhouseStatusWebSocket,
+    private val settingsApiService: SettingsApiService,
+    private val tokenStorage: TokenStorage,
 ) : ViewModel() {
 
     val uiState: StateFlow<IrrigationConfigUiState>
         field = MutableStateFlow(IrrigationConfigUiState())
+
+    // Stores setting IDs for save: "HORA INICIO" -> settingId, sectorId -> {"TIEMPO APERTURA" -> settingId}
+    private var globalSettingIds: Map<String, Long> = emptyMap()
+    private var sectorSettingIds: Map<Long, Map<String, Long>> = emptyMap()
 
     fun loadConfig(greenhouseId: Long) {
         println("$TAG loadConfig(greenhouseId=$greenhouseId)")
@@ -76,81 +71,86 @@ class IrrigationConfigViewModel(
 
             try {
                 val status = webSocket.requestStatus()
-
                 val greenhouse = status.tenants
                     .flatMap { it.greenhouses }
                     .find { it.id == greenhouseId }
 
                 if (greenhouse == null) {
-                    println("$TAG Greenhouse id=$greenhouseId NOT FOUND")
-                    uiState.update {
-                        it.copy(isLoading = false, error = "Invernadero no encontrado")
-                    }
+                    uiState.update { it.copy(isLoading = false, error = "Invernadero no encontrado") }
                     return@launch
                 }
 
                 val sectors = greenhouse.sectors.sortedBy { it.name }
-                println("$TAG Found ${greenhouse.name}: ${sectors.size} sectors")
 
-                // Global settings come from the first sector that has the full config (13 settings)
-                val globalSector = sectors.maxByOrNull { sector ->
-                    sector.settings.count { it.parameter?.id == IRRIGATOR_PARAM_ID }
+                // Global settings from the sector with most irrigation settings (Sector 00)
+                val globalSector = sectors.maxByOrNull { s ->
+                    s.settings.count { it.parameter?.id == IRRIGATOR_PARAM_ID }
                 }
                 val globalSettings = globalSector?.settings
                     ?.filter { it.parameter?.id == IRRIGATOR_PARAM_ID }
                     ?: emptyList()
 
-                println("$TAG Global settings sector: '${globalSector?.name}' with ${globalSettings.size} irrigation settings")
+                // Store setting IDs for save
+                globalSettingIds = globalSettings.associate {
+                    (it.actuatorState?.name ?: "") to it.id
+                }
+                sectorSettingIds = sectors.associate { sector ->
+                    sector.id to sector.settings
+                        .filter { it.parameter?.id == IRRIGATOR_PARAM_ID }
+                        .associate { (it.actuatorState?.name ?: "") to it.id }
+                }
 
-                // Parse global schedule from individual settings
+                println("$TAG Global setting IDs: ${globalSettingIds.keys}")
+
+                // Parse schedule
                 val startHour = globalSettings.intValue(SETTING_HORA_INICIO) ?: 11
                 val startMinute = globalSettings.intValue(SETTING_MINUTO_INICIO) ?: 30
                 val endHour = globalSettings.intValue(SETTING_HORA_FIN) ?: 18
                 val endMinute = globalSettings.intValue(SETTING_MINUTO_FIN) ?: 30
                 val waitBetween = globalSettings.intValue(SETTING_ESPERA_ENTRE_RIEGOS) ?: 90
 
-                println("$TAG Schedule: $startHour:$startMinute - $endHour:$endMinute, wait=$waitBetween")
-
-                // Parse active days from individual boolean settings
+                // Parse active days
                 val activeDays = DAY_NAME_MAP.entries
-                    .filter { (dayName, _) ->
-                        globalSettings.boolValue(dayName) ?: false
-                    }
+                    .filter { (dayName, _) -> globalSettings.boolValue(dayName) ?: false }
                     .map { it.value }
                     .toSet()
 
-                println("$TAG Active days: ${activeDays.map { it.shortLabel }}")
-
-                // Check real-time irrigation status via REGANDO device type
+                // Real-time status: REGANDO (id=35) and EN COLA (id=36)
                 val isIrrigating = sectors.any { sector ->
-                    sector.devices.any { device ->
-                        device.type?.id == REGANDO_DEVICE_TYPE_ID &&
-                                device.currentValue?.lowercase() == "true"
+                    sector.devices.any {
+                        it.type?.id == REGANDO_DEVICE_TYPE_ID && it.currentValue?.lowercase() == "true"
                     }
                 }
-
-                val irrigatingStatus = if (isIrrigating) {
-                    val activeSector = sectors.firstOrNull { sector ->
-                        sector.devices.any { device ->
-                            device.type?.id == REGANDO_DEVICE_TYPE_ID &&
-                                    device.currentValue?.lowercase() == "true"
+                val irrigatingSector = if (isIrrigating) {
+                    sectors.firstOrNull { sector ->
+                        sector.devices.any {
+                            it.type?.id == REGANDO_DEVICE_TYPE_ID && it.currentValue?.lowercase() == "true"
                         }
                     }
-                    "${activeSector?.name ?: "Sector"} - Válvula abierta"
-                } else {
-                    null
-                }
+                } else null
 
-                // Build per-sector configs
-                val sectorConfigs = sectors.map { sector ->
-                    parseSectorConfig(sector)
+                val isInQueue = sectors.any { sector ->
+                    sector.devices.any {
+                        it.type?.id == EN_COLA_DEVICE_TYPE_ID && it.currentValue?.lowercase() == "true"
+                    }
                 }
+                val queueSector = if (isInQueue) {
+                    sectors.firstOrNull { sector ->
+                        sector.devices.any {
+                            it.type?.id == EN_COLA_DEVICE_TYPE_ID && it.currentValue?.lowercase() == "true"
+                        }
+                    }
+                } else null
+
+                val sectorConfigs = sectors.map { parseSectorConfig(it) }
 
                 val config = IrrigationConfig(
                     greenhouseId = greenhouse.id,
                     greenhouseName = greenhouse.name,
                     isIrrigating = isIrrigating,
-                    irrigationStatus = irrigatingStatus,
+                    irrigationStatus = irrigatingSector?.let { "${it.name} - Válvula abierta" },
+                    isInQueue = isInQueue,
+                    queueStatus = queueSector?.let { "${it.name} - En espera" },
                     activeDays = activeDays.ifEmpty { DayOfWeek.entries.toSet() },
                     startHour = startHour,
                     startMinute = startMinute,
@@ -159,140 +159,173 @@ class IrrigationConfigViewModel(
                     waitBetweenMinutes = waitBetween,
                     sectorConfigs = sectorConfigs,
                 )
-                println("$TAG Config built: ${config.sectorConfigs.size} sectors, irrigating=${config.isIrrigating}")
-                config.sectorConfigs.forEach {
-                    println("$TAG   ${it.sectorName}: apertura=${it.openingMinutes}, espera=${it.waitMinutes}, active=${it.isActive}")
-                }
+                println("$TAG Config: ${config.sectorConfigs.size} sectors, irrigating=$isIrrigating, inQueue=$isInQueue")
 
                 uiState.update { it.copy(isLoading = false, config = config) }
             } catch (e: Exception) {
                 println("$TAG ERROR: ${e::class.simpleName}: ${e.message}")
                 e.printStackTrace()
                 uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = "${e::class.simpleName}: ${e.message}",
-                    )
+                    it.copy(isLoading = false, error = "${e::class.simpleName}: ${e.message}")
                 }
             }
         }
     }
 
-    /**
-     * Parses per-sector irrigation settings.
-     * Each sector has TIEMPO APERTURA and TIEMPO ESPERA settings,
-     * and a REGANDO device for real-time status.
-     */
     private fun parseSectorConfig(sector: WsSectorResponse): SectorIrrigationConfig {
-        val irrigationSettings = sector.settings.filter {
-            it.parameter?.id == IRRIGATOR_PARAM_ID
-        }
-
-        val openingMinutes = irrigationSettings.intValue(SETTING_TIEMPO_APERTURA) ?: 0
-        val waitMinutes = irrigationSettings.intValue(SETTING_TIEMPO_ESPERA) ?: 4
-
-        // Sector is active if it has irrigation settings that are active
-        val isActive = irrigationSettings.any { it.isActive }
-
+        val settings = sector.settings.filter { it.parameter?.id == IRRIGATOR_PARAM_ID }
         return SectorIrrigationConfig(
             sectorId = sector.id,
             sectorName = sector.name ?: sector.code,
-            openingMinutes = openingMinutes,
-            waitMinutes = waitMinutes,
-            isActive = isActive,
+            openingMinutes = settings.intValue(SETTING_TIEMPO_APERTURA) ?: 0,
+            waitMinutes = settings.intValue(SETTING_TIEMPO_ESPERA) ?: 4,
+            isActive = settings.any { it.isActive },
         )
     }
 
-    // --- Helper extensions to read values from settings by actuatorState.name ---
+    // --- Save with confirmation dialog ---
 
-    /**
-     * Finds a setting by actuatorState.name and returns its currentValue as Int.
-     */
-    private fun List<WsSettingResponse>.intValue(actuatorName: String): Int? {
-        return find { it.actuatorState?.name == actuatorName }
-            ?.currentValue
-            ?.toIntOrNull()
+    fun requestSave() {
+        uiState.update { it.copy(showConfirmDialog = true) }
     }
 
-    /**
-     * Finds a setting by actuatorState.name and returns its currentValue as Boolean.
-     */
-    private fun List<WsSettingResponse>.boolValue(actuatorName: String): Boolean? {
-        val value = find { it.actuatorState?.name == actuatorName }?.currentValue ?: return null
-        return value.lowercase() == "true" || value == "1"
+    fun dismissConfirmDialog() {
+        uiState.update { it.copy(showConfirmDialog = false) }
     }
 
-    // --- Form update methods ---
-
-    fun toggleDay(day: DayOfWeek) {
-        val config = uiState.value.config ?: return
-        val newDays = config.activeDays.toMutableSet()
-        if (day in newDays) newDays.remove(day) else newDays.add(day)
-        uiState.update { it.copy(config = config.copy(activeDays = newDays)) }
+    fun confirmSave() {
+        uiState.update { it.copy(showConfirmDialog = false) }
+        saveConfig()
     }
 
-    fun updateStartHour(value: Int) {
-        val config = uiState.value.config ?: return
-        uiState.update { it.copy(config = config.copy(startHour = value.coerceIn(0, 23))) }
-    }
-
-    fun updateStartMinute(value: Int) {
-        val config = uiState.value.config ?: return
-        uiState.update { it.copy(config = config.copy(startMinute = value.coerceIn(0, 59))) }
-    }
-
-    fun updateEndHour(value: Int) {
-        val config = uiState.value.config ?: return
-        uiState.update { it.copy(config = config.copy(endHour = value.coerceIn(0, 23))) }
-    }
-
-    fun updateEndMinute(value: Int) {
-        val config = uiState.value.config ?: return
-        uiState.update { it.copy(config = config.copy(endMinute = value.coerceIn(0, 59))) }
-    }
-
-    fun updateWaitBetween(value: Int) {
-        val config = uiState.value.config ?: return
-        uiState.update { it.copy(config = config.copy(waitBetweenMinutes = value.coerceAtLeast(0))) }
-    }
-
-    fun updateSectorOpening(sectorIndex: Int, minutes: Int) {
-        val config = uiState.value.config ?: return
-        val updated = config.sectorConfigs.toMutableList()
-        if (sectorIndex in updated.indices) {
-            updated[sectorIndex] = updated[sectorIndex].copy(openingMinutes = minutes.coerceAtLeast(0))
-            uiState.update { it.copy(config = config.copy(sectorConfigs = updated)) }
-        }
-    }
-
-    fun updateSectorWait(sectorIndex: Int, minutes: Int) {
-        val config = uiState.value.config ?: return
-        val updated = config.sectorConfigs.toMutableList()
-        if (sectorIndex in updated.indices) {
-            updated[sectorIndex] = updated[sectorIndex].copy(waitMinutes = minutes.coerceAtLeast(0))
-            uiState.update { it.copy(config = config.copy(sectorConfigs = updated)) }
-        }
-    }
-
-    fun toggleSectorActive(sectorIndex: Int) {
-        val config = uiState.value.config ?: return
-        val updated = config.sectorConfigs.toMutableList()
-        if (sectorIndex in updated.indices) {
-            updated[sectorIndex] = updated[sectorIndex].copy(isActive = !updated[sectorIndex].isActive)
-            uiState.update { it.copy(config = config.copy(sectorConfigs = updated)) }
-        }
-    }
-
-    fun saveConfig() {
+    private fun saveConfig() {
         val config = uiState.value.config ?: return
         if (uiState.value.isSaving) return
 
         viewModelScope.launch {
             uiState.update { it.copy(isSaving = true, error = null, saveSuccess = false) }
 
-            // TODO: Send configuration to backend Settings API
-            kotlinx.coroutines.delay(500)
-            uiState.update { it.copy(isSaving = false, saveSuccess = true) }
+            try {
+                val tenantId = tokenStorage.getTenantId()
+                    ?: throw Exception("No se encontró el ID del tenant")
+
+                var savedCount = 0
+
+                // Save global settings (schedule, days, wait)
+                savedCount += saveGlobalSetting(tenantId, SETTING_HORA_INICIO, config.startHour.toString())
+                savedCount += saveGlobalSetting(tenantId, SETTING_MINUTO_INICIO, config.startMinute.toString())
+                savedCount += saveGlobalSetting(tenantId, SETTING_HORA_FIN, config.endHour.toString())
+                savedCount += saveGlobalSetting(tenantId, SETTING_MINUTO_FIN, config.endMinute.toString())
+                savedCount += saveGlobalSetting(
+                    tenantId,
+                    SETTING_ESPERA_ENTRE_RIEGOS,
+                    config.waitBetweenMinutes.toString()
+                )
+
+                // Save day settings
+                DAY_NAME_MAP.forEach { (dayName, day) ->
+                    val isActive = day in config.activeDays
+                    savedCount += saveGlobalSetting(tenantId, dayName, isActive.toString())
+                }
+
+                // Save per-sector settings
+                config.sectorConfigs.forEach { sector ->
+                    val ids = sectorSettingIds[sector.sectorId] ?: return@forEach
+                    ids[SETTING_TIEMPO_APERTURA]?.let { settingId ->
+                        settingsApiService.updateSettingValue(tenantId, settingId, sector.openingMinutes.toString())
+                        savedCount++
+                    }
+                    ids[SETTING_TIEMPO_ESPERA]?.let { settingId ->
+                        settingsApiService.updateSettingValue(tenantId, settingId, sector.waitMinutes.toString())
+                        savedCount++
+                    }
+                }
+
+                println("$TAG Saved $savedCount settings successfully")
+                uiState.update { it.copy(isSaving = false, saveSuccess = true) }
+            } catch (e: Exception) {
+                println("$TAG SAVE ERROR: ${e::class.simpleName}: ${e.message}")
+                uiState.update {
+                    it.copy(isSaving = false, error = "Error al guardar: ${e.message}")
+                }
+            }
+        }
+    }
+
+    private suspend fun saveGlobalSetting(tenantId: Long, actuatorName: String, value: String): Int {
+        val settingId = globalSettingIds[actuatorName] ?: return 0
+        settingsApiService.updateSettingValue(tenantId, settingId, value)
+        return 1
+    }
+
+    // --- Helpers ---
+
+    private fun List<WsSettingResponse>.intValue(actuatorName: String): Int? =
+        find { it.actuatorState?.name == actuatorName }?.currentValue?.toIntOrNull()
+
+    private fun List<WsSettingResponse>.boolValue(actuatorName: String): Boolean? {
+        val v = find { it.actuatorState?.name == actuatorName }?.currentValue ?: return null
+        return v.lowercase() == "true" || v == "1"
+    }
+
+    // --- Form updates ---
+
+    fun toggleDay(day: DayOfWeek) {
+        val c = uiState.value.config ?: return
+        val d = c.activeDays.toMutableSet()
+        if (day in d) d.remove(day) else d.add(day)
+        uiState.update { it.copy(config = c.copy(activeDays = d)) }
+    }
+
+    fun updateStartHour(v: Int) {
+        val c = uiState.value.config ?: return
+        uiState.update { it.copy(config = c.copy(startHour = v.coerceIn(0, 23))) }
+    }
+
+    fun updateStartMinute(v: Int) {
+        val c = uiState.value.config ?: return
+        uiState.update { it.copy(config = c.copy(startMinute = v.coerceIn(0, 59))) }
+    }
+
+    fun updateEndHour(v: Int) {
+        val c = uiState.value.config ?: return
+        uiState.update { it.copy(config = c.copy(endHour = v.coerceIn(0, 23))) }
+    }
+
+    fun updateEndMinute(v: Int) {
+        val c = uiState.value.config ?: return
+        uiState.update { it.copy(config = c.copy(endMinute = v.coerceIn(0, 59))) }
+    }
+
+    fun updateWaitBetween(v: Int) {
+        val c = uiState.value.config ?: return
+        uiState.update { it.copy(config = c.copy(waitBetweenMinutes = v.coerceAtLeast(0))) }
+    }
+
+    fun updateSectorOpening(i: Int, min: Int) {
+        val c = uiState.value.config ?: return
+        val u = c.sectorConfigs.toMutableList()
+        if (i in u.indices) {
+            u[i] = u[i].copy(openingMinutes = min.coerceAtLeast(0))
+            uiState.update { it.copy(config = c.copy(sectorConfigs = u)) }
+        }
+    }
+
+    fun updateSectorWait(i: Int, min: Int) {
+        val c = uiState.value.config ?: return
+        val u = c.sectorConfigs.toMutableList()
+        if (i in u.indices) {
+            u[i] = u[i].copy(waitMinutes = min.coerceAtLeast(0))
+            uiState.update { it.copy(config = c.copy(sectorConfigs = u)) }
+        }
+    }
+
+    fun toggleSectorActive(i: Int) {
+        val c = uiState.value.config ?: return
+        val u = c.sectorConfigs.toMutableList()
+        if (i in u.indices) {
+            u[i] = u[i].copy(isActive = !u[i].isActive)
+            uiState.update { it.copy(config = c.copy(sectorConfigs = u)) }
         }
     }
 
