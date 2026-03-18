@@ -1,6 +1,8 @@
 package com.apptolast.greenhousefronts.presentation.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,10 +32,10 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -49,8 +51,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.apptolast.greenhousefronts.domain.model.UserProfile
-import com.apptolast.greenhousefronts.presentation.ui.components.LoadingBar
 import com.apptolast.greenhousefronts.getPlatform
+import com.apptolast.greenhousefronts.presentation.ui.components.LoadingBar
 import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
 import com.apptolast.greenhousefronts.presentation.viewmodel.ProfileEvent
 import com.apptolast.greenhousefronts.presentation.viewmodel.ProfileUiState
@@ -121,11 +123,15 @@ private fun ProfileContent(
 
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
                 ) {
                     // Avatar
                     Box(
-                        modifier = Modifier.size(80.dp).clip(CircleShape)
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .size(80.dp)
+                            .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primaryContainer),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -137,7 +143,7 @@ private fun ProfileContent(
                         )
                     }
 
-                    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(modifier = Modifier, horizontalAlignment = Alignment.CenterHorizontally) {
                         // Name
                         Text(
                             text = profile.username,
@@ -232,20 +238,24 @@ private fun ProfileContent(
                 Spacer(modifier = Modifier.height(32.dp))
 
                 // Logout button
-                Button(
+                val logoutRed = Color(0xFFFF1744)
+                OutlinedButton(
                     onClick = onLogout,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
                     enabled = !uiState.isLoggingOut,
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError,
+                    border = BorderStroke(1.dp, logoutRed),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = logoutRed.copy(alpha = 0.12f),
+                        contentColor = logoutRed,
                     ),
                 ) {
                     if (uiState.isLoggingOut) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
-                            color = MaterialTheme.colorScheme.onError,
+                            color = logoutRed,
                             strokeWidth = 2.dp,
                         )
                     } else {
@@ -259,6 +269,7 @@ private fun ProfileContent(
                     Text(
                         text = if (uiState.isLoggingOut) "Cerrando sesión..." else "Cerrar sesión",
                         style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
                     )
                 }
 

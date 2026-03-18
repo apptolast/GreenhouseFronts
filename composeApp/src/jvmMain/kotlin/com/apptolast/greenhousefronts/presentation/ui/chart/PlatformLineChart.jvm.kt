@@ -89,6 +89,6 @@ actual fun PlatformLineChart(
         ),
         modelProducer = modelProducer,
         modifier = modifier,
-        scrollState = rememberVicoScrollState(scrollEnabled = true),
+        scrollState = rememberVicoScrollState(scrollEnabled = false),
     )
 }

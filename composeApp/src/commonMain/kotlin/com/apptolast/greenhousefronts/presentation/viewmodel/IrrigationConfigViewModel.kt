@@ -10,8 +10,10 @@ import com.apptolast.greenhousefronts.data.remote.websocket.WsSettingResponse
 import com.apptolast.greenhousefronts.domain.model.DayOfWeek
 import com.apptolast.greenhousefronts.domain.model.IrrigationConfig
 import com.apptolast.greenhousefronts.domain.model.SectorIrrigationConfig
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -64,112 +66,188 @@ class IrrigationConfigViewModel(
     private var globalSettingIds: Map<String, Long> = emptyMap()
     private var sectorSettingIds: Map<Long, Map<String, Long>> = emptyMap()
 
+    private var wsJob: Job? = null
+
+    /**
+     * Tracks whether the editable config has been loaded.
+     * Once true, subsequent WebSocket updates only refresh real-time status fields
+     * (isIrrigating, isInQueue) without overwriting user edits in the form.
+     */
+    private var configLoaded = false
+
     fun loadConfig(greenhouseId: Long) {
         println("$TAG loadConfig(greenhouseId=$greenhouseId)")
-        viewModelScope.launch {
+        configLoaded = false
+        startStatusUpdates(greenhouseId)
+    }
+
+    /**
+     * Starts collecting the WebSocket statusFlow for continuous updates.
+     * - First emission: populates the full config (schedule, days, sectors, real-time status)
+     * - Subsequent emissions: only updates real-time status (isIrrigating, isInQueue)
+     *   and refreshes setting IDs, without overwriting user form edits
+     */
+    private fun startStatusUpdates(greenhouseId: Long) {
+        wsJob?.cancel()
+        wsJob = viewModelScope.launch {
             uiState.update { it.copy(isLoading = true, error = null) }
 
-            try {
-                val status = webSocket.requestStatus()
-                val greenhouse = status.tenants
-                    .flatMap { it.greenhouses }
-                    .find { it.id == greenhouseId }
-
-                if (greenhouse == null) {
-                    uiState.update { it.copy(isLoading = false, error = "Invernadero no encontrado") }
-                    return@launch
-                }
-
-                val sectors = greenhouse.sectors.sortedBy { it.name }
-
-                // Global settings from the sector with most irrigation settings (Sector 00)
-                val globalSector = sectors.maxByOrNull { s ->
-                    s.settings.count { it.parameter?.id == IRRIGATOR_PARAM_ID }
-                }
-                val globalSettings = globalSector?.settings
-                    ?.filter { it.parameter?.id == IRRIGATOR_PARAM_ID }
-                    ?: emptyList()
-
-                // Store setting IDs for save
-                globalSettingIds = globalSettings.associate {
-                    (it.actuatorState?.name ?: "") to it.id
-                }
-                sectorSettingIds = sectors.associate { sector ->
-                    sector.id to sector.settings
-                        .filter { it.parameter?.id == IRRIGATOR_PARAM_ID }
-                        .associate { (it.actuatorState?.name ?: "") to it.id }
-                }
-
-                println("$TAG Global setting IDs: ${globalSettingIds.keys}")
-
-                // Parse schedule
-                val startHour = globalSettings.intValue(SETTING_HORA_INICIO) ?: 11
-                val startMinute = globalSettings.intValue(SETTING_MINUTO_INICIO) ?: 30
-                val endHour = globalSettings.intValue(SETTING_HORA_FIN) ?: 18
-                val endMinute = globalSettings.intValue(SETTING_MINUTO_FIN) ?: 30
-                val waitBetween = globalSettings.intValue(SETTING_ESPERA_ENTRE_RIEGOS) ?: 90
-
-                // Parse active days
-                val activeDays = DAY_NAME_MAP.entries
-                    .filter { (dayName, _) -> globalSettings.boolValue(dayName) ?: false }
-                    .map { it.value }
-                    .toSet()
-
-                // Real-time status: REGANDO (id=35) and EN COLA (id=36)
-                val isIrrigating = sectors.any { sector ->
-                    sector.devices.any {
-                        it.type?.id == REGANDO_DEVICE_TYPE_ID && it.currentValue?.lowercase() == "true"
+            webSocket.statusFlow()
+                .catch { e ->
+                    println("$TAG WebSocket flow error: ${e::class.simpleName}: ${e.message}")
+                    uiState.update {
+                        it.copy(isLoading = false, error = "${e::class.simpleName}: ${e.message}")
                     }
                 }
-                val irrigatingSector = if (isIrrigating) {
-                    sectors.firstOrNull { sector ->
-                        sector.devices.any {
-                            it.type?.id == REGANDO_DEVICE_TYPE_ID && it.currentValue?.lowercase() == "true"
+                .collect { status ->
+                    val greenhouse = status.tenants
+                        .flatMap { it.greenhouses }
+                        .find { it.id == greenhouseId }
+
+                    if (greenhouse == null) {
+                        uiState.update { it.copy(isLoading = false, error = "Invernadero no encontrado") }
+                        return@collect
+                    }
+
+                    val sectors = greenhouse.sectors.sortedBy { it.name }
+
+                    // Always update setting IDs (needed for save)
+                    updateSettingIds(sectors)
+
+                    // Always compute real-time status
+                    val realTimeStatus = computeRealTimeStatus(sectors)
+
+                    if (!configLoaded) {
+                        // First load: populate everything
+                        val config = buildFullConfig(greenhouse.id, greenhouse.name, sectors, realTimeStatus)
+                        println("$TAG Initial config: ${config.sectorConfigs.size} sectors, irrigating=${config.isIrrigating}")
+                        configLoaded = true
+                        uiState.update { it.copy(isLoading = false, config = config) }
+                    } else {
+                        // Subsequent updates: only refresh real-time status
+                        val currentConfig = uiState.value.config ?: return@collect
+                        uiState.update {
+                            it.copy(
+                                config = currentConfig.copy(
+                                    isIrrigating = realTimeStatus.isIrrigating,
+                                    irrigationStatus = realTimeStatus.irrigationStatus,
+                                    isInQueue = realTimeStatus.isInQueue,
+                                    queueStatus = realTimeStatus.queueStatus,
+                                ),
+                            )
                         }
                     }
-                } else null
-
-                val isInQueue = sectors.any { sector ->
-                    sector.devices.any {
-                        it.type?.id == EN_COLA_DEVICE_TYPE_ID && it.currentValue?.lowercase() == "true"
-                    }
                 }
-                val queueSector = if (isInQueue) {
-                    sectors.firstOrNull { sector ->
-                        sector.devices.any {
-                            it.type?.id == EN_COLA_DEVICE_TYPE_ID && it.currentValue?.lowercase() == "true"
-                        }
-                    }
-                } else null
+        }
+    }
 
-                val sectorConfigs = sectors.map { parseSectorConfig(it) }
+    private fun updateSettingIds(sectors: List<WsSectorResponse>) {
+        val globalSector = sectors.maxByOrNull { s ->
+            s.settings.count { it.parameter?.id == IRRIGATOR_PARAM_ID }
+        }
+        val globalSettings = globalSector?.settings
+            ?.filter { it.parameter?.id == IRRIGATOR_PARAM_ID }
+            ?: emptyList()
 
-                val config = IrrigationConfig(
-                    greenhouseId = greenhouse.id,
-                    greenhouseName = greenhouse.name,
-                    isIrrigating = isIrrigating,
-                    irrigationStatus = irrigatingSector?.let { "${it.name} - Válvula abierta" },
-                    isInQueue = isInQueue,
-                    queueStatus = queueSector?.let { "${it.name} - En espera" },
-                    activeDays = activeDays.ifEmpty { DayOfWeek.entries.toSet() },
-                    startHour = startHour,
-                    startMinute = startMinute,
-                    endHour = endHour,
-                    endMinute = endMinute,
-                    waitBetweenMinutes = waitBetween,
-                    sectorConfigs = sectorConfigs,
-                )
-                println("$TAG Config: ${config.sectorConfigs.size} sectors, irrigating=$isIrrigating, inQueue=$isInQueue")
+        globalSettingIds = globalSettings.associate {
+            (it.actuatorState?.name ?: "") to it.id
+        }
+        sectorSettingIds = sectors.associate { sector ->
+            sector.id to sector.settings
+                .filter { it.parameter?.id == IRRIGATOR_PARAM_ID }
+                .associate { (it.actuatorState?.name ?: "") to it.id }
+        }
+    }
 
-                uiState.update { it.copy(isLoading = false, config = config) }
-            } catch (e: Exception) {
-                println("$TAG ERROR: ${e::class.simpleName}: ${e.message}")
-                e.printStackTrace()
-                uiState.update {
-                    it.copy(isLoading = false, error = "${e::class.simpleName}: ${e.message}")
-                }
+    private data class RealTimeStatus(
+        val isIrrigating: Boolean,
+        val irrigationStatus: String?,
+        val isInQueue: Boolean,
+        val queueStatus: String?,
+    )
+
+    private fun computeRealTimeStatus(sectors: List<WsSectorResponse>): RealTimeStatus {
+        val isIrrigating = sectors.any { sector ->
+            sector.devices.any {
+                it.type?.id == REGANDO_DEVICE_TYPE_ID && it.currentValue?.lowercase() == "true"
             }
         }
+        val irrigatingSector = if (isIrrigating) {
+            sectors.firstOrNull { sector ->
+                sector.devices.any {
+                    it.type?.id == REGANDO_DEVICE_TYPE_ID && it.currentValue?.lowercase() == "true"
+                }
+            }
+        } else null
+
+        val isInQueue = sectors.any { sector ->
+            sector.devices.any {
+                it.type?.id == EN_COLA_DEVICE_TYPE_ID && it.currentValue?.lowercase() == "true"
+            }
+        }
+        val queueSector = if (isInQueue) {
+            sectors.firstOrNull { sector ->
+                sector.devices.any {
+                    it.type?.id == EN_COLA_DEVICE_TYPE_ID && it.currentValue?.lowercase() == "true"
+                }
+            }
+        } else null
+
+        return RealTimeStatus(
+            isIrrigating = isIrrigating,
+            irrigationStatus = irrigatingSector?.let { "${it.name} - Válvula abierta" },
+            isInQueue = isInQueue,
+            queueStatus = queueSector?.let { "${it.name} - En espera" },
+        )
+    }
+
+    private fun buildFullConfig(
+        greenhouseId: Long,
+        greenhouseName: String,
+        sectors: List<WsSectorResponse>,
+        realTimeStatus: RealTimeStatus,
+    ): IrrigationConfig {
+        val globalSector = sectors.maxByOrNull { s ->
+            s.settings.count { it.parameter?.id == IRRIGATOR_PARAM_ID }
+        }
+        val globalSettings = globalSector?.settings
+            ?.filter { it.parameter?.id == IRRIGATOR_PARAM_ID }
+            ?: emptyList()
+
+        val startHour = globalSettings.intValue(SETTING_HORA_INICIO) ?: 11
+        val startMinute = globalSettings.intValue(SETTING_MINUTO_INICIO) ?: 30
+        val endHour = globalSettings.intValue(SETTING_HORA_FIN) ?: 18
+        val endMinute = globalSettings.intValue(SETTING_MINUTO_FIN) ?: 30
+        val waitBetween = globalSettings.intValue(SETTING_ESPERA_ENTRE_RIEGOS) ?: 90
+
+        val activeDays = DAY_NAME_MAP.entries
+            .filter { (dayName, _) -> globalSettings.boolValue(dayName) ?: false }
+            .map { it.value }
+            .toSet()
+
+        val sectorConfigs = sectors.map { parseSectorConfig(it) }
+
+        return IrrigationConfig(
+            greenhouseId = greenhouseId,
+            greenhouseName = greenhouseName,
+            isIrrigating = realTimeStatus.isIrrigating,
+            irrigationStatus = realTimeStatus.irrigationStatus,
+            isInQueue = realTimeStatus.isInQueue,
+            queueStatus = realTimeStatus.queueStatus,
+            activeDays = activeDays.ifEmpty { DayOfWeek.entries.toSet() },
+            startHour = startHour,
+            startMinute = startMinute,
+            endHour = endHour,
+            endMinute = endMinute,
+            waitBetweenMinutes = waitBetween,
+            sectorConfigs = sectorConfigs,
+        )
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        wsJob?.cancel()
+        println("$TAG ViewModel cleared, WebSocket job cancelled")
     }
 
     private fun parseSectorConfig(sector: WsSectorResponse): SectorIrrigationConfig {

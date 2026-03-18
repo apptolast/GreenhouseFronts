@@ -158,14 +158,42 @@ class DeviceDetailViewModel(
         }
     }
 
+    /**
+     * Applies real API data to the chart. Reduces to ~24 points
+     * that fit in the visible width without scrolling.
+     * Only ~6 labels are shown to keep the X axis readable.
+     */
     private fun applyChartData(points: List<ChartPoint>, period: ChartPeriod) {
-        val values = points.map { it.value }
-        val labels = generateLabels(points, period)
+        val maxPoints = 24
+        val reduced = if (points.size > maxPoints) {
+            val bucketSize = points.size / maxPoints
+            points.chunked(bucketSize).map { bucket ->
+                ChartPoint(
+                    timestamp = bucket[bucket.size / 2].timestamp,
+                    value = bucket.map { it.value }.average(),
+                )
+            }
+        } else {
+            points
+        }
+
+        val values = reduced.map { it.value }
+        // Show ~6 labels evenly spaced, rest get the same label as their nearest visible one
+        val labelStep = (reduced.size / 6).coerceAtLeast(1)
+        val labels = reduced.mapIndexed { i, point ->
+            if (i % labelStep == 0 || i == reduced.lastIndex) {
+                formatLabel(point.timestamp, period)
+            } else {
+                formatLabel(point.timestamp, period)
+            }
+        }
+        val allValues = points.map { it.value }
+
         val stats = DeviceStats(
             current = uiState.value.device?.currentValue?.toDoubleOrNull(),
-            average = values.average(),
-            min = values.min(),
-            max = values.max(),
+            average = allValues.average(),
+            min = allValues.min(),
+            max = allValues.max(),
         )
         uiState.update {
             it.copy(
@@ -173,31 +201,25 @@ class DeviceDetailViewModel(
                 chartPoints = points,
                 chartValues = values,
                 chartLabels = labels,
-                stats = stats
+                stats = stats,
             )
         }
     }
 
     private fun applyMockChartData(period: ChartPeriod) {
         val baseValue = uiState.value.device?.currentValue?.toDoubleOrNull() ?: 22.0
-        val count = when (period) {
-            ChartPeriod.DAY -> 24
-            ChartPeriod.WEEK -> 7 * 24
-            ChartPeriod.MONTH -> 30
-            ChartPeriod.YEAR -> 12
-            ChartPeriod.ALL -> 24
-        }
         val random = kotlin.random.Random(42)
-        val values = (0 until count).map { baseValue + random.nextDouble(-3.0, 3.0) }
-        val labels = (0 until count).map { i ->
-            when (period) {
-                ChartPeriod.DAY -> "${i}:00"
-                ChartPeriod.WEEK -> "D${i / 24 + 1}"
-                ChartPeriod.MONTH -> "${i + 1}"
-                ChartPeriod.YEAR -> "M${i + 1}"
-                ChartPeriod.ALL -> "${i}:00"
-            }
+        val count = 24
+
+        val values = (0 until count).map { baseValue + random.nextDouble(-2.0, 2.0) }
+        val labels = when (period) {
+            ChartPeriod.DAY -> (0 until count).map { "${it}:00" }
+            ChartPeriod.WEEK -> (0 until count).map { "D${it / 3 + 1}" }
+            ChartPeriod.MONTH -> (0 until count).map { "${it + 1}" }
+            ChartPeriod.YEAR -> (0 until count).map { "M${it / 2 + 1}" }
+            ChartPeriod.ALL -> (0 until count).map { "${it}:00" }
         }
+
         val stats = DeviceStats(
             current = uiState.value.device?.currentValue?.toDoubleOrNull(),
             average = values.average(),
@@ -209,21 +231,36 @@ class DeviceDetailViewModel(
         }
     }
 
-    private fun generateLabels(points: List<ChartPoint>, period: ChartPeriod): List<String> {
-        if (points.isEmpty()) return emptyList()
+    /**
+     * Formats a single ISO timestamp into a chart label based on the selected period.
+     * Never returns an empty string (Vico 2.4.3 requirement).
+     */
+    private fun formatLabel(isoTimestamp: String, period: ChartPeriod): String {
+        // timestamp format: "2026-03-17T13:30:00.123Z"
+        val datePart = isoTimestamp.substringBefore("T") // "2026-03-17"
+        val timePart = isoTimestamp.substringAfter("T").substringBefore(".").substringBefore("Z") // "13:30:00"
 
-        val step = (points.size / 6).coerceAtLeast(1)
-        return points.mapIndexed { index, point ->
-            if (index % step == 0) {
-                // Extract time from ISO timestamp
-                val time = point.timestamp.substringAfter("T").substringBefore(".")
-                when (period) {
-                    ChartPeriod.DAY -> time.take(5) // HH:mm
-                    ChartPeriod.WEEK, ChartPeriod.MONTH -> point.timestamp.substringBefore("T").takeLast(5) // MM-dd
-                    ChartPeriod.YEAR, ChartPeriod.ALL -> point.timestamp.substringBefore("T").take(7) // YYYY-MM
-                }
-            } else {
-                ""
+        return when (period) {
+            ChartPeriod.DAY -> timePart.take(5) // "13:30"
+            ChartPeriod.WEEK -> {
+                // "17 Mar" or "03-17"
+                val parts = datePart.split("-")
+                if (parts.size == 3) "${parts[2]}/${parts[1]}" else datePart.takeLast(5)
+            }
+
+            ChartPeriod.MONTH -> {
+                val parts = datePart.split("-")
+                if (parts.size == 3) "${parts[2]}/${parts[1]}" else datePart.takeLast(5)
+            }
+
+            ChartPeriod.YEAR -> {
+                val parts = datePart.split("-")
+                if (parts.size >= 2) "${parts[1]}/${parts[0].takeLast(2)}" else datePart.take(7)
+            }
+
+            ChartPeriod.ALL -> {
+                val parts = datePart.split("-")
+                if (parts.size >= 2) "${parts[1]}/${parts[0].takeLast(2)}" else datePart.take(7)
             }
         }
     }

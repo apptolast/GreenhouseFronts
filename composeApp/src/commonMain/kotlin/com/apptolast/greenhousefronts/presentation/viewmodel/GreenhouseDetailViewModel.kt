@@ -2,12 +2,15 @@ package com.apptolast.greenhousefronts.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.apptolast.greenhousefronts.data.local.auth.TokenStorage
+import com.apptolast.greenhousefronts.data.remote.api.SettingsApiService
 import com.apptolast.greenhousefronts.data.remote.websocket.GreenhouseStatusWebSocket
 import com.apptolast.greenhousefronts.data.remote.websocket.WsGreenhouseResponse
 import com.apptolast.greenhousefronts.data.remote.websocket.WsSectorResponse
 import com.apptolast.greenhousefronts.domain.model.Device
 import com.apptolast.greenhousefronts.domain.model.Greenhouse
 import com.apptolast.greenhousefronts.domain.model.SectorWithDevices
+import com.apptolast.greenhousefronts.domain.model.Setpoint
 import com.apptolast.greenhousefronts.domain.repository.GreenhouseRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +29,7 @@ data class GreenhouseDetailUiState(
     val selectedSectorIndex: Int = 0,
     val error: String? = null,
     val isTogglingActive: Boolean = false,
+    val savingSetpointIds: Set<Long> = emptySet(),
 )
 
 /**
@@ -36,6 +40,8 @@ data class GreenhouseDetailUiState(
 class GreenhouseDetailViewModel(
     private val greenhouseRepository: GreenhouseRepository,
     private val webSocket: GreenhouseStatusWebSocket,
+    private val settingsApiService: SettingsApiService,
+    private val tokenStorage: TokenStorage,
 ) : ViewModel() {
 
     val uiState: StateFlow<GreenhouseDetailUiState>
@@ -135,6 +141,30 @@ class GreenhouseDetailViewModel(
         }
     }
 
+    /**
+     * Updates a setpoint value via REST API.
+     * Shows saving state while the request is in progress.
+     */
+    fun updateSetpointValue(setpointId: Long, newValue: String) {
+        if (uiState.value.savingSetpointIds.contains(setpointId)) return
+
+        uiState.update { it.copy(savingSetpointIds = it.savingSetpointIds + setpointId) }
+
+        viewModelScope.launch {
+            try {
+                val tenantId = tokenStorage.getTenantId()
+                    ?: throw IllegalStateException("Tenant ID not available")
+                settingsApiService.updateSettingValue(tenantId, setpointId, newValue)
+            } catch (e: Exception) {
+                uiState.update {
+                    it.copy(error = e.message ?: "Error al actualizar consigna")
+                }
+            } finally {
+                uiState.update { it.copy(savingSetpointIds = it.savingSetpointIds - setpointId) }
+            }
+        }
+    }
+
     fun clearError() {
         uiState.update { it.copy(error = null) }
     }
@@ -154,6 +184,7 @@ class GreenhouseDetailViewModel(
                     code = sector.code,
                     name = sector.name ?: sector.code,
                     devices = mapDevices(sector),
+                    setpoints = mapSetpoints(sector),
                 )
             }
     }
@@ -176,6 +207,25 @@ class GreenhouseDetailViewModel(
                     minExpectedValue = device.type?.minExpectedValue,
                     maxExpectedValue = device.type?.maxExpectedValue,
                     controlType = device.type?.controlType,
+                )
+            }
+    }
+
+    private fun mapSetpoints(sector: WsSectorResponse): List<Setpoint> {
+        return sector.settings
+            .sortedBy { it.code }
+            .map { setting ->
+                Setpoint(
+                    id = setting.id,
+                    code = setting.code,
+                    description = setting.description,
+                    parameterName = setting.parameter?.name,
+                    actuatorStateName = setting.actuatorState?.name,
+                    dataTypeName = setting.dataType?.name,
+                    currentValue = setting.currentValue,
+                    configuredValue = setting.configuredValue,
+                    isActive = setting.isActive,
+                    lastUpdated = setting.lastUpdated,
                 )
             }
     }

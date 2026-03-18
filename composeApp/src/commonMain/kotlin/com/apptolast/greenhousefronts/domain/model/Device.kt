@@ -20,6 +20,22 @@ data class Device(
 )
 
 /**
+ * Domain model representing a setpoint (consigna) configured for a sector.
+ */
+data class Setpoint(
+    val id: Long,
+    val code: String,
+    val description: String?,
+    val parameterName: String?,
+    val actuatorStateName: String?,
+    val dataTypeName: String?,
+    val currentValue: String?,
+    val configuredValue: String?,
+    val isActive: Boolean,
+    val lastUpdated: String?,
+)
+
+/**
  * Domain model representing a sector with its devices for the detail screen.
  */
 data class SectorWithDevices(
@@ -27,4 +43,5 @@ data class SectorWithDevices(
     val code: String,
     val name: String,
     val devices: List<Device>,
+    val setpoints: List<Setpoint> = emptyList(),
 )

@@ -19,19 +19,25 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -42,15 +48,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.apptolast.greenhousefronts.domain.model.Device
+import com.apptolast.greenhousefronts.domain.model.Setpoint
 import com.apptolast.greenhousefronts.presentation.ui.components.LoadingBar
 import com.apptolast.greenhousefronts.domain.model.Greenhouse
 import com.apptolast.greenhousefronts.domain.model.SectorWithDevices
@@ -80,6 +93,7 @@ fun GreenhouseDetailScreen(
         onNavigateToIrrigationConfig = onNavigateToIrrigationConfig,
         onSelectSector = viewModel::selectSector,
         onDeviceClick = onNavigateToDeviceDetail,
+        onSetpointValueChange = viewModel::updateSetpointValue,
     )
 }
 
@@ -92,6 +106,7 @@ private fun GreenhouseDetailContent(
     onNavigateToIrrigationConfig: (Long) -> Unit,
     onSelectSector: (Int) -> Unit,
     onDeviceClick: (String) -> Unit = {},
+    onSetpointValueChange: (setpointId: Long, newValue: String) -> Unit = { _, _ -> },
 ) {
     Scaffold(
         topBar = {
@@ -155,9 +170,11 @@ private fun GreenhouseDetailContent(
                     greenhouse = greenhouse,
                     sectors = uiState.sectors,
                     selectedSectorIndex = uiState.selectedSectorIndex,
+                    savingSetpointIds = uiState.savingSetpointIds,
                     onNavigateToIrrigationConfig = onNavigateToIrrigationConfig,
                     onSelectSector = onSelectSector,
                     onDeviceClick = onDeviceClick,
+                    onSetpointValueChange = onSetpointValueChange,
                 )
             }
         }
@@ -170,9 +187,11 @@ private fun GreenhouseDetailBody(
     greenhouse: Greenhouse,
     sectors: List<SectorWithDevices>,
     selectedSectorIndex: Int,
+    savingSetpointIds: Set<Long> = emptySet(),
     onNavigateToIrrigationConfig: (Long) -> Unit,
     onSelectSector: (Int) -> Unit,
     onDeviceClick: (String) -> Unit = {},
+    onSetpointValueChange: (setpointId: Long, newValue: String) -> Unit = { _, _ -> },
 ) {
     Column(
         modifier = Modifier
@@ -298,6 +317,49 @@ private fun GreenhouseDetailBody(
         } else {
             Text(
                 text = "Sin dispositivos en este sector",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        // Setpoints section
+        val setpointCount = selectedSector?.setpoints?.size ?: 0
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SectionTitle(title = "Consignas")
+            if (setpointCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = setpointCount.toString(),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+
+        if (selectedSector != null && selectedSector.setpoints.isNotEmpty()) {
+            selectedSector.setpoints.forEach { setpoint ->
+                SetpointCard(
+                    setpoint = setpoint,
+                    isSaving = savingSetpointIds.contains(setpoint.id),
+                    onValueChange = { newValue ->
+                        onSetpointValueChange(setpoint.id, newValue)
+                    },
+                )
+            }
+        } else {
+            Text(
+                text = "Sin consignas en este sector",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -522,6 +584,216 @@ private fun deviceTypeEmoji(typeName: String): String {
 }
 
 @Composable
+private fun SetpointCard(
+    setpoint: Setpoint,
+    isSaving: Boolean = false,
+    onValueChange: (String) -> Unit = {},
+) {
+    val statusColor = if (setpoint.isActive) Color(0xFF4CAF50) else Color(0xFF666666)
+    val isBoolean = setpoint.dataTypeName?.uppercase() == "BOOLEAN"
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+        ),
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+            // Top row: info
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Status indicator
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(statusColor),
+                )
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // Code + parameter info
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = setpoint.code,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = setpoint.parameterName ?: "—",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+
+                // Actuator state chip
+                setpoint.actuatorStateName?.let { state ->
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    ) {
+                        Text(
+                            text = state,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                // Saving indicator
+                if (isSaving) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Value editor based on data type
+            if (isBoolean) {
+                SetpointBooleanEditor(
+                    currentValue = setpoint.currentValue,
+                    enabled = !isSaving,
+                    onValueChange = onValueChange,
+                )
+            } else {
+                SetpointTextEditor(
+                    currentValue = setpoint.currentValue,
+                    dataTypeName = setpoint.dataTypeName,
+                    enabled = !isSaving,
+                    onValueChange = onValueChange,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SetpointBooleanEditor(
+    currentValue: String?,
+    enabled: Boolean,
+    onValueChange: (String) -> Unit,
+) {
+    val isChecked = currentValue?.lowercase() == "true"
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = if (isChecked) "ON" else "OFF",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = if (isChecked) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Switch(
+            checked = isChecked,
+            onCheckedChange = { newChecked ->
+                onValueChange(newChecked.toString())
+            },
+            enabled = enabled,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+            ),
+        )
+    }
+}
+
+@Composable
+private fun SetpointTextEditor(
+    currentValue: String?,
+    dataTypeName: String?,
+    enabled: Boolean,
+    onValueChange: (String) -> Unit,
+) {
+    val focusManager = LocalFocusManager.current
+    var editValue by remember(currentValue) {
+        mutableStateOf(currentValue ?: "")
+    }
+    val hasChanges = editValue != (currentValue ?: "")
+
+    val keyboardType = when (dataTypeName?.uppercase()) {
+        "INTEGER", "INT" -> KeyboardType.Number
+        "DOUBLE", "FLOAT", "REAL", "DECIMAL" -> KeyboardType.Decimal
+        else -> KeyboardType.Text
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedTextField(
+            value = editValue,
+            onValueChange = { newText ->
+                // Validate input based on data type
+                val filtered = when (dataTypeName?.uppercase()) {
+                    "INTEGER", "INT" -> newText.filter { it.isDigit() || it == '-' }
+                    "DOUBLE", "FLOAT", "REAL", "DECIMAL" -> newText.filter { it.isDigit() || it == '.' || it == '-' }
+                    else -> newText
+                }
+                editValue = filtered
+            },
+            modifier = Modifier.weight(1f),
+            enabled = enabled,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                color = MaterialTheme.colorScheme.onSurface,
+            ),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = keyboardType,
+                imeAction = ImeAction.Done,
+            ),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    if (hasChanges) {
+                        onValueChange(editValue)
+                    }
+                    focusManager.clearFocus()
+                },
+            ),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+            ),
+            shape = RoundedCornerShape(8.dp),
+        )
+
+        if (hasChanges) {
+            IconButton(
+                onClick = {
+                    onValueChange(editValue)
+                    focusManager.clearFocus()
+                },
+                enabled = enabled,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "Guardar",
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun IrrigationConfigCard(onClick: () -> Unit) {
     Card(
         onClick = onClick,
@@ -644,7 +916,21 @@ private fun PreviewGreenhouseDetail() {
                             ),
                         ),
                     ),
-                    SectorWithDevices(2L, "SEC-00002", "Sector B", devices = emptyList()),
+                    SectorWithDevices(
+                        2L, "SEC-00002", "Sector B", devices = emptyList(),
+                        setpoints = listOf(
+                            Setpoint(
+                                79L, "SET-00079", "Irrigator setpoint",
+                                "IRRIGATOR", "REAL_TEST", "REAL",
+                                null, null, true, null,
+                            ),
+                            Setpoint(
+                                80L, "SET-00080", "Irrigator boolean",
+                                "IRRIGATOR", "BOOLEAN_TEST", "BOOLEAN",
+                                "true", "true", true, null,
+                            ),
+                        ),
+                    ),
                     SectorWithDevices(3L, "SEC-00003", "Sector C", devices = emptyList()),
                 ),
                 selectedSectorIndex = 0,

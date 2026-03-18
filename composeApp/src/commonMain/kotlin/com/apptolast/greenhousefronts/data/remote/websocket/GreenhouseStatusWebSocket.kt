@@ -126,6 +126,6 @@ class GreenhouseStatusWebSocket(
         private const val TAG = "[WS-GREENHOUSE]"
         private const val SUBSCRIBE_DESTINATION = "/user/queue/status/response"
         private const val SEND_DESTINATION = "/app/status/request"
-        private const val POLL_INTERVAL_MS = 3_000L
+        private const val POLL_INTERVAL_MS = 0L
     }
 }
