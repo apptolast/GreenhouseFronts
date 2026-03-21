@@ -3,6 +3,7 @@ package com.apptolast.greenhousefronts.di
 import com.apptolast.greenhousefronts.data.local.auth.TokenStorage
 import com.apptolast.greenhousefronts.data.local.auth.TokenStorageImpl
 import com.apptolast.greenhousefronts.data.remote.api.AuthApiService
+import com.apptolast.greenhousefronts.data.remote.api.CommandApiService
 import com.apptolast.greenhousefronts.data.remote.api.GreenhouseApiService
 import com.apptolast.greenhousefronts.data.remote.api.SensorApiService
 import com.apptolast.greenhousefronts.data.remote.api.SettingsApiService
@@ -72,6 +73,9 @@ val dataModule = module {
 
     // Settings API Service - uses authenticated client
     single { SettingsApiService(get(AUTHENTICATED_CLIENT)) }
+
+    // Command API Service - sends commands to PLC via MQTT
+    single { CommandApiService(get(AUTHENTICATED_CLIENT)) }
 
     // WebSocket service for real-time greenhouse status
     singleOf(::GreenhouseStatusWebSocket)

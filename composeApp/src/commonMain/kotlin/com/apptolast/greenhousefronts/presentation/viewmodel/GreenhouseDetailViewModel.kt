@@ -2,8 +2,7 @@ package com.apptolast.greenhousefronts.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.apptolast.greenhousefronts.data.local.auth.TokenStorage
-import com.apptolast.greenhousefronts.data.remote.api.SettingsApiService
+import com.apptolast.greenhousefronts.data.remote.api.CommandApiService
 import com.apptolast.greenhousefronts.data.remote.websocket.GreenhouseStatusWebSocket
 import com.apptolast.greenhousefronts.data.remote.websocket.WsGreenhouseResponse
 import com.apptolast.greenhousefronts.data.remote.websocket.WsSectorResponse
@@ -29,7 +28,7 @@ data class GreenhouseDetailUiState(
     val selectedSectorIndex: Int = 0,
     val error: String? = null,
     val isTogglingActive: Boolean = false,
-    val savingSetpointIds: Set<Long> = emptySet(),
+    val savingSetpointCodes: Set<String> = emptySet(),
 )
 
 /**
@@ -40,8 +39,7 @@ data class GreenhouseDetailUiState(
 class GreenhouseDetailViewModel(
     private val greenhouseRepository: GreenhouseRepository,
     private val webSocket: GreenhouseStatusWebSocket,
-    private val settingsApiService: SettingsApiService,
-    private val tokenStorage: TokenStorage,
+    private val commandApiService: CommandApiService,
 ) : ViewModel() {
 
     val uiState: StateFlow<GreenhouseDetailUiState>
@@ -142,25 +140,24 @@ class GreenhouseDetailViewModel(
     }
 
     /**
-     * Updates a setpoint value via REST API.
-     * Shows saving state while the request is in progress.
+     * Sends a setpoint command to the PLC via the commands endpoint.
+     * The backend validates the code, persists the command, and publishes to MQTT.
+     * The PLC will update the value and the WebSocket will reflect it.
      */
-    fun updateSetpointValue(setpointId: Long, newValue: String) {
-        if (uiState.value.savingSetpointIds.contains(setpointId)) return
+    fun sendSetpointCommand(code: String, newValue: String) {
+        if (uiState.value.savingSetpointCodes.contains(code)) return
 
-        uiState.update { it.copy(savingSetpointIds = it.savingSetpointIds + setpointId) }
+        uiState.update { it.copy(savingSetpointCodes = it.savingSetpointCodes + code) }
 
         viewModelScope.launch {
             try {
-                val tenantId = tokenStorage.getTenantId()
-                    ?: throw IllegalStateException("Tenant ID not available")
-                settingsApiService.updateSettingValue(tenantId, setpointId, newValue)
+                commandApiService.sendCommand(code, newValue)
             } catch (e: Exception) {
                 uiState.update {
-                    it.copy(error = e.message ?: "Error al actualizar consigna")
+                    it.copy(error = e.message ?: "Error al enviar comando")
                 }
             } finally {
-                uiState.update { it.copy(savingSetpointIds = it.savingSetpointIds - setpointId) }
+                uiState.update { it.copy(savingSetpointCodes = it.savingSetpointCodes - code) }
             }
         }
     }

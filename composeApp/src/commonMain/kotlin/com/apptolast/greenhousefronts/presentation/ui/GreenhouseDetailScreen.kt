@@ -93,7 +93,7 @@ fun GreenhouseDetailScreen(
         onNavigateToIrrigationConfig = onNavigateToIrrigationConfig,
         onSelectSector = viewModel::selectSector,
         onDeviceClick = onNavigateToDeviceDetail,
-        onSetpointValueChange = viewModel::updateSetpointValue,
+        onSendSetpointCommand = viewModel::sendSetpointCommand,
     )
 }
 
@@ -106,7 +106,7 @@ private fun GreenhouseDetailContent(
     onNavigateToIrrigationConfig: (Long) -> Unit,
     onSelectSector: (Int) -> Unit,
     onDeviceClick: (String) -> Unit = {},
-    onSetpointValueChange: (setpointId: Long, newValue: String) -> Unit = { _, _ -> },
+    onSendSetpointCommand: (code: String, newValue: String) -> Unit = { _, _ -> },
 ) {
     Scaffold(
         topBar = {
@@ -170,11 +170,11 @@ private fun GreenhouseDetailContent(
                     greenhouse = greenhouse,
                     sectors = uiState.sectors,
                     selectedSectorIndex = uiState.selectedSectorIndex,
-                    savingSetpointIds = uiState.savingSetpointIds,
+                    savingSetpointCodes = uiState.savingSetpointCodes,
                     onNavigateToIrrigationConfig = onNavigateToIrrigationConfig,
                     onSelectSector = onSelectSector,
                     onDeviceClick = onDeviceClick,
-                    onSetpointValueChange = onSetpointValueChange,
+                    onSendSetpointCommand = onSendSetpointCommand,
                 )
             }
         }
@@ -187,11 +187,11 @@ private fun GreenhouseDetailBody(
     greenhouse: Greenhouse,
     sectors: List<SectorWithDevices>,
     selectedSectorIndex: Int,
-    savingSetpointIds: Set<Long> = emptySet(),
+    savingSetpointCodes: Set<String> = emptySet(),
     onNavigateToIrrigationConfig: (Long) -> Unit,
     onSelectSector: (Int) -> Unit,
     onDeviceClick: (String) -> Unit = {},
-    onSetpointValueChange: (setpointId: Long, newValue: String) -> Unit = { _, _ -> },
+    onSendSetpointCommand: (code: String, newValue: String) -> Unit = { _, _ -> },
 ) {
     Column(
         modifier = Modifier
@@ -348,14 +348,26 @@ private fun GreenhouseDetailBody(
         }
 
         if (selectedSector != null && selectedSector.setpoints.isNotEmpty()) {
-            selectedSector.setpoints.forEach { setpoint ->
-                SetpointCard(
-                    setpoint = setpoint,
-                    isSaving = savingSetpointIds.contains(setpoint.id),
-                    onValueChange = { newValue ->
-                        onSetpointValueChange(setpoint.id, newValue)
-                    },
-                )
+            val chunkedSetpoints = selectedSector.setpoints.chunked(2)
+            chunkedSetpoints.forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    row.forEach { setpoint ->
+                        SetpointCard(
+                            setpoint = setpoint,
+                            isSaving = savingSetpointCodes.contains(setpoint.code),
+                            onValueChange = { newValue ->
+                                onSendSetpointCommand(setpoint.code, newValue)
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (row.size == 1) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
             }
         } else {
             Text(
@@ -586,6 +598,7 @@ private fun deviceTypeEmoji(typeName: String): String {
 @Composable
 private fun SetpointCard(
     setpoint: Setpoint,
+    modifier: Modifier = Modifier,
     isSaving: Boolean = false,
     onValueChange: (String) -> Unit = {},
 ) {
@@ -593,74 +606,64 @@ private fun SetpointCard(
     val isBoolean = setpoint.dataTypeName?.uppercase() == "BOOLEAN"
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier,
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface,
         ),
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
-            // Top row: info
+        Column(modifier = Modifier.padding(14.dp)) {
+            // Top row: actuator state chip + status dot
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top,
             ) {
-                // Status indicator
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .clip(CircleShape)
-                        .background(statusColor),
-                )
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                // Code + parameter info
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = setpoint.code,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = setpoint.parameterName ?: "—",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-
-                // Actuator state chip
                 setpoint.actuatorStateName?.let { state ->
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
                     ) {
                         Text(
                             text = state,
                             style = MaterialTheme.typography.labelSmall,
+                            fontSize = 9.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                }
+                } ?: Spacer(modifier = Modifier.size(1.dp))
 
-                // Saving indicator
                 if (isSaving) {
-                    Spacer(modifier = Modifier.width(8.dp))
                     CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(10.dp),
+                        strokeWidth = 1.5.dp,
                         color = MaterialTheme.colorScheme.primary,
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(statusColor),
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Value editor based on data type
+            // Name
+            Text(
+                text = setpoint.parameterName ?: setpoint.code,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Value editor
             if (isBoolean) {
                 SetpointBooleanEditor(
                     currentValue = setpoint.currentValue,
@@ -694,7 +697,7 @@ private fun SetpointBooleanEditor(
     ) {
         Text(
             text = if (isChecked) "ON" else "OFF",
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = if (isChecked) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -737,12 +740,11 @@ private fun SetpointTextEditor(
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         OutlinedTextField(
             value = editValue,
             onValueChange = { newText ->
-                // Validate input based on data type
                 val filtered = when (dataTypeName?.uppercase()) {
                     "INTEGER", "INT" -> newText.filter { it.isDigit() || it == '-' }
                     "DOUBLE", "FLOAT", "REAL", "DECIMAL" -> newText.filter { it.isDigit() || it == '.' || it == '-' }
@@ -750,7 +752,7 @@ private fun SetpointTextEditor(
                 }
                 editValue = filtered
             },
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).height(48.dp),
             enabled = enabled,
             textStyle = MaterialTheme.typography.bodyMedium.copy(
                 color = MaterialTheme.colorScheme.onSurface,
@@ -762,9 +764,7 @@ private fun SetpointTextEditor(
             ),
             keyboardActions = KeyboardActions(
                 onDone = {
-                    if (hasChanges) {
-                        onValueChange(editValue)
-                    }
+                    if (hasChanges) onValueChange(editValue)
                     focusManager.clearFocus()
                 },
             ),
@@ -782,11 +782,13 @@ private fun SetpointTextEditor(
                     focusManager.clearFocus()
                 },
                 enabled = enabled,
+                modifier = Modifier.size(36.dp),
             ) {
                 Icon(
                     imageVector = Icons.Default.Check,
-                    contentDescription = "Guardar",
+                    contentDescription = "Enviar",
                     tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp),
                 )
             }
         }

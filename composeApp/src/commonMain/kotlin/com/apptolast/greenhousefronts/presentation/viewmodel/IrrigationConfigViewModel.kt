@@ -2,8 +2,7 @@ package com.apptolast.greenhousefronts.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.apptolast.greenhousefronts.data.local.auth.TokenStorage
-import com.apptolast.greenhousefronts.data.remote.api.SettingsApiService
+import com.apptolast.greenhousefronts.data.remote.api.CommandApiService
 import com.apptolast.greenhousefronts.data.remote.websocket.GreenhouseStatusWebSocket
 import com.apptolast.greenhousefronts.data.remote.websocket.WsSectorResponse
 import com.apptolast.greenhousefronts.data.remote.websocket.WsSettingResponse
@@ -55,16 +54,15 @@ private val DAY_NAME_MAP = mapOf(
  */
 class IrrigationConfigViewModel(
     private val webSocket: GreenhouseStatusWebSocket,
-    private val settingsApiService: SettingsApiService,
-    private val tokenStorage: TokenStorage,
+    private val commandApiService: CommandApiService,
 ) : ViewModel() {
 
     val uiState: StateFlow<IrrigationConfigUiState>
         field = MutableStateFlow(IrrigationConfigUiState())
 
-    // Stores setting IDs for save: "HORA INICIO" -> settingId, sectorId -> {"TIEMPO APERTURA" -> settingId}
-    private var globalSettingIds: Map<String, Long> = emptyMap()
-    private var sectorSettingIds: Map<Long, Map<String, Long>> = emptyMap()
+    // Stores setting codes for save: "HORA INICIO" -> "SET-00036", sectorId -> {"TIEMPO APERTURA" -> "SET-00040"}
+    private var globalSettingCodes: Map<String, String> = emptyMap()
+    private var sectorSettingCodes: Map<Long, Map<String, String>> = emptyMap()
 
     private var wsJob: Job? = null
 
@@ -111,8 +109,8 @@ class IrrigationConfigViewModel(
 
                     val sectors = greenhouse.sectors.sortedBy { it.name }
 
-                    // Always update setting IDs (needed for save)
-                    updateSettingIds(sectors)
+                    // Always update setting codes (needed for save)
+                    updateSettingCodes(sectors)
 
                     // Always compute real-time status
                     val realTimeStatus = computeRealTimeStatus(sectors)
@@ -141,7 +139,7 @@ class IrrigationConfigViewModel(
         }
     }
 
-    private fun updateSettingIds(sectors: List<WsSectorResponse>) {
+    private fun updateSettingCodes(sectors: List<WsSectorResponse>) {
         val globalSector = sectors.maxByOrNull { s ->
             s.settings.count { it.parameter?.id == IRRIGATOR_PARAM_ID }
         }
@@ -149,13 +147,13 @@ class IrrigationConfigViewModel(
             ?.filter { it.parameter?.id == IRRIGATOR_PARAM_ID }
             ?: emptyList()
 
-        globalSettingIds = globalSettings.associate {
-            (it.actuatorState?.name ?: "") to it.id
+        globalSettingCodes = globalSettings.associate {
+            (it.actuatorState?.name ?: "") to it.code
         }
-        sectorSettingIds = sectors.associate { sector ->
+        sectorSettingCodes = sectors.associate { sector ->
             sector.id to sector.settings
                 .filter { it.parameter?.id == IRRIGATOR_PARAM_ID }
-                .associate { (it.actuatorState?.name ?: "") to it.id }
+                .associate { (it.actuatorState?.name ?: "") to it.code }
         }
     }
 
@@ -284,42 +282,38 @@ class IrrigationConfigViewModel(
             uiState.update { it.copy(isSaving = true, error = null, saveSuccess = false) }
 
             try {
-                val tenantId = tokenStorage.getTenantId()
-                    ?: throw Exception("No se encontró el ID del tenant")
-
                 var savedCount = 0
 
-                // Save global settings (schedule, days, wait)
-                savedCount += saveGlobalSetting(tenantId, SETTING_HORA_INICIO, config.startHour.toString())
-                savedCount += saveGlobalSetting(tenantId, SETTING_MINUTO_INICIO, config.startMinute.toString())
-                savedCount += saveGlobalSetting(tenantId, SETTING_HORA_FIN, config.endHour.toString())
-                savedCount += saveGlobalSetting(tenantId, SETTING_MINUTO_FIN, config.endMinute.toString())
-                savedCount += saveGlobalSetting(
-                    tenantId,
+                // Send global settings as commands (schedule, days, wait)
+                savedCount += sendGlobalCommand(SETTING_HORA_INICIO, config.startHour.toString())
+                savedCount += sendGlobalCommand(SETTING_MINUTO_INICIO, config.startMinute.toString())
+                savedCount += sendGlobalCommand(SETTING_HORA_FIN, config.endHour.toString())
+                savedCount += sendGlobalCommand(SETTING_MINUTO_FIN, config.endMinute.toString())
+                savedCount += sendGlobalCommand(
                     SETTING_ESPERA_ENTRE_RIEGOS,
-                    config.waitBetweenMinutes.toString()
+                    config.waitBetweenMinutes.toString(),
                 )
 
-                // Save day settings
+                // Send day settings as commands
                 DAY_NAME_MAP.forEach { (dayName, day) ->
                     val isActive = day in config.activeDays
-                    savedCount += saveGlobalSetting(tenantId, dayName, isActive.toString())
+                    savedCount += sendGlobalCommand(dayName, isActive.toString())
                 }
 
-                // Save per-sector settings
+                // Send per-sector settings as commands
                 config.sectorConfigs.forEach { sector ->
-                    val ids = sectorSettingIds[sector.sectorId] ?: return@forEach
-                    ids[SETTING_TIEMPO_APERTURA]?.let { settingId ->
-                        settingsApiService.updateSettingValue(tenantId, settingId, sector.openingMinutes.toString())
+                    val codes = sectorSettingCodes[sector.sectorId] ?: return@forEach
+                    codes[SETTING_TIEMPO_APERTURA]?.let { code ->
+                        commandApiService.sendCommand(code, sector.openingMinutes.toString())
                         savedCount++
                     }
-                    ids[SETTING_TIEMPO_ESPERA]?.let { settingId ->
-                        settingsApiService.updateSettingValue(tenantId, settingId, sector.waitMinutes.toString())
+                    codes[SETTING_TIEMPO_ESPERA]?.let { code ->
+                        commandApiService.sendCommand(code, sector.waitMinutes.toString())
                         savedCount++
                     }
                 }
 
-                println("$TAG Saved $savedCount settings successfully")
+                println("$TAG Sent $savedCount commands successfully")
                 uiState.update { it.copy(isSaving = false, saveSuccess = true) }
             } catch (e: Exception) {
                 println("$TAG SAVE ERROR: ${e::class.simpleName}: ${e.message}")
@@ -330,9 +324,9 @@ class IrrigationConfigViewModel(
         }
     }
 
-    private suspend fun saveGlobalSetting(tenantId: Long, actuatorName: String, value: String): Int {
-        val settingId = globalSettingIds[actuatorName] ?: return 0
-        settingsApiService.updateSettingValue(tenantId, settingId, value)
+    private suspend fun sendGlobalCommand(actuatorName: String, value: String): Int {
+        val code = globalSettingCodes[actuatorName] ?: return 0
+        commandApiService.sendCommand(code, value)
         return 1
     }
 
