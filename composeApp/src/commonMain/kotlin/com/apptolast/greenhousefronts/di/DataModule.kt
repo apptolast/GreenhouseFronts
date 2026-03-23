@@ -75,7 +75,7 @@ val dataModule = module {
     single { SettingsApiService(get(AUTHENTICATED_CLIENT)) }
 
     // Command API Service - sends commands to PLC via MQTT
-    single { CommandApiService(get(AUTHENTICATED_CLIENT)) }
+    single { CommandApiService(get(AUTHENTICATED_CLIENT), get()) }
 
     // WebSocket service for real-time greenhouse status
     singleOf(::GreenhouseStatusWebSocket)

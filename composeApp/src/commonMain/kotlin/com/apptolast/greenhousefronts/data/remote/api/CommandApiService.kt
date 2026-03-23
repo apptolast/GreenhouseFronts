@@ -1,5 +1,6 @@
 package com.apptolast.greenhousefronts.data.remote.api
 
+import com.apptolast.greenhousefronts.data.local.auth.TokenStorage
 import com.apptolast.greenhousefronts.data.remote.baseUrl
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -18,6 +19,7 @@ import kotlinx.serialization.Serializable
  */
 class CommandApiService(
     private val httpClient: HttpClient,
+    private val tokenStorage: TokenStorage,
 ) {
 
     /**
@@ -29,9 +31,10 @@ class CommandApiService(
      * @return The persisted command with timestamp
      */
     suspend fun sendCommand(code: String, value: String): DeviceCommandResponse {
+        val email = tokenStorage.getUsername()
         return httpClient.post("$baseUrl/commands") {
             contentType(ContentType.Application.Json)
-            setBody(SendCommandRequest(code = code, value = value))
+            setBody(SendCommandRequest(code = code, value = value, email = email))
         }.body()
     }
 
@@ -51,6 +54,7 @@ class CommandApiService(
 data class SendCommandRequest(
     val code: String,
     val value: String,
+    val email: String? = null,
 )
 
 @Serializable
