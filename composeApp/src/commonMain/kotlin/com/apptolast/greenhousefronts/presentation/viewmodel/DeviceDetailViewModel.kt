@@ -43,6 +43,7 @@ data class DeviceDetailUiState(
     val selectedPeriod: ChartPeriod = ChartPeriod.DAY,
     val settings: List<WsSettingResponse> = emptyList(),
     val isLoadingChart: Boolean = false,
+    val isChartExpanded: Boolean = false,
     val error: String? = null,
 )
 
@@ -71,6 +72,16 @@ class DeviceDetailViewModel(
         uiState.update { it.copy(selectedPeriod = period) }
         val code = uiState.value.device?.code ?: return
         loadChartData(code, period)
+    }
+
+    fun toggleChartExpanded() {
+        val expanded = !uiState.value.isChartExpanded
+        uiState.update { it.copy(isChartExpanded = expanded) }
+        // Re-apply chart data with different bucketing
+        val points = uiState.value.chartPoints
+        if (points.isNotEmpty()) {
+            applyChartData(points, uiState.value.selectedPeriod)
+        }
     }
 
     private fun startLiveUpdates(deviceCode: String, greenhouseId: Long) {
@@ -159,12 +170,13 @@ class DeviceDetailViewModel(
     }
 
     /**
-     * Applies real API data to the chart. Reduces to ~24 points
-     * that fit in the visible width without scrolling.
-     * Only ~6 labels are shown to keep the X axis readable.
+     * Applies real API data to the chart.
+     * - Condensed mode (default): reduces to ~24 points, no scrolling needed.
+     * - Expanded mode: keeps more data points for scrollable detail view.
      */
     private fun applyChartData(points: List<ChartPoint>, period: ChartPeriod) {
-        val maxPoints = 24
+        val isExpanded = uiState.value.isChartExpanded
+        val maxPoints = if (isExpanded) points.size else 24
         val reduced = if (points.size > maxPoints) {
             val bucketSize = points.size / maxPoints
             points.chunked(bucketSize).map { bucket ->
@@ -178,13 +190,12 @@ class DeviceDetailViewModel(
         }
 
         val values = reduced.map { it.value }
-        // Show ~6 labels evenly spaced, rest get the same label as their nearest visible one
         val labelStep = (reduced.size / 6).coerceAtLeast(1)
         val labels = reduced.mapIndexed { i, point ->
             if (i % labelStep == 0 || i == reduced.lastIndex) {
                 formatLabel(point.timestamp, period)
             } else {
-                formatLabel(point.timestamp, period)
+                ""
             }
         }
         val allValues = points.map { it.value }
@@ -243,14 +254,15 @@ class DeviceDetailViewModel(
         return when (period) {
             ChartPeriod.DAY -> timePart.take(5) // "13:30"
             ChartPeriod.WEEK -> {
-                // "17 Mar" or "03-17"
+                // Just the day number to avoid repetitive "17/03" labels
                 val parts = datePart.split("-")
-                if (parts.size == 3) "${parts[2]}/${parts[1]}" else datePart.takeLast(5)
+                if (parts.size == 3) parts[2].trimStart('0').ifEmpty { "0" } else datePart.takeLast(2)
             }
 
             ChartPeriod.MONTH -> {
+                // Day number only (1-31)
                 val parts = datePart.split("-")
-                if (parts.size == 3) "${parts[2]}/${parts[1]}" else datePart.takeLast(5)
+                if (parts.size == 3) parts[2].trimStart('0').ifEmpty { "0" } else datePart.takeLast(2)
             }
 
             ChartPeriod.YEAR -> {

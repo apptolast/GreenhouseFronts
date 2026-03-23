@@ -29,6 +29,7 @@ actual fun PlatformLineChart(
     labels: List<String>,
     unitLabel: String,
     modifier: Modifier,
+    scrollEnabled: Boolean,
 ) {
     if (values.isEmpty()) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
@@ -89,6 +90,6 @@ actual fun PlatformLineChart(
         ),
         modelProducer = modelProducer,
         modifier = modifier,
-        scrollState = rememberVicoScrollState(scrollEnabled = false),
+        scrollState = rememberVicoScrollState(scrollEnabled = scrollEnabled),
     )
 }

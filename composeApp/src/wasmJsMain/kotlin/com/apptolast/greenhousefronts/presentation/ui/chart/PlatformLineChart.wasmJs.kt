@@ -17,6 +17,7 @@ actual fun PlatformLineChart(
     labels: List<String>,
     unitLabel: String,
     modifier: Modifier,
+    scrollEnabled: Boolean,
 ) {
     if (values.isEmpty()) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {

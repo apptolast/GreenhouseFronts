@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
  * @param labels X-axis labels (e.g., formatted timestamps)
  * @param unitLabel Unit label for the Y-axis (e.g., "°C")
  * @param modifier Modifier for the chart composable
+ * @param scrollEnabled Whether horizontal scrolling is enabled
  */
 @Composable
 expect fun PlatformLineChart(
@@ -20,4 +21,5 @@ expect fun PlatformLineChart(
     labels: List<String>,
     unitLabel: String,
     modifier: Modifier,
+    scrollEnabled: Boolean = false,
 )

@@ -20,6 +20,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.UnfoldLess
+import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -68,6 +70,7 @@ fun DeviceDetailScreen(
         uiState = uiState,
         onNavigateBack = onNavigateBack,
         onSelectPeriod = viewModel::selectPeriod,
+        onToggleChartExpanded = viewModel::toggleChartExpanded,
     )
 }
 
@@ -77,6 +80,7 @@ private fun DeviceDetailContent(
     uiState: DeviceDetailUiState,
     onNavigateBack: () -> Unit,
     onSelectPeriod: (ChartPeriod) -> Unit,
+    onToggleChartExpanded: () -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -118,6 +122,7 @@ private fun DeviceDetailContent(
                 DeviceDetailBody(
                     uiState = uiState,
                     onSelectPeriod = onSelectPeriod,
+                    onToggleChartExpanded = onToggleChartExpanded,
                 )
             }
         }
@@ -129,6 +134,7 @@ private fun DeviceDetailContent(
 private fun DeviceDetailBody(
     uiState: DeviceDetailUiState,
     onSelectPeriod: (ChartPeriod) -> Unit,
+    onToggleChartExpanded: () -> Unit,
 ) {
     val device = uiState.device ?: return
 
@@ -189,13 +195,34 @@ private fun DeviceDetailBody(
             }
         }
 
-        // Chart section
-        Text(
-            text = "Histórico",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
+        // Chart section header with expand/collapse toggle
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Histórico",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            IconButton(onClick = onToggleChartExpanded) {
+                Icon(
+                    imageVector = if (uiState.isChartExpanded) {
+                        Icons.Filled.UnfoldLess
+                    } else {
+                        Icons.Filled.UnfoldMore
+                    },
+                    contentDescription = if (uiState.isChartExpanded) {
+                        "Condensar gráfica"
+                    } else {
+                        "Expandir gráfica"
+                    },
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
 
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -211,6 +238,7 @@ private fun DeviceDetailBody(
                         .fillMaxWidth()
                         .height(200.dp)
                         .padding(8.dp),
+                    scrollEnabled = uiState.isChartExpanded,
                 )
             } else {
                 Box(
