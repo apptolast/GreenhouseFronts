@@ -7,6 +7,7 @@ data class Device(
     val id: Long,
     val code: String,
     val name: String,
+    val clientName: String? = null,
     val isActive: Boolean,
     val categoryName: String,
     val typeName: String,
@@ -25,6 +26,7 @@ data class Device(
 data class Setpoint(
     val id: Long,
     val code: String,
+    val clientName: String? = null,
     val description: String?,
     val parameterName: String?,
     val actuatorStateName: String?,

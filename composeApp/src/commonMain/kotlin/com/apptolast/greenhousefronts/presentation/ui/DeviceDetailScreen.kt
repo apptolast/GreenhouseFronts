@@ -88,7 +88,7 @@ private fun DeviceDetailContent(
                 title = {
                     Column {
                         Text(
-                            text = uiState.device?.name ?: "",
+                            text = uiState.device?.clientName ?: uiState.device?.name ?: "",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                         )
@@ -280,6 +280,7 @@ private fun DeviceDetailBody(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                InfoRow("Nombre interno", device.name)
                 InfoRow("Código", device.code)
                 InfoRow("Categoría", device.categoryName)
                 InfoRow("Tipo", device.typeName)
@@ -468,7 +469,7 @@ private fun formatDeviceValue(value: String?, unitSymbol: String?): String {
     if (value.lowercase() == "true") return "ON"
     if (value.lowercase() == "false") return "OFF"
     val numValue = value.toDoubleOrNull()
-    if (numValue != null && numValue >= 10000) return "${(numValue / 1000).toInt()}K"
+    if (numValue != null && numValue >= 10000) return "${(numValue / 1000).toInt()}K" // FIXME: Check this hardcoded unitSymbol
     if (numValue != null && numValue == numValue.toLong().toDouble()) return numValue.toLong().toString()
     return value
 }
@@ -483,7 +484,8 @@ private fun PreviewDeviceDetail() {
                 device = Device(
                     id = 1L,
                     code = "DEV-00031",
-                    name = "Sensor de Temperatura",
+                    name = "WS90_TEMP_INTERIOR",
+                    clientName = "Sensor de Temperatura",
                     isActive = true,
                     categoryName = "SENSOR",
                     typeName = "TEMPERATURE",

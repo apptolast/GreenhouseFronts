@@ -50,6 +50,7 @@ data class SectorResponse(
 data class AlertResponse(
     val id: Long,
     val sectorId: Long,
+    val clientName: String? = null,
     val isResolved: Boolean = false,
 )
 

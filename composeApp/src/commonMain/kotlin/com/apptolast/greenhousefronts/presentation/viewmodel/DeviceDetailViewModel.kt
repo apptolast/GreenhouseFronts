@@ -105,6 +105,7 @@ class DeviceDetailViewModel(
                                     id = wsDevice.id,
                                     code = wsDevice.code,
                                     name = wsDevice.name ?: wsDevice.code,
+                                    clientName = wsDevice.clientName,
                                     isActive = wsDevice.isActive,
                                     categoryName = wsDevice.category?.name ?: "",
                                     typeName = wsDevice.type?.name ?: "",

@@ -194,6 +194,7 @@ class GreenhouseDetailViewModel(
                     id = device.id,
                     code = device.code,
                     name = device.name ?: device.code,
+                    clientName = device.clientName,
                     isActive = device.isActive,
                     categoryName = device.category?.name ?: "UNKNOWN",
                     typeName = device.type?.name ?: "UNKNOWN",
@@ -215,6 +216,7 @@ class GreenhouseDetailViewModel(
                 Setpoint(
                     id = setting.id,
                     code = setting.code,
+                    clientName = setting.clientName,
                     description = setting.description,
                     parameterName = setting.parameter?.name,
                     actuatorStateName = setting.actuatorState?.name,
