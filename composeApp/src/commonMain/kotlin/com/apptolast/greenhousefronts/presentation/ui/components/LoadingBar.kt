@@ -19,7 +19,7 @@ fun LoadingBar(isLoading: Boolean) {
     Box(modifier = Modifier.fillMaxWidth().height(4.dp)) {
         if (isLoading) {
             LinearProgressIndicator(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
                 color = MaterialTheme.colorScheme.primary,
             )
         }

@@ -57,13 +57,9 @@ actual fun PlatformLineChart(
         }
     }
 
-    // Vico 2.4.3 does NOT allow empty strings from CartesianValueFormatter.
-    // Always return a non-empty label. Use the provided label or the index as fallback.
     val xAxisFormatter = remember(labels) {
         CartesianValueFormatter { _, value, _ ->
-            val index = value.toInt()
-            val label = labels.getOrNull(index)
-            if (!label.isNullOrBlank()) label else index.toString()
+            labels.getOrElse(value.toInt()) { value.toInt().toString() }
         }
     }
 
@@ -94,6 +90,9 @@ actual fun PlatformLineChart(
                 guideline = null,
                 valueFormatter = xAxisFormatter,
                 label = TextComponent(textStyle = TextStyle(color = labelColor)),
+                itemPlacer = remember {
+                    HorizontalAxis.ItemPlacer.aligned(addExtremeLabelPadding = true)
+                },
             ),
         ),
         modelProducer = modelProducer,

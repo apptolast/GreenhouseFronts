@@ -30,6 +30,13 @@ actual fun PlatformLineChart(
         return
     }
 
+    // AAY-chart has no label density control — filter to ~6 labels to avoid crowding
+    val maxLabels = 6
+    val step = (labels.size / maxLabels).coerceAtLeast(1)
+    val filteredLabels = labels.mapIndexed { i, label ->
+        if (i % step == 0 || i == labels.lastIndex) label else ""
+    }
+
     LineChart(
         modifier = modifier,
         linesParameters = listOf(
@@ -42,7 +49,7 @@ actual fun PlatformLineChart(
             ),
         ),
         gridColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-        xAxisData = labels,
+        xAxisData = filteredLabels,
         animateChart = true,
         showGridWithSpacer = true,
         yAxisStyle = androidx.compose.ui.text.TextStyle(

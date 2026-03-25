@@ -219,14 +219,7 @@ class DeviceDetailViewModel(
         }
 
         val values = reduced.map { it.value }
-        val labelStep = (reduced.size / 6).coerceAtLeast(1)
-        val labels = reduced.mapIndexed { i, point ->
-            if (i % labelStep == 0 || i == reduced.lastIndex) {
-                formatLabel(point.timestamp, period)
-            } else {
-                ""
-            }
-        }
+        val labels = reduced.map { point -> formatLabel(point.timestamp, period) }
         val allValues = points.map { it.value }
 
         val stats = DeviceStats(
@@ -352,28 +345,30 @@ class DeviceDetailViewModel(
         // timestamp format: "2026-03-17T13:30:00.123Z"
         val datePart = isoTimestamp.substringBefore("T") // "2026-03-17"
         val timePart = isoTimestamp.substringAfter("T").substringBefore(".").substringBefore("Z") // "13:30:00"
+        val parts = datePart.split("-") // ["2026", "03", "17"]
 
         return when (period) {
             ChartPeriod.DAY -> timePart.take(5) // "13:30"
+
             ChartPeriod.WEEK -> {
-                // Just the day number to avoid repetitive "17/03" labels
-                val parts = datePart.split("-")
-                if (parts.size == 3) parts[2].trimStart('0').ifEmpty { "0" } else datePart.takeLast(2)
+                // Hour with day in parentheses: "10h (17)"
+                val hour = timePart.take(2).trimStart('0').ifEmpty { "0" }
+                val day = if (parts.size == 3) parts[2].trimStart('0').ifEmpty { "0" } else "?"
+                "${hour}h ($day)"
             }
 
             ChartPeriod.MONTH -> {
-                // Day number only (1-31)
-                val parts = datePart.split("-")
-                if (parts.size == 3) parts[2].trimStart('0').ifEmpty { "0" } else datePart.takeLast(2)
+                // Day and month: "17/03"
+                if (parts.size == 3) "${parts[2]}/${parts[1]}" else datePart.takeLast(5)
             }
 
             ChartPeriod.YEAR -> {
-                val parts = datePart.split("-")
-                if (parts.size >= 2) "${parts[1]}/${parts[0].takeLast(2)}" else datePart.take(7)
+                // Day and month: "17/03"
+                if (parts.size == 3) "${parts[2]}/${parts[1]}" else datePart.takeLast(5)
             }
 
             ChartPeriod.ALL -> {
-                val parts = datePart.split("-")
+                // Month and year: "03/26"
                 if (parts.size >= 2) "${parts[1]}/${parts[0].takeLast(2)}" else datePart.take(7)
             }
         }
