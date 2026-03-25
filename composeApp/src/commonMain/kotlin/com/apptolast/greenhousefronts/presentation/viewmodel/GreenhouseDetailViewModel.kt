@@ -205,6 +205,7 @@ class GreenhouseDetailViewModel(
                     minExpectedValue = device.type?.minExpectedValue,
                     maxExpectedValue = device.type?.maxExpectedValue,
                     controlType = device.type?.controlType,
+                    dataType = device.type?.dataType,
                 )
             }
     }

@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -25,6 +27,7 @@ import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +50,8 @@ import com.apptolast.greenhousefronts.domain.model.Device
 import com.apptolast.greenhousefronts.presentation.ui.chart.PlatformLineChart
 import com.apptolast.greenhousefronts.presentation.ui.components.LoadingBar
 import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
+import com.apptolast.greenhousefronts.presentation.viewmodel.BooleanDeviceStats
+import com.apptolast.greenhousefronts.presentation.viewmodel.BooleanTransition
 import com.apptolast.greenhousefronts.presentation.viewmodel.ChartPeriod
 import com.apptolast.greenhousefronts.presentation.viewmodel.DeviceDetailUiState
 import com.apptolast.greenhousefronts.presentation.viewmodel.DeviceDetailViewModel
@@ -214,10 +219,10 @@ private fun DeviceDetailBody(
                     } else {
                         Icons.Filled.UnfoldMore
                     },
-                    contentDescription = if (uiState.isChartExpanded) {
-                        "Condensar gráfica"
+                    contentDescription = if (uiState.isBooleanDevice) {
+                        if (uiState.isChartExpanded) "Mostrar menos cambios" else "Mostrar todos los cambios"
                     } else {
-                        "Expandir gráfica"
+                        if (uiState.isChartExpanded) "Condensar grafica" else "Expandir grafica"
                     },
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -229,7 +234,12 @@ private fun DeviceDetailBody(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         ) {
-            if (uiState.chartValues.isNotEmpty()) {
+            if (uiState.isBooleanDevice) {
+                BooleanTransitionList(
+                    transitions = uiState.transitions,
+                    isExpanded = uiState.isChartExpanded,
+                )
+            } else if (uiState.chartValues.isNotEmpty()) {
                 PlatformLineChart(
                     values = uiState.chartValues,
                     labels = uiState.chartLabels,
@@ -248,7 +258,7 @@ private fun DeviceDetailBody(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = "Sin datos históricos",
+                        text = "Sin datos historicos",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -256,15 +266,19 @@ private fun DeviceDetailBody(
             }
         }
 
-        // Statistics grid
+        // Statistics section
         Text(
-            text = "Estadísticas del periodo",
+            text = "Estadisticas del periodo",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onBackground,
         )
 
-        StatsGrid(stats = uiState.stats, unitSymbol = device.unitSymbol)
+        if (uiState.isBooleanDevice && uiState.booleanStats != null) {
+            BooleanStatsGrid(stats = uiState.booleanStats)
+        } else {
+            StatsGrid(stats = uiState.stats, unitSymbol = device.unitSymbol)
+        }
 
         // Device info
         Text(
@@ -421,6 +435,132 @@ private fun InfoRow(label: String, value: String) {
     }
 }
 
+@Composable
+private fun BooleanTransitionList(
+    transitions: List<BooleanTransition>,
+    isExpanded: Boolean,
+) {
+    val maxCollapsed = 10
+    val displayedTransitions = if (isExpanded) transitions else transitions.takeLast(maxCollapsed)
+
+    if (transitions.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "Sin cambios de estado en el periodo",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    } else {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
+        ) {
+            if (!isExpanded && transitions.size > maxCollapsed) {
+                Text(
+                    text = "Mostrando ultimos $maxCollapsed de ${transitions.size} cambios",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 12.dp),
+                )
+            }
+            displayedTransitions.forEachIndexed { index, transition ->
+                TransitionRow(transition)
+                if (index < displayedTransitions.lastIndex) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TransitionRow(transition: BooleanTransition) {
+    val stateColor = if (transition.newState) {
+        Color(0xFF4CAF50)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .clip(CircleShape)
+                .background(stateColor),
+        )
+        Text(
+            text = transition.displayTime,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = if (transition.newState) "ON" else "OFF",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = stateColor,
+        )
+    }
+}
+
+@Composable
+private fun BooleanStatsGrid(stats: BooleanDeviceStats) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatBox(
+                label = "Estado actual",
+                value = when (stats.currentState) {
+                    true -> "ON"
+                    false -> "OFF"
+                    null -> "--"
+                },
+                modifier = Modifier.weight(1f),
+            )
+            StatBox(
+                label = "Cambios",
+                value = stats.transitionCount.toString(),
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatBox(
+                label = "Tiempo ON",
+                value = "${stats.onPercentage.formatPercent()}%",
+                modifier = Modifier.weight(1f),
+                icon = "▲",
+            )
+            StatBox(
+                label = "Tiempo OFF",
+                value = "${stats.offPercentage.formatPercent()}%",
+                modifier = Modifier.weight(1f),
+                icon = "▼",
+            )
+        }
+    }
+}
+
+private fun Double.formatPercent(): String {
+    val rounded = (this * 10).toLong() / 10.0
+    return if (rounded == rounded.toLong().toDouble()) {
+        rounded.toLong().toString()
+    } else {
+        rounded.toString()
+    }
+}
+
 // Reuse from GreenhouseDetailScreen
 private fun deviceTypeEmoji(typeName: String): String {
     return when (typeName.uppercase()) {
@@ -522,6 +662,55 @@ private fun PreviewDeviceDetailLoading() {
     GreenhouseTheme(darkTheme = true) {
         DeviceDetailContent(
             uiState = DeviceDetailUiState(isLoading = true),
+            onNavigateBack = {},
+            onSelectPeriod = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewDeviceDetailBoolean() {
+    GreenhouseTheme(darkTheme = true) {
+        DeviceDetailContent(
+            uiState = DeviceDetailUiState(
+                isLoading = false,
+                device = Device(
+                    id = 5L,
+                    code = "DEV-00042",
+                    name = "IRRIGATOR_01",
+                    clientName = "Riego Sector A",
+                    isActive = true,
+                    categoryName = "ACTUATOR",
+                    typeName = "REGANDO",
+                    typeId = 10,
+                    unitSymbol = null,
+                    currentValue = "false",
+                    lastUpdated = "2026-03-17T13:30:00Z",
+                    minExpectedValue = null,
+                    maxExpectedValue = null,
+                    controlType = "ON_OFF",
+                    dataType = "BOOLEAN",
+                ),
+                sectorName = "Sector 00",
+                greenhouseName = "Invernadero 03",
+                isLive = true,
+                isBooleanDevice = true,
+                transitions = listOf(
+                    BooleanTransition("2026-03-17T08:00:00Z", "17/03/2026 - 08:00:00", true),
+                    BooleanTransition("2026-03-17T09:15:32Z", "17/03/2026 - 09:15:32", false),
+                    BooleanTransition("2026-03-17T10:30:00Z", "17/03/2026 - 10:30:00", true),
+                    BooleanTransition("2026-03-17T12:45:18Z", "17/03/2026 - 12:45:18", false),
+                    BooleanTransition("2026-03-17T13:30:00Z", "17/03/2026 - 13:30:00", true),
+                ),
+                booleanStats = BooleanDeviceStats(
+                    currentState = false,
+                    transitionCount = 4,
+                    onPercentage = 62.5,
+                    offPercentage = 37.5,
+                ),
+                selectedPeriod = ChartPeriod.DAY,
+            ),
             onNavigateBack = {},
             onSelectPeriod = {},
         )

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.apptolast.greenhousefronts.data.remote.api.SensorApiService
 import com.apptolast.greenhousefronts.data.remote.websocket.GreenhouseStatusWebSocket
 import com.apptolast.greenhousefronts.data.remote.websocket.WsSettingResponse
+import com.apptolast.greenhousefronts.data.model.sensor.SensorReadingResponse
 import com.apptolast.greenhousefronts.domain.model.Device
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +31,19 @@ data class DeviceStats(
     val max: Double?,
 )
 
+data class BooleanTransition(
+    val timestamp: String,
+    val displayTime: String,
+    val newState: Boolean,
+)
+
+data class BooleanDeviceStats(
+    val currentState: Boolean?,
+    val transitionCount: Int,
+    val onPercentage: Double,
+    val offPercentage: Double,
+)
+
 data class DeviceDetailUiState(
     val isLoading: Boolean = true,
     val device: Device? = null,
@@ -44,6 +58,9 @@ data class DeviceDetailUiState(
     val settings: List<WsSettingResponse> = emptyList(),
     val isLoadingChart: Boolean = false,
     val isChartExpanded: Boolean = false,
+    val isBooleanDevice: Boolean = false,
+    val transitions: List<BooleanTransition> = emptyList(),
+    val booleanStats: BooleanDeviceStats? = null,
     val error: String? = null,
 )
 
@@ -77,10 +94,12 @@ class DeviceDetailViewModel(
     fun toggleChartExpanded() {
         val expanded = !uiState.value.isChartExpanded
         uiState.update { it.copy(isChartExpanded = expanded) }
-        // Re-apply chart data with different bucketing
-        val points = uiState.value.chartPoints
-        if (points.isNotEmpty()) {
-            applyChartData(points, uiState.value.selectedPeriod)
+        // Re-apply chart data with different bucketing (only for numeric devices)
+        if (!uiState.value.isBooleanDevice) {
+            val points = uiState.value.chartPoints
+            if (points.isNotEmpty()) {
+                applyChartData(points, uiState.value.selectedPeriod)
+            }
         }
     }
 
@@ -116,6 +135,7 @@ class DeviceDetailViewModel(
                                     minExpectedValue = wsDevice.type?.minExpectedValue,
                                     maxExpectedValue = wsDevice.type?.maxExpectedValue,
                                     controlType = wsDevice.type?.controlType,
+                                    dataType = wsDevice.type?.dataType,
                                 )
 
                                 // Get settings from the same sector for "consigna configurada"
@@ -149,19 +169,27 @@ class DeviceDetailViewModel(
             try {
                 val readings = sensorApiService.getReadingsByCode(deviceCode, period.hoursAgo)
 
-                val points = readings
-                    .mapNotNull { reading ->
-                        val value = reading.value.toDoubleOrNull() ?: return@mapNotNull null
-                        ChartPoint(reading.time, value)
-                    }
-                    .sortedBy { it.timestamp }
+                // Detect boolean: device metadata first, then inspect reading values
+                val isBooleanByType = uiState.value.device?.dataType?.uppercase() == "BOOLEAN"
+                val isBooleanByValues = readings.isNotEmpty() &&
+                        readings.take(10).all { it.value.toBooleanStrictOrNull() != null }
 
-                if (points.isNotEmpty()) {
-                    applyChartData(points, period)
+                if (isBooleanByType || isBooleanByValues) {
+                    applyBooleanData(readings)
                 } else {
-                    // No data from API — use mock data for visualization
-                    println("[DEVICE-VM] No readings from API, using mock data")
-                    applyMockChartData(period)
+                    val points = readings
+                        .mapNotNull { reading ->
+                            val value = reading.value.toDoubleOrNull() ?: return@mapNotNull null
+                            ChartPoint(reading.time, value)
+                        }
+                        .sortedBy { it.timestamp }
+
+                    if (points.isNotEmpty()) {
+                        applyChartData(points, period)
+                    } else {
+                        println("[DEVICE-VM] No readings from API, using mock data")
+                        applyMockChartData(period)
+                    }
                 }
             } catch (e: Exception) {
                 println("[DEVICE-VM] Chart data error: ${e.message}, using mock data")
@@ -214,6 +242,9 @@ class DeviceDetailViewModel(
                 chartValues = values,
                 chartLabels = labels,
                 stats = stats,
+                isBooleanDevice = false,
+                transitions = emptyList(),
+                booleanStats = null,
             )
         }
     }
@@ -239,7 +270,77 @@ class DeviceDetailViewModel(
             max = values.max(),
         )
         uiState.update {
-            it.copy(isLoadingChart = false, chartValues = values, chartLabels = labels, stats = stats)
+            it.copy(
+                isLoadingChart = false,
+                chartValues = values,
+                chartLabels = labels,
+                stats = stats,
+                isBooleanDevice = false,
+                transitions = emptyList(),
+                booleanStats = null,
+            )
+        }
+    }
+
+    /**
+     * Processes boolean readings into a list of state transitions.
+     * Only keeps entries where the value changes from the previous one.
+     */
+    private fun applyBooleanData(readings: List<SensorReadingResponse>) {
+        val sorted = readings.sortedBy { it.time }
+
+        val transitions = mutableListOf<BooleanTransition>()
+        var previousValue: Boolean? = null
+
+        for (reading in sorted) {
+            val currentBool = reading.value.toBooleanStrictOrNull() ?: continue
+            if (previousValue == null || currentBool != previousValue) {
+                transitions.add(
+                    BooleanTransition(
+                        timestamp = reading.time,
+                        displayTime = formatBooleanTimestamp(reading.time),
+                        newState = currentBool,
+                    ),
+                )
+                previousValue = currentBool
+            }
+        }
+
+        val booleanReadings = sorted.mapNotNull { it.value.toBooleanStrictOrNull() }
+        val onCount = booleanReadings.count { it }
+        val total = booleanReadings.size
+
+        val booleanStats = BooleanDeviceStats(
+            currentState = uiState.value.device?.currentValue?.toBooleanStrictOrNull(),
+            transitionCount = (transitions.size - 1).coerceAtLeast(0),
+            onPercentage = if (total > 0) (onCount.toDouble() / total * 100) else 0.0,
+            offPercentage = if (total > 0) ((total - onCount).toDouble() / total * 100) else 0.0,
+        )
+
+        uiState.update {
+            it.copy(
+                isLoadingChart = false,
+                isBooleanDevice = true,
+                transitions = transitions,
+                booleanStats = booleanStats,
+                chartPoints = emptyList(),
+                chartValues = emptyList(),
+                chartLabels = emptyList(),
+            )
+        }
+    }
+
+    /** Formats ISO timestamp to "dd/MM/yyyy - HH:mm:ss". */
+    private fun formatBooleanTimestamp(isoTimestamp: String): String {
+        val datePart = isoTimestamp.substringBefore("T")
+        val timePart = isoTimestamp.substringAfter("T")
+            .substringBefore(".")
+            .substringBefore("Z")
+        val parts = datePart.split("-")
+        return if (parts.size == 3) {
+            "${parts[2]}/${parts[1]}/${parts[0]} - $timePart"
+        } else {
+            "$datePart - $timePart"
         }
     }
 

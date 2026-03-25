@@ -18,6 +18,7 @@ data class Device(
     val minExpectedValue: Double?,
     val maxExpectedValue: Double?,
     val controlType: String?,
+    val dataType: String? = null,
 )
 
 /**
