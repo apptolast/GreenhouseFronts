@@ -441,7 +441,8 @@ private fun BooleanTransitionList(
     isExpanded: Boolean,
 ) {
     val maxCollapsed = 10
-    val displayedTransitions = if (isExpanded) transitions else transitions.takeLast(maxCollapsed)
+    val reversed = transitions.asReversed()
+    val displayedTransitions = if (isExpanded) reversed else reversed.take(maxCollapsed)
 
     if (transitions.isEmpty()) {
         Box(
