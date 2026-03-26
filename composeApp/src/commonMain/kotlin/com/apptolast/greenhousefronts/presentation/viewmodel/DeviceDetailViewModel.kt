@@ -187,13 +187,12 @@ class DeviceDetailViewModel(
                     if (points.isNotEmpty()) {
                         applyChartData(points, period)
                     } else {
-                        println("[DEVICE-VM] No readings from API, using mock data")
-                        applyMockChartData(period)
+                        clearChartData()
                     }
                 }
             } catch (e: Exception) {
-                println("[DEVICE-VM] Chart data error: ${e.message}, using mock data")
-                applyMockChartData(period)
+                println("[DEVICE-VM] Chart data error: ${e.message}")
+                clearChartData()
             }
         }
     }
@@ -242,32 +241,19 @@ class DeviceDetailViewModel(
         }
     }
 
-    private fun applyMockChartData(period: ChartPeriod) {
-        val baseValue = uiState.value.device?.currentValue?.toDoubleOrNull() ?: 22.0
-        val random = kotlin.random.Random(42)
-        val count = 24
-
-        val values = (0 until count).map { baseValue + random.nextDouble(-2.0, 2.0) }
-        val labels = when (period) {
-            ChartPeriod.DAY -> (0 until count).map { "${it}:00" }
-            ChartPeriod.WEEK -> (0 until count).map { "D${it / 3 + 1}" }
-            ChartPeriod.MONTH -> (0 until count).map { "${it + 1}" }
-            ChartPeriod.YEAR -> (0 until count).map { "M${it / 2 + 1}" }
-            ChartPeriod.ALL -> (0 until count).map { "${it}:00" }
-        }
-
-        val stats = DeviceStats(
-            current = uiState.value.device?.currentValue?.toDoubleOrNull(),
-            average = values.average(),
-            min = values.min(),
-            max = values.max(),
-        )
+    private fun clearChartData() {
         uiState.update {
             it.copy(
                 isLoadingChart = false,
-                chartValues = values,
-                chartLabels = labels,
-                stats = stats,
+                chartPoints = emptyList(),
+                chartValues = emptyList(),
+                chartLabels = emptyList(),
+                stats = DeviceStats(
+                    current = uiState.value.device?.currentValue?.toDoubleOrNull(),
+                    average = null,
+                    min = null,
+                    max = null,
+                ),
                 isBooleanDevice = false,
                 transitions = emptyList(),
                 booleanStats = null,

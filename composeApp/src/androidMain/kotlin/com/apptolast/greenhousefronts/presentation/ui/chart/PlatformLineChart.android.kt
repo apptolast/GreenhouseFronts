@@ -90,6 +90,7 @@ actual fun PlatformLineChart(
                 guideline = null,
                 valueFormatter = xAxisFormatter,
                 label = TextComponent(textStyle = TextStyle(color = labelColor)),
+                labelRotationDegrees = 45f,
                 itemPlacer = remember {
                     HorizontalAxis.ItemPlacer.aligned(addExtremeLabelPadding = true)
                 },
