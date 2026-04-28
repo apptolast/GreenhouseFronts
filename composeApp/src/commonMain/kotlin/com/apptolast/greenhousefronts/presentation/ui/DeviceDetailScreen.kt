@@ -56,6 +56,8 @@ import com.apptolast.greenhousefronts.presentation.viewmodel.ChartPeriod
 import com.apptolast.greenhousefronts.presentation.viewmodel.DeviceDetailUiState
 import com.apptolast.greenhousefronts.presentation.viewmodel.DeviceDetailViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.DeviceStats
+import com.apptolast.greenhousefronts.util.isFalseLike
+import com.apptolast.greenhousefronts.util.isTrueLike
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -606,8 +608,9 @@ private fun Double.formatStat(unit: String): String {
 
 private fun formatDeviceValue(value: String?, unitSymbol: String?): String {
     if (value == null) return "--"
-    if (value.lowercase() == "true") return "ON"
-    if (value.lowercase() == "false") return "OFF"
+    // Accept legacy "1"/"0" defensively (pre-Phase-6 format).
+    if (value.isTrueLike()) return "ON"
+    if (value.isFalseLike()) return "OFF"
     val numValue = value.toDoubleOrNull()
     if (numValue != null && numValue >= 10000) return "${(numValue / 1000).toInt()}K" // FIXME: Check this hardcoded unitSymbol
     if (numValue != null && numValue == numValue.toLong().toDouble()) return numValue.toLong().toString()

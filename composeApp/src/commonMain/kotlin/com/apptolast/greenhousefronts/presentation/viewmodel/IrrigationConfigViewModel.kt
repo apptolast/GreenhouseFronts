@@ -6,6 +6,7 @@ import com.apptolast.greenhousefronts.data.remote.api.CommandApiService
 import com.apptolast.greenhousefronts.data.remote.websocket.GreenhouseStatusWebSocket
 import com.apptolast.greenhousefronts.data.remote.websocket.WsSectorResponse
 import com.apptolast.greenhousefronts.data.remote.websocket.WsSettingResponse
+import com.apptolast.greenhousefronts.util.isTrueLike
 import com.apptolast.greenhousefronts.domain.model.DayOfWeek
 import com.apptolast.greenhousefronts.domain.model.IrrigationConfig
 import com.apptolast.greenhousefronts.domain.model.SectorIrrigationConfig
@@ -167,26 +168,26 @@ class IrrigationConfigViewModel(
     private fun computeRealTimeStatus(sectors: List<WsSectorResponse>): RealTimeStatus {
         val isIrrigating = sectors.any { sector ->
             sector.devices.any {
-                it.type?.id == REGANDO_DEVICE_TYPE_ID && it.currentValue?.lowercase() == "true"
+                it.type?.id == REGANDO_DEVICE_TYPE_ID && it.currentValue.isTrueLike()
             }
         }
         val irrigatingSector = if (isIrrigating) {
             sectors.firstOrNull { sector ->
                 sector.devices.any {
-                    it.type?.id == REGANDO_DEVICE_TYPE_ID && it.currentValue?.lowercase() == "true"
+                    it.type?.id == REGANDO_DEVICE_TYPE_ID && it.currentValue.isTrueLike()
                 }
             }
         } else null
 
         val isInQueue = sectors.any { sector ->
             sector.devices.any {
-                it.type?.id == EN_COLA_DEVICE_TYPE_ID && it.currentValue?.lowercase() == "true"
+                it.type?.id == EN_COLA_DEVICE_TYPE_ID && it.currentValue.isTrueLike()
             }
         }
         val queueSector = if (isInQueue) {
             sectors.firstOrNull { sector ->
                 sector.devices.any {
-                    it.type?.id == EN_COLA_DEVICE_TYPE_ID && it.currentValue?.lowercase() == "true"
+                    it.type?.id == EN_COLA_DEVICE_TYPE_ID && it.currentValue.isTrueLike()
                 }
             }
         } else null
@@ -337,7 +338,7 @@ class IrrigationConfigViewModel(
 
     private fun List<WsSettingResponse>.boolValue(actuatorName: String): Boolean? {
         val v = find { it.actuatorState?.name == actuatorName }?.currentValue ?: return null
-        return v.lowercase() == "true" || v == "1"
+        return v.isTrueLike()
     }
 
     // --- Form updates ---
