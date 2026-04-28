@@ -56,6 +56,8 @@ import com.apptolast.greenhousefronts.presentation.viewmodel.ChartPeriod
 import com.apptolast.greenhousefronts.presentation.viewmodel.DeviceDetailUiState
 import com.apptolast.greenhousefronts.presentation.viewmodel.DeviceDetailViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.DeviceStats
+import com.apptolast.greenhousefronts.util.isFalseLike
+import com.apptolast.greenhousefronts.util.isTrueLike
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -607,9 +609,8 @@ private fun Double.formatStat(unit: String): String {
 
 private fun formatDeviceValue(value: String?, unitSymbol: String?, isBooleanDevice: Boolean = false): String {
     if (value == null) return "--"
-    // Boolean devices: handle both "true"/"false" and "1"/"0" formats
-    if (value.lowercase() == "true" || (isBooleanDevice && value in listOf("1", "1.0"))) return "ON"
-    if (value.lowercase() == "false" || (isBooleanDevice && value in listOf("0", "0.0"))) return "OFF"
+    if (value.isTrueLike()) return "ON"
+    if (value.isFalseLike()) return "OFF"
     val numValue = value.toDoubleOrNull()
     if (numValue != null && numValue >= 10000) return "${(numValue / 1000).toInt()}K"
     if (numValue != null && numValue == numValue.toLong().toDouble()) return numValue.toLong().toString()

@@ -64,6 +64,8 @@ import com.apptolast.greenhousefronts.domain.model.Greenhouse
 import com.apptolast.greenhousefronts.domain.model.SectorWithDevices
 import com.apptolast.greenhousefronts.domain.model.Setpoint
 import com.apptolast.greenhousefronts.presentation.ui.components.LoadingBar
+import com.apptolast.greenhousefronts.util.isFalseLike
+import com.apptolast.greenhousefronts.util.isTrueLike
 import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseDetailUiState
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseDetailViewModel
@@ -544,9 +546,10 @@ private fun DeviceCard(
 
 private fun formatDeviceValue(value: String?, unitSymbol: String?): String {
     if (value == null) return "--"
-    // Format boolean values
-    if (value.lowercase() == "true") return "ON"
-    if (value.lowercase() == "false") return "OFF"
+    // Format boolean values — accept legacy "1"/"0" defensively in case the
+    // API has not yet been Phase-6-normalised on a given environment.
+    if (value.isTrueLike()) return "ON"
+    if (value.isFalseLike()) return "OFF"
     // Format large numbers (e.g., 45000 lux → 45K)
     val numValue = value.toDoubleOrNull()
     if (numValue != null && numValue >= 10000) {
@@ -685,7 +688,7 @@ private fun SetpointBooleanEditor(
     enabled: Boolean,
     onValueChange: (String) -> Unit,
 ) {
-    val isChecked = currentValue?.lowercase() == "true"
+    val isChecked = currentValue.isTrueLike()
 
     Row(
         modifier = Modifier.fillMaxWidth(),
