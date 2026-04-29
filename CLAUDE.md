@@ -1,18 +1,19 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code when working in this repository.
 
 ## Development Guidelines (IMPORTANT)
 
-1. **Do NOT invent or hallucinate information** - Always verify facts using official documentation
-2. **Use web search when needed** - Consult official Kotlin Multiplatform and Ktor documentation for implementation details
-3. **Ask questions if unclear** - If requirements are ambiguous or you're unsure about an approach, ask the user for clarification before proceeding
-4. **Follow established patterns** - Use the MVVM architecture and repository pattern already implemented in this project
-5. **Code comments must be in English** - All technical comments, documentation (KDoc), and code-level explanations must be written in English. User-facing strings in the UI (button labels, messages, etc.) can remain in Spanish for the target audience
+1. **Do NOT invent or hallucinate** — Verify with official documentation. Use web search if unsure.
+2. **Ask if unclear** — Ask for clarification rather than guessing on architecture or requirements.
+3. **Follow existing patterns** — MVVM + Repository are already implemented. Match them.
+4. **Code comments in English** — All technical comments and KDoc in English. UI-facing strings stay in Spanish for the
+   target audience.
 
 ## Project Overview
 
-This is a **Kotlin Multiplatform (KMP) project** using **Compose Multiplatform** for shared UI across Android, iOS, Desktop (JVM), and Web (Wasm/JS) platforms. The project implements a **MVVM (Model-View-ViewModel)** architecture with **Ktor Client** for API communication.
+**Kotlin Multiplatform** project using **Compose Multiplatform** for shared UI across Android, iOS, Desktop (JVM), and
+Web (Wasm/JS). Architecture: **MVVM** + **Repository pattern**. Network: **Ktor Client**. DI: **Koin**.
 
 ## Build and Run Commands
 
@@ -24,64 +25,53 @@ This is a **Kotlin Multiplatform (KMP) project** using **Compose Multiplatform**
 
 ### Desktop (JVM)
 ```bash
-./gradlew :composeApp:run              # Run desktop application
+./gradlew :composeApp:run
 ```
 
 ### Web
 ```bash
-# Wasm target (recommended, modern browsers)
-./gradlew :composeApp:wasmJsBrowserDevelopmentRun
-
-# JavaScript target (legacy, older browser support)
-./gradlew :composeApp:jsBrowserDevelopmentRun
+./gradlew :composeApp:wasmJsBrowserDevelopmentRun   # Wasm (recommended)
+./gradlew :composeApp:jsBrowserDevelopmentRun       # JS (legacy)
 ```
-
-#### Yarn Lock File Management (IMPORTANT)
-
-**When adding or modifying dependencies** that have npm transitive dependencies (like Krossbow, Ktor WebSockets, etc.), you **must manually update** the yarn.lock file for web targets. This is **intentional behavior** by Gradle for version control safety and build reproducibility.
-
-**Required commands after dependency changes:**
-```bash
-./gradlew kotlinUpgradeYarnLock        # For JS target
-./gradlew kotlinWasmUpgradeYarnLock   # For WASM target
-```
-
-**When to run these tasks:**
-- After adding new dependencies in `gradle/libs.versions.toml`
-- After updating versions of existing dependencies
-- When you see the build error: `"Lock file was changed. Run the kotlinUpgradeYarnLock task"`
-
-**Why this is manual:**
-- Ensures developers are aware of npm dependency changes
-- Maintains build reproducibility across environments
-- Allows code review of dependency changes in version control
-- Prevents accidental dependency updates
-
-**Important**: Always commit the updated `yarn.lock` file(s) along with your code changes. The lock files are tracked in Git to ensure consistent builds across all developers and CI/CD environments.
 
 ### iOS
-Open the `iosApp/` directory in Xcode or use the IDE run configuration.
+
+Open `iosApp/` in Xcode or use the IDE run configuration.
+
+### Yarn Lock File Management (IMPORTANT)
+
+When adding/modifying dependencies that have npm transitive deps (Krossbow, Ktor WebSockets, etc.), you **must manually
+update** the yarn.lock file for web targets:
+
+```bash
+./gradlew kotlinUpgradeYarnLock        # JS target
+./gradlew kotlinWasmUpgradeYarnLock    # WASM target
+```
+
+Run after adding/updating deps in `gradle/libs.versions.toml`, or when the build error says
+`"Lock file was changed. Run the kotlinUpgradeYarnLock task"`. **Always commit the updated `yarn.lock` files** alongside
+your code changes — they're tracked for build reproducibility.
 
 ## API Configuration
 
 ### Environments
-The project supports multiple environments configured in `util/Environment.kt`:
+
+Configured in `util/Environment.kt`. Switch by modifying `Environment.current`.
 
 - **DEV**: `https://inverapi-dev.apptolast.com`
 - **PROD**: `https://inverapi-prod.apptolast.com`
 
-To switch environments, modify `Environment.current` in `util/Environment.kt`.
+### Swagger
 
-### API Swagger Documentation
-- **DEV**: https://inverapi-dev.apptolast.com/swagger-ui/index.html
-- **PROD**: https://inverapi-prod.apptolast.com/swagger-ui/index.html
+- DEV: https://inverapi-dev.apptolast.com/swagger-ui/index.html
+- PROD: https://inverapi-prod.apptolast.com/swagger-ui/index.html
 
 ### Key API Endpoints
 
 #### GET /api/greenhouse/messages/recent
 Retrieves recent greenhouse sensor messages.
 
-**Response**: Array of GreenhouseMessage objects
+**Response**: Array of GreenhouseMessage:
 ```json
 [{
   "timestamp": "2025-11-11T21:54:17.336Z",
@@ -91,163 +81,114 @@ Retrieves recent greenhouse sensor messages.
   "setpoint02": 0.1,
   "setpoint03": 0.1,
   "greenhouseId": "string",
-  "rawPayload": "string",
+  "rawPayload": "string"
 }]
 ```
 
 #### POST /api/mqtt/publish/custom
-Publishes a custom MQTT message to the greenhouse.
 
-**Query Parameters**:
-- `topic` (string): MQTT topic (default: "GREENHOUSE/RESPONSE")
-- `qos` (integer): Quality of Service: 0, 1, or 2 (default: 0)
+Publishes a custom MQTT message.
 
-**Request Body**: GreenhouseMessage object (same structure as above)
-
-**Authentication**: No authentication required for current endpoints
+**Query params**: `topic` (default `"GREENHOUSE/RESPONSE"`), `qos` (0/1/2, default 0).
+**Body**: GreenhouseMessage (same as above).
+**Auth**: None for current endpoints.
 
 ## Architecture
 
-### MVVM Architecture Pattern
-This project follows **MVVM (Model-View-ViewModel)** architecture as recommended by Google for Kotlin Multiplatform:
+### MVVM Layout
 
 ```
 presentation/
 ├── ui/              # Composable UI (View)
-│   └── App.kt
 └── viewmodel/       # ViewModels
-    └── GreenhouseViewModel.kt
 
 domain/
 └── repository/      # Repository interfaces
-    └── GreenhouseRepository.kt
 
 data/
-├── model/           # Data models (DTOs)
-│   └── GreenhouseMessage.kt
-├── remote/          # Network layer
-│   ├── api/         # API service definitions
-│   │   └── GreenhouseApiService.kt
-│   └── KtorClient.kt  # Ktor HTTP client configuration
+├── model/           # DTOs
+├── remote/api/      # API service definitions
+├── remote/KtorClient.kt
 └── repository/      # Repository implementations
-    └── GreenhouseRepositoryImpl.kt
 
 util/
-├── Environment.kt         # Multi-environment configuration
-└── DateTimeProvider.kt    # Expect/actual for platform-specific timestamps
+├── Environment.kt
+└── DateTimeProvider.kt   # expect/actual for timestamps
+
+di/                  # Koin modules (see DI section)
 ```
 
-### Multiplatform Source Structure
+### Multiplatform Source Sets
 ```
 composeApp/src/
-├── commonMain/          # Shared code for all platforms
-│   ├── kotlin/          # Common Kotlin code (MVVM architecture)
-│   └── composeResources/ # Shared resources (images, strings, etc.)
-├── androidMain/         # Android-specific code
-├── iosMain/            # iOS-specific code (Kotlin)
-├── jvmMain/            # Desktop-specific code
-├── jsMain/             # JavaScript target code
-├── wasmJsMain/         # WebAssembly target code
-└── commonTest/         # Shared test code
+├── commonMain/{kotlin,composeResources}
+├── androidMain/, iosMain/, jvmMain/, jsMain/, wasmJsMain/
+└── commonTest/
 ```
 
-### Network Layer (Ktor Client)
-The project uses **Ktor Client** for HTTP communication:
-- **Configuration**: `data/remote/KtorClient.kt`
-- **Features**: Content negotiation (JSON), Logging, Serialization
-- **Engines**: OkHttp (Android/JVM), Darwin (iOS)
+### Network Layer (Ktor)
 
-### Expect/Actual Pattern
-Use the `expect`/`actual` pattern for platform-specific implementations:
-- Define `expect` declarations in `commonMain/` (e.g., `Platform.kt`)
-- Provide `actual` implementations in platform-specific source sets (e.g., `Platform.android.kt`, `Platform.ios.kt`)
+- Configuration: `data/remote/KtorClient.kt`
+- Features: ContentNegotiation (JSON), Logging, Serialization
+- Engines: OkHttp (Android/JVM), Darwin (iOS)
 
 ### Adding New Code
-- **Models**: Add to `data/model/`
-- **API Services**: Add to `data/remote/api/`
-- **Repositories**: Interface in `domain/repository/`, implementation in `data/repository/`
-- **ViewModels**: Add to `presentation/viewmodel/`
-- **UI**: Add Composable functions in `presentation/ui/`
-- **Platform-specific**: Add to respective platform source sets (androidMain, iosMain, etc.)
 
-## Key Configuration
+- **Models** → `data/model/`
+- **API services** → `data/remote/api/`
+- **Repositories** → interface in `domain/repository/`, impl in `data/repository/`
+- **ViewModels** → `presentation/viewmodel/`
+- **UI** → `presentation/ui/`
+- **Platform-specific** → respective platform source set
 
-### Version Catalog (`gradle/libs.versions.toml`)
-- Kotlin: 2.2.20
-- Compose Multiplatform: 1.9.1
-- Android minSdk: 24, targetSdk: 36
-- Ktor: 3.0.3
-- Kotlinx Serialization: 1.8.0
-- Centralized dependency management
+## Key Versions (`gradle/libs.versions.toml`)
 
-### Build Configuration (`composeApp/build.gradle.kts`)
-- Defines all platform targets
-- Configures sourceSets and dependencies
+- Kotlin 2.2.20, Compose Multiplatform 1.9.1
+- Android minSdk 24, targetSdk 36
+- Ktor 3.0.3, kotlinx.serialization 1.8.0
+- Koin BOM 4.1.1
 - Android namespace: `com.apptolast.greenhousefronts`
+- JVM max memory: 4GB, configuration cache enabled
 
-### Gradle Properties (`gradle.properties`)
-- JVM max memory: 4GB (`-Xmx4g`)
-- Configuration cache enabled
+## Current Main UI
 
-## Current Project State
+`presentation/ui/App.kt` connects to `GreenhouseViewModel` and shows:
 
-### Main UI (`presentation/ui/App.kt`)
-The UI connects to `GreenhouseViewModel` and displays:
-- **Sensor data** from the most recent API message (sensor01 or setpoint01)
-- **Greenhouse ID** from the last message
-- **OutlinedTextField** for user input (setpoint value)
-- **Button** "Enviar" to publish setpoint to MQTT via API
-- **Loading state** with CircularProgressIndicator
-- **Error/Success messages** using Snackbar
+- Sensor data from the most recent API message
+- Greenhouse ID
+- OutlinedTextField for setpoint input + "Enviar" button (POST to MQTT)
+- Loading via `CircularProgressIndicator`, errors/success via Snackbar
 
-State is managed using StateFlow in the ViewModel and collected in the UI with `collectAsState()`.
-
-### Data Flow
-1. **ViewModel initialization** → Calls `loadRecentMessages()`
-2. **Repository** → Calls `GreenhouseApiService.getRecentMessages()`
-3. **Ktor Client** → Makes HTTP GET request
-4. **StateFlow updates** → UI recomposes with new data
-5. **User clicks "Enviar"** → `publishSetpoint()` called
-6. **Repository** → Calls `GreenhouseApiService.publishMessage()`
-7. **Success** → Reloads messages and shows confirmation
+State is `StateFlow` in the ViewModel, collected with `collectAsState()`.
 
 ## Development Notes
 
-- All code comments and technical documentation must be in English
-- User-facing UI strings (button labels, messages) are in Spanish for the target audience
-- Project uses Material Design 3 for consistent UI
-- Compose Multiplatform enables write-once UI code across all platforms
-- Network calls are made with Ktor Client (not Retrofit)
-- All API communication goes through the Repository pattern
-- ViewModels use Kotlin Coroutines and StateFlow for reactive state management
+- All technical docs/comments in English; user-facing UI strings in Spanish
+- Material Design 3 throughout
+- Network through Ktor Client (not Retrofit)
+- All API access goes through the Repository pattern
+- ViewModels use Coroutines + StateFlow
 
-## Dependency Injection with Koin
+---
 
-This project uses **Koin 4.1.0** as the dependency injection framework for managing object creation and lifecycle across all platforms.
+## Dependency Injection (Koin 4.1.1+)
 
-### Why Koin?
+### Why Koin
 
-- **Multiplatform Support**: Official support for all KMP targets (Android, iOS, Desktop, Web)
-- **Lightweight**: No code generation or reflection, just Kotlin DSL
-- **Compose Integration**: First-class support for Compose Multiplatform with `koinViewModel()`
-- **Easy Testing**: Simple to provide fake implementations for unit tests
-- **Google Best Practices**: Follows MVVM architecture recommendations with constructor injection
+Multiplatform-native, lightweight (no codegen/reflection), first-class Compose support via `koinViewModel()`, easy fakes
+for testing.
 
-### Project DI Structure
-
+### DI Structure
 ```
 di/
-├── KoinInitializer.kt           # Koin startup configuration
-├── DataModule.kt                # Data layer dependencies (HttpClient, API, Repository)
-├── DomainModule.kt             # Domain layer dependencies (use cases)
-├── PresentationModule.kt       # Presentation layer dependencies (ViewModels)
-└── PlatformModule.kt           # Platform-specific dependencies (expect/actual)
+├── KoinInitializer.kt       # initKoin() entry point
+├── DataModule.kt            # HttpClient, API, Repository
+├── DomainModule.kt          # use cases
+├── PresentationModule.kt    # ViewModels
+└── PlatformModule.kt        # expect/actual platform deps
 ```
 
-### Koin Configuration
-
-#### Version (gradle/libs.versions.toml)
-
+### Versions (libs.versions.toml)
 ```toml
 [versions]
 koin-bom = "4.1.1"
@@ -262,330 +203,121 @@ koin-android = { module = "io.insert-koin:koin-android" }
 koin-test = { module = "io.insert-koin:koin-test" }
 ```
 
-#### Build Configuration (composeApp/build.gradle.kts)
+Wire in `composeApp/build.gradle.kts`: BOM + `koin-core/compose/compose-viewmodel/compose-viewmodel-navigation` in
+`commonMain`, `koin-android` in `androidMain`, `koin-test` in `commonTest`.
 
-```kotlin
-commonMain.dependencies {
-    implementation(project.dependencies.platform(libs.koin.bom))
-    implementation(libs.koin.core)
-    implementation(libs.koin.compose)
-    implementation(libs.koin.compose.viewmodel)
-    implementation(libs.koin.compose.viewmodel.navigation)
-}
-
-androidMain.dependencies {
-    implementation(libs.koin.android)
-}
-
-commonTest.dependencies {
-    implementation(libs.koin.test)
-}
-```
-
-### Defining Koin Modules
-
-#### Data Module (di/DataModule.kt)
-
-Provides network and repository dependencies:
+### Module Examples
 
 ```kotlin
 val dataModule = module {
-    // HttpClient singleton
     single { createHttpClient() }
-
-    // StompClient singleton
     single { createStompClient() }
-
-    // API Service with constructor injection
     singleOf(::GreenhouseApiService)
-
-    // WebSocket Client with constructor injection
     singleOf(::StompWebSocketClient)
-
-    // Repository Implementation bound to interface
     singleOf(::GreenhouseRepositoryImpl) bind GreenhouseRepository::class
 }
-```
 
-**Key Points:**
-- `single` creates a singleton (one instance for app lifetime)
-- `singleOf(::ClassName)` is concise syntax for constructor injection
-- `bind` allows injecting by interface type
-- Koin automatically resolves constructor dependencies with `get()`
-
-#### Presentation Module (di/PresentationModule.kt)
-
-Provides ViewModels with lifecycle management:
-
-```kotlin
 val presentationModule = module {
-    // ViewModel with lifecycle-aware scope
     viewModelOf(::GreenhouseViewModel)
 }
 ```
 
-**Key Points:**
-- `viewModelOf` creates a ViewModel-scoped instance
-- Automatically handles lifecycle and configuration changes
-- Repository is auto-injected via constructor
+- `single` → app-lifetime singleton; `singleOf(::Class)` → ctor injection
+- `bind` exposes the impl by interface
+- `viewModelOf` → ViewModel-scoped (survives config changes)
 
-### Using Koin for Injection
+### Injecting ViewModels in Composables
 
-#### Injecting ViewModel in Composables
-
-Starting with **Koin 4.1+**, the API has been simplified. Use `koinViewModel()` for **all scenarios
-**, including Navigation Compose:
+Use `koinViewModel()` for **all scenarios**, including Navigation Compose. `koinNavViewModel()` is **deprecated** in
+Koin 4.1+.
 
 ```kotlin
 import org.koin.compose.viewmodel.koinViewModel
 
-@Composable
-fun App() {
-    val navController = rememberNavController()
-
-    NavHost(navController, startDestination = LoginRoute) {
-        composable<HomeRoute> {
-            // koinViewModel() automatically handles Navigation integration
-            val viewModel: GreenhouseViewModel = koinViewModel()
-            HomeScreen(viewModel = viewModel)
-        }
+NavHost(navController, startDestination = LoginRoute) {
+    composable<HomeRoute> {
+        val viewModel: GreenhouseViewModel = koinViewModel()
+        HomeScreen(viewModel = viewModel)
     }
 }
 ```
 
-**Important Note**: `koinNavViewModel()` is **DEPRECATED** in Koin 4.1+. The functionality has been
-integrated into `koinViewModel()` thanks to lifecycle library updates. Always use `koinViewModel()`
-now.
+`koinViewModel()` automatically handles NavBackStackEntry integration, SavedStateHandle, navigation argument injection,
+and lifecycle scoping.
 
-**Automatic Features in `koinViewModel()` (Koin 4.1+)**:
-
-- ✅ NavBackStackEntry integration (when used inside NavHost)
-- ✅ Automatic SavedStateHandle support
-- ✅ Navigation argument injection
-- ✅ Lifecycle-aware scoping
-
-**For ViewModels with Navigation Arguments**:
-
+**Shared ViewModel across destinations** — scope to a parent route's `NavBackStackEntry`:
 ```kotlin
-// ViewModel with navigation arguments
-class DetailViewModel(
-    private val savedStateHandle: SavedStateHandle
-) : ViewModel() {
-    val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
-}
-
-// Usage in NavHost
-composable("detail/{itemId}") {
-    val viewModel: DetailViewModel = koinViewModel()  // Arguments auto-injected
-    DetailScreen(viewModel)
-}
-```
-
-**For Shared ViewModels Across Navigation Destinations**:
-
-```kotlin
-NavHost(
-    navController = navController,
-    startDestination = "screenA",
-    route = "parentRoute"  // Important: Define parent route
-) {
+NavHost(navController, startDestination = "screenA", route = "parentRoute") {
     composable("screenA") { backStackEntry ->
         val parentEntry = remember(backStackEntry) {
             navController.getBackStackEntry("parentRoute")
         }
-        val sharedViewModel: SharedViewModel = koinViewModel(
-            viewModelStoreOwner = parentEntry  // Scope to parent
-        )
-        ScreenA(sharedViewModel)
+        val shared: SharedViewModel = koinViewModel(viewModelStoreOwner = parentEntry)
+        ScreenA(shared)
     }
-
-    composable("screenB") { backStackEntry ->
-        val parentEntry = remember(backStackEntry) {
-            navController.getBackStackEntry("parentRoute")
-        }
-        val sharedViewModel: SharedViewModel = koinViewModel(
-            viewModelStoreOwner = parentEntry  // Same instance
-        )
-        ScreenB(sharedViewModel)
-    }
+    // screenB does the same → same instance
 }
 ```
 
-#### Constructor Injection in Classes
+### Constructor Injection
 
-All dependencies use constructor injection (no field injection):
-
+Always constructor injection — never field injection. Koin resolves deps automatically:
 ```kotlin
-// ViewModel receives Repository
-class GreenhouseViewModel(
-    private val repository: GreenhouseRepository  // Koin injects
-) : ViewModel()
-
-// Repository receives API service and WebSocket client
+class GreenhouseViewModel(private val repository: GreenhouseRepository) : ViewModel()
 class GreenhouseRepositoryImpl(
-    private val apiService: GreenhouseApiService,  // Koin injects
-    private val webSocketClient: StompWebSocketClient  // Koin injects
+    private val apiService: GreenhouseApiService,
+    private val webSocketClient: StompWebSocketClient
 ) : GreenhouseRepository
-
-// API Service receives HttpClient
-class GreenhouseApiService(
-    private val httpClient: HttpClient  // Koin injects
-)
 ```
 
-### Platform-Specific Initialization
+### Platform Initialization
 
-#### Android
-
-Created `GreenhouseApplication` class to initialize Koin:
-
+**Android** (`GreenhouseApplication`, registered in `AndroidManifest.xml` via `android:name`):
 ```kotlin
 class GreenhouseApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-
         initKoin {
-            androidLogger()  // Enable Android logging
-            androidContext(this@GreenhouseApplication)  // Provide context
+            androidLogger()
+            androidContext(this@GreenhouseApplication)
         }
     }
 }
 ```
 
-Registered in `AndroidManifest.xml`:
+**iOS** (`iOSApp.swift`): `KoinInitializerKt.doInitKoin()` in `init()`.
+**Desktop / Web**: call `initKoin()` from `main()` before composing.
 
-```xml
-<application
-    android:name=".GreenhouseApplication"
-    ...>
-```
+### Scoping
 
-#### iOS
-
-Initialize in `iOSApp.swift`:
-
-```swift
-import ComposeApp
-
-@main
-struct iOSApp: App {
-    init() {
-        KoinInitializerKt.doInitKoin()
-    }
-    // ...
-}
-```
-
-#### Desktop (JVM)
-
-Initialize in `main.kt`:
-
-```kotlin
-fun main() {
-    initKoin()
-
-    application {
-        Window(...) {
-            App()
-        }
-    }
-}
-```
-
-#### Web (JS/Wasm)
-
-Initialize in `main.kt`:
-
-```kotlin
-fun main() {
-    initKoin()
-
-    ComposeViewport {
-        App()
-    }
-}
-```
-
-### Koin Scoping Strategies
-
-| Scope | Usage | Lifecycle |
-|-------|-------|-----------|
-| `single` | Singletons (HttpClient, Repositories, API services) | App lifetime |
-| `factory` | Short-lived objects (use cases) | Created on each injection |
-| `viewModelOf` | ViewModels | Survives configuration changes |
+| Scope         | Use                             | Lifetime                |
+|---------------|---------------------------------|-------------------------|
+| `single`      | HttpClient, repos, API services | App                     |
+| `factory`     | Use cases, transient objects    | Per injection           |
+| `viewModelOf` | ViewModels                      | Survives config changes |
 
 ### Best Practices
 
-1. **Constructor Injection Only**: Never use field injection
-2. **Interface-Based Design**: Depend on abstractions (`GreenhouseRepository` interface, not `GreenhouseRepositoryImpl`)
-3. **Single Responsibility**: Each class should depend only on what it needs
-4. **Module Organization**: Separate by architectural layers (data, domain, presentation)
-5. **Platform Modules**: Use `expect`/`actual` for platform-specific dependencies
+- Constructor injection only — never field injection
+- Depend on interfaces (`GreenhouseRepository`), not impls
+- Separate modules by layer (data/domain/presentation)
+- Platform deps via `expect`/`actual` `platformModule`
 
-### Adding New Dependencies
-
-#### Example: Adding a Use Case
-
-1. Create the use case class:
-
-```kotlin
-class GetRecentMessagesUseCase(
-    private val repository: GreenhouseRepository
-) {
-    suspend operator fun invoke(): Result<List<GreenhouseMessage>> {
-        return repository.getRecentMessages()
-    }
-}
-```
-
-2. Add to `DomainModule.kt`:
-
-```kotlin
-val domainModule = module {
-    factory { GetRecentMessagesUseCase(get()) }
-}
-```
-
-3. Inject into ViewModel:
-
-```kotlin
-class GreenhouseViewModel(
-    private val getRecentMessages: GetRecentMessagesUseCase  // Koin injects
-) : ViewModel()
-```
-
-### Testing with Koin
-
-Use fake implementations for testing:
-
+### Testing
 ```kotlin
 class FakeGreenhouseRepository : GreenhouseRepository {
     var shouldReturnError = false
     var fakeMessages = emptyList<GreenhouseMessage>()
-
-    override suspend fun getRecentMessages(): Result<List<GreenhouseMessage>> {
-        return if (shouldReturnError) {
-            Result.failure(Exception("Test error"))
-        } else {
-            Result.success(fakeMessages)
-        }
-    }
+    override suspend fun getRecentMessages() =
+        if (shouldReturnError) Result.failure(Exception("Test error"))
+        else Result.success(fakeMessages)
 }
 
-// In test
 class GreenhouseViewModelTest : KoinTest {
     @Before
-    fun setup() {
-        startKoin {
-            modules(testModule)
-        }
-    }
-
+    fun setup() = startKoin { modules(testModule) }
     @After
-    fun teardown() {
-        stopKoin()
-    }
-
+    fun teardown() = stopKoin()
     companion object {
         private val testModule = module {
             single<GreenhouseRepository> { FakeGreenhouseRepository() }
@@ -595,869 +327,259 @@ class GreenhouseViewModelTest : KoinTest {
 }
 ```
 
-### Common Issues and Solutions
+### Common Issues
 
-#### Issue: `KoinAppAlreadyStartedException`
+- **`KoinAppAlreadyStartedException`** → `initKoin()` called more than once. Call only at app entry point.
+- **Missing dependency** → Class not registered. Add to the right module.
+- **Circular dependency** → Refactor; introduce a mediator.
 
-**Cause:** Starting Koin multiple times
+Docs: https://insert-koin.io · KMP: https://insert-koin.io/docs/reference/koin-mp/kmp/
 
-**Solution:** Only call `initKoin()` once at Application/App entry point, never in Activities or Composables
+---
 
-#### Issue: Missing dependency injection
+## Expect/Actual Pattern
 
-**Cause:** Class not defined in any module
+### When to Use
 
-**Solution:** Add the class to the appropriate module (DataModule, DomainModule, or PresentationModule)
+Only when there's a real platform need: no multiplatform library exists, factory functions returning platform impls,
+inheriting platform classes, or direct native API access.
 
-#### Issue: Circular dependency
+### When NOT to Use
 
-**Cause:** Class A depends on Class B, which depends on Class A
+**Prefer interfaces** over expect/actual in most cases. Don't use it if:
 
-**Solution:** Refactor to remove circular dependency or use a third mediator class
+- A multiplatform library already covers it (kotlinx-datetime, kotlinx-coroutines, etc.)
+- An interface + DI would suffice
 
-### Koin Resources
-
-- **Official Documentation**: https://insert-koin.io
-- **KMP Guide**: https://insert-koin.io/docs/reference/koin-mp/kmp/
-- **Compose Integration**: https://insert-koin.io/docs/reference/koin-compose/compose/
-- **GitHub**: https://github.com/InsertKoinIO/koin
-
-## Expect/Actual Pattern - Platform-Specific Code
-
-### When to Use Expect/Actual
-
-The expect/actual mechanism enables accessing platform-specific APIs when:
-
-1. **No multiplatform library exists** - The functionality is not available through official KMP libraries
-2. **Factory functions** - Need to return platform-specific implementations
-3. **Inheriting platform classes** - Must extend existing platform-specific base classes
-4. **Direct native API access** - Require direct access to platform APIs for performance or features
-
-### When NOT to Use (IMPORTANT)
-
-**Official Recommendation**: Prefer interfaces over expect/actual in most cases.
-
-❌ **DO NOT use expect/actual if:**
-- A multiplatform library already exists (e.g., kotlinx-datetime, kotlinx-coroutines)
-- An interface would be sufficient
-- You can use dependency injection with interfaces
-- Standard Kotlin constructs solve the problem
-
-✅ **Interfaces are better because:**
-- Allow multiple implementations per platform
-- Make testing easier with fake/mock implementations
-- More flexible and standard Kotlin approach
-- Avoid Beta feature limitations
+Interfaces allow multiple impls per platform, are easier to test, and avoid Beta limitations.
 
 ### Example in This Project
 
-The project uses expect/actual for `getCurrentTimestamp()` in `util/DateTimeProvider.kt`:
-
+`util/DateTimeProvider.kt`:
 ```kotlin
-// commonMain/util/DateTimeProvider.kt
+// commonMain
 expect fun getCurrentTimestamp(): String
 
-// androidMain/util/DateTimeProvider.android.kt
-actual fun getCurrentTimestamp(): String {
-    return kotlin.time.Clock.System.now().toString()
-}
+// androidMain / jvmMain / wasm / js
+actual fun getCurrentTimestamp(): String =
+    kotlin.time.Clock.System.now().toString()
 
-// iosMain/util/DateTimeProvider.ios.kt
+// iosMain — uses Foundation directly for native integration
 actual fun getCurrentTimestamp(): String {
-    // iOS uses Foundation NSDate directly for better platform integration
     val formatter = NSISO8601DateFormatter()
     return formatter.stringFromDate(NSDate())
 }
 ```
 
-**Note**: Most platforms use `kotlin.time.Clock` from the Kotlin standard library. iOS uses Foundation's NSDate directly for optimal platform integration.
+### Rules
 
-### Rules for Expect/Actual Declarations
+1. `expect` in `commonMain`, `actual` in each platform source set
+2. Identical package on both sides
+3. Names, parameters, return types must match exactly
+4. `expect` declarations contain no implementation
+5. Every target platform must provide an `actual`
 
-1. **Declaration Location**: `expect` in `commonMain`, `actual` in each platform source set
-2. **Same Package**: Both must be in the identical package
-3. **Matching Signatures**: Names, parameters, and return types must match exactly
-4. **No Implementation in Expect**: Expected declarations cannot contain implementation code
-5. **All Platforms**: Every platform must provide an `actual` implementation
+### Process Before Reaching for Expect/Actual
 
-### Compiler Behavior
+1. Search kotlinx.* and Maven Central for existing KMP libraries
+2. Verify multiplatform support and target compatibility
+3. Test integration in `commonMain`
+4. Only then implement expect/actual; document why and the alternatives evaluated
 
-- Validates all declarations during compilation
-- Merges expected and actual declarations
-- Ensures signature consistency across platforms
-- Generates one declaration with appropriate implementation per platform
+### Beta Warning
 
-### Process for Handling Missing Multiplatform Libraries
-
-When encountering functionality without multiplatform support:
-
-1. **Search for Official KMP Libraries**
-   - Check JetBrains kotlinx.* libraries first
-   - Search Maven Central for "kmp-*" or "kmm-*" prefixed libraries
-   - Verify library supports all your target platforms
-
-2. **Verify Library Documentation**
-   - Read official documentation to confirm multiplatform support
-   - Check GitHub releases for latest stable versions
-   - Review platform compatibility matrix
-
-3. **Test Library Integration**
-   - Add dependency to `commonMain`
-   - Sync Gradle and verify no errors
-   - Test compilation for each platform target
-
-4. **Implement Expect/Actual as Last Resort**
-   - Only when no suitable multiplatform library exists
-   - Document the decision and alternatives evaluated
-   - Create expect declaration in `commonMain`
-   - Provide actual implementations for each platform
-   - Use platform-native APIs (e.g., NSDate for iOS, java.time for JVM)
-
-5. **Document the Implementation**
-   - Add comments explaining why expect/actual was necessary
-   - Reference any GitHub issues or documentation consulted
-   - Note future migration path if library becomes available
-
-### Best Practices
-
-- **Verify First**: Always search for existing multiplatform solutions before implementing expect/actual
-- **Use Web Search**: When unsure, search official Kotlin and library documentation
-- **Ask Questions**: If requirements are unclear, ask for clarification rather than guessing
-- **Document Decisions**: Explain why expect/actual was chosen over alternatives
-- **Keep It Simple**: Minimize the surface area of platform-specific code
-- **Test All Platforms**: Verify implementation works on every target platform
-
-### Beta Feature Warning
-
-Expected/actual classes are in **Beta status** - migration steps may be required in future Kotlin versions. Suppress warnings if needed:
-
+Expected/actual classes are still **Beta**. Suppress with:
 ```kotlin
 freeCompilerArgs.add("-Xexpect-actual-classes")
 ```
 
-### Resources for Expect/Actual
+---
 
-- **Official Documentation**: https://www.jetbrains.com/help/kotlin-multiplatform-dev/multiplatform-expect-actual.html
-- **Kotlin Language Docs**: https://kotlinlang.org/docs/multiplatform-expect-actual.html
-- **Connect to Platform APIs**: https://kotlinlang.org/docs/multiplatform-connect-to-apis.html
+## UI Design & Theming
 
-## Useful Resources
-
-When implementing new features or troubleshooting, consult these official resources:
-
-### Kotlin Multiplatform
-- **Official Guide**: https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html
-- **Compose Multiplatform**: https://www.jetbrains.com/compose-multiplatform/
-- **KMP Architecture**: https://kotlinlang.org/docs/multiplatform-mobile-understand-project-structure.html
-
-### Ktor Client
-- **Official Documentation**: https://ktor.io/docs/client-create-multiplatform-application.html
-- **Ktor Client Setup**: https://ktor.io/docs/client-create-new-application.html
-- **Content Negotiation**: https://ktor.io/docs/serialization-client.html
-
-### Android/Compose
-- **Compose Documentation**: https://developer.android.com/jetpack/compose
-- **ViewModel Guide**: https://developer.android.com/topic/libraries/architecture/viewmodel
-- **StateFlow**: https://developer.android.com/kotlin/flow/stateflow-and-sharedflow
-
-## UI Design & Theming System
-
-This project uses a **custom Material Design 3 theme** with a dark-first aesthetic and neon green
-accents, designed specifically for greenhouse monitoring dashboards.
-
-### Theme Architecture
-
-The theming system is located in `presentation/ui/theme/` and consists of:
+Custom Material 3 theme — **dark-first** with neon green accents, designed for greenhouse monitoring dashboards. Located
+in `presentation/ui/theme/`:
 
 ```
-presentation/ui/theme/
-├── Color.kt       # Color palette definitions (light & dark schemes)
-├── Font.kt        # Custom font family definitions
-├── Type.kt        # Typography scale (Material 3)
-└── Theme.kt       # Main GreenhouseTheme composable
+theme/
+├── Color.kt    # light + dark color schemes
+├── Font.kt     # appFontFamily() composable
+├── Type.kt     # Material 3 type scale
+└── Theme.kt    # GreenhouseTheme + ConfigureSystemUI() expect
 ```
 
-### Color System
+### Color Palette (Dark — Primary)
 
-#### Design Philosophy
+| Role                         | Hex       | Use                               |
+|------------------------------|-----------|-----------------------------------|
+| `primary`                    | `#00E676` | Neon green; FABs, primary actions |
+| `onPrimary`                  | `#003300` | Text on primary                   |
+| `primaryContainer`           | `#1E3A34` | Dark green-gray; emphasized cards |
+| `onPrimaryContainer`         | `#B2DFDB` | Light teal text                   |
+| `background`                 | `#0F1419` | Near-black with blue tint         |
+| `surface`                    | `#1A1E23` | Dark gray; cards                  |
+| `surfaceVariant`             | `#1E3A34` | Greenhouse-branded surfaces       |
+| `onBackground` / `onSurface` | `#E6E1E5` | Body text                         |
+| `tertiary`                   | `#4ECDC4` | Teal accent (humidity displays)   |
+| `onTertiary`                 | `#002020` | Dark teal text                    |
+| `tertiaryContainer`          | `#1A3635` | Dark teal-gray                    |
 
-The app uses a **dark-first design** with:
+**Always use `MaterialTheme.colorScheme.*`** — never hardcode `Color(0x…)` in components. For custom hues outside
+Material 3 roles, define them in `Color.kt` and assign via `surfaceTint` or other flexible roles.
 
-- **Background**: Almost black with subtle blue tint (`#0F1419`)
-- **Surface**: Dark gray for cards and elevated elements (`#1A1E23`)
-- **Primary**: Neon green for emphasis and actions (`#00E676` - Material Green A400)
-- **Surface Variant**: Dark green-tinted surfaces for greenhouse branding (`#1E3A34`)
-- **Tertiary**: Bright teal for humidity and variety (`#4ECDC4`)
+### Material 3 Color Roles (Quick Reference)
 
-#### Color Palette (Dark Theme - Primary)
+| Role                           | Typical Use                             |
+|--------------------------------|-----------------------------------------|
+| `primary` / `primaryContainer` | Brand color, prominent buttons          |
+| `secondary`                    | Less prominent actions, filter chips    |
+| `tertiary`                     | Contrasting accents, special highlights |
+| `surface` / `surfaceVariant`   | Cards, dialogs, input fields            |
+| `outline`                      | Borders, dividers                       |
+| `error`                        | Error/validation states                 |
 
-```kotlin
-// Primary colors - Neon green for main actions
-primary = Color(0xFF00E676)              // Bright neon green
-onPrimary = Color(0xFF003300)            // Very dark green for text
-primaryContainer = Color(0xFF1E3A34)     // Dark green-gray for containers
-onPrimaryContainer = Color(0xFFB2DFDB)   // Light teal for text
+### Typography
 
-// Background & Surface
-background = Color(0xFF0F1419)           // Almost black with blue tint
-surface = Color(0xFF1A1E23)              // Dark gray for cards
-surfaceVariant = Color(0xFF1E3A34)       // Dark green-tinted surface
-onBackground = Color(0xFFE6E1E5)         // Light gray for text
-onSurface = Color(0xFFE6E1E5)            // Light gray for text
-
-// Tertiary - Teal accent
-tertiary = Color(0xFF4ECDC4)             // Bright teal (humidity displays)
-onTertiary = Color(0xFF002020)           // Very dark teal
-tertiaryContainer = Color(0xFF1A3635)    // Dark teal-gray
-```
-
-#### Using Colors in UI
-
-**Always use MaterialTheme.colorScheme** - never hardcode colors:
-
-```kotlin
-// ✅ CORRECT - Uses theme colors
-Text(
-   text = "Temperature",
-   color = MaterialTheme.colorScheme.onSurface
-)
-
-Button(
-   onClick = { },
-   colors = ButtonDefaults.buttonColors(
-      containerColor = MaterialTheme.colorScheme.primary,
-      contentColor = MaterialTheme.colorScheme.onPrimary
-   )
-) {
-   Text("Action")
-}
-
-// ❌ WRONG - Hardcoded color
-Text(
-   text = "Temperature",
-   color = Color(0xFFFFFFFF)  // Don't do this!
-)
-```
-
-#### Material 3 Color Roles
-
-| Role               | Usage                             | Example Components                     |
-|--------------------|-----------------------------------|----------------------------------------|
-| `primary`          | Main brand color, primary actions | FABs, prominent buttons, active states |
-| `primaryContainer` | Tinted backgrounds                | Cards with emphasis, chips             |
-| `secondary`        | Less prominent actions            | Secondary buttons, filter chips        |
-| `tertiary`         | Contrasting accents               | Humidity cards, special highlights     |
-| `surface`          | Backgrounds for components        | Cards, dialogs, sheets                 |
-| `surfaceVariant`   | Alternative surfaces              | Input fields, inactive chips           |
-| `outline`          | Borders and dividers              | TextField borders, dividers            |
-| `error`            | Error states and warnings         | Error messages, validation failures    |
-
-#### Adding New Colors
-
-If you need custom colors beyond Material 3 roles:
-
-1. Define in `Color.kt` as private values
-2. Add to the appropriate ColorScheme
-3. Document the usage clearly
-
-```kotlin
-// In Color.kt
-private val CustomGreenHighlight = Color(0xFF4CAF50)
-
-internal val DarkColorScheme = darkColorScheme(
-   // ... existing colors
-   // Use surfaceTint or other flexible roles for custom colors
-)
-```
-
-### Typography System
-
-#### Font Architecture
-
-The app uses **composable typography** to support custom fonts easily.
-
-**Current State**: Using system default font (`FontFamily.Default`)
-
-**To add custom fonts**: See [Custom Fonts](#custom-fonts) section below.
-
-#### Material 3 Type Scale
-
-The app follows Material 3's 5-category type scale:
-
-| Category     | Sizes                                     | Usage                                  | Font Weight     |
-|--------------|-------------------------------------------|----------------------------------------|-----------------|
-| **Display**  | Large (57sp), Medium (45sp), Small (36sp) | Large, expressive text (hero sections) | Bold/Normal     |
-| **Headline** | Large (32sp), Medium (28sp), Small (24sp) | Page titles, emphasis                  | SemiBold/Medium |
-| **Title**    | Large (22sp), Medium (16sp), Small (14sp) | Section titles, list items             | SemiBold/Medium |
-| **Body**     | Large (16sp), Medium (14sp), Small (12sp) | Main content, paragraphs               | Normal          |
-| **Label**    | Large (14sp), Medium (12sp), Small (11sp) | Buttons, labels, captions              | Medium          |
-
-#### Using Typography in UI
-
-**Always use MaterialTheme.typography**:
-
-```kotlin
-// Page title
-Text(
-   text = "Dashboard",
-   style = MaterialTheme.typography.headlineMedium,
-   color = MaterialTheme.colorScheme.onSurface
-)
-
-// Section heading
-Text(
-   text = "Sensor Readings",
-   style = MaterialTheme.typography.titleLarge,
-   color = MaterialTheme.colorScheme.onSurface
-)
-
-// Body text
-Text(
-   text = "Current temperature is 22°C",
-   style = MaterialTheme.typography.bodyMedium,
-   color = MaterialTheme.colorScheme.onSurfaceVariant
-)
-
-// Button text
-Button(onClick = { }) {
-   Text(
-      text = "Save",
-      style = MaterialTheme.typography.labelLarge
-   )
-}
-```
+Uses Material 3's 5-category type scale (Display, Headline, Title, Body, Label). Always reference via
+`MaterialTheme.typography.*` — e.g., `headlineMedium` for page titles, `titleLarge` for sections, `bodyMedium` for
+content, `labelLarge` for buttons.
 
 ### Custom Fonts
 
-#### Current Implementation
+**Current**: System default (`FontFamily.Default`).
 
-The project uses a **composable font system** that makes swapping fonts easy:
+The font system is composable-based: `Font.kt` exposes `appFontFamily()`, `Type.kt` calls it, `Theme.kt` calls
+`appTypography()`. Swapping fonts only requires editing `Font.kt`.
 
-- **Font.kt**: Defines `appFontFamily()` composable
-- **Type.kt**: Uses `appFontFamily()` for all text styles
-- **Theme.kt**: Calls `appTypography()` composable
+**To add a font** (e.g. Inter):
 
-**Currently using**: `FontFamily.Default` (system font)
-
-#### Adding Custom Fonts (Step-by-Step)
-
-Follow these steps to add a custom font like Inter, Roboto, or Geist Sans:
-
-##### Step 1: Download Font Files
-
-1. Visit **Google Fonts**: https://fonts.google.com
-2. **Recommended font**: **Inter** (https://fonts.google.com/specimen/Inter)
-   - Optimized for screens and dashboards
-   - Excellent legibility at all sizes
-   - Modern, professional aesthetic
-3. Download at least **4 weights**:
-   - Regular (400)
-   - Medium (500)
-   - SemiBold (600)
-   - Bold (700)
-
-##### Step 2: Create Font Directory
-
-```bash
-mkdir -p composeApp/src/commonMain/composeResources/font
-```
-
-##### Step 3: Place Font Files
-
-Copy the `.ttf` files to the font directory with **lowercase, underscore-separated names**:
-
-```
-composeApp/src/commonMain/composeResources/font/
-├── inter_regular.ttf
-├── inter_medium.ttf
-├── inter_semibold.ttf
-└── inter_bold.ttf
-```
-
-**Naming rules**:
-
-- Use lowercase only
-- Use underscores instead of spaces
-- Include font name and weight (e.g., `roboto_bold.ttf`)
-
-##### Step 4: Build Project
-
-```bash
-./gradlew build
-```
-
-This generates resource accessors in `greenhousefronts.composeapp.generated.resources.Res.font.*`
-
-##### Step 5: Update Font.kt
-
-Uncomment and update the custom font code in `presentation/ui/theme/Font.kt`:
-
-```kotlin
-import org.jetbrains.compose.resources.Font
-import greenhousefronts.composeapp.generated.resources.Res
-import greenhousefronts.composeapp.generated.resources.inter_regular
-import greenhousefronts.composeapp.generated.resources.inter_medium
-import greenhousefronts.composeapp.generated.resources.inter_semibold
-import greenhousefronts.composeapp.generated.resources.inter_bold
-
-@Composable
-fun appFontFamily(): FontFamily {
-   return FontFamily(
-      Font(Res.font.inter_regular, FontWeight.Normal),
-      Font(Res.font.inter_medium, FontWeight.Medium),
-      Font(Res.font.inter_semibold, FontWeight.SemiBold),
-      Font(Res.font.inter_bold, FontWeight.Bold)
-   )
-}
-```
-
-##### Step 6: Rebuild and Test
-
-```bash
-./gradlew build
-./gradlew :composeApp:run  # Test on Desktop or your platform
-```
-
-#### Swapping Fonts Later
-
-To change from Inter to another font (e.g., Roboto):
-
-1. Download new font files from Google Fonts
-2. Place in `composeResources/font/` with descriptive names (e.g., `roboto_regular.ttf`)
-3. Update **only Font.kt**:
-
+1. Drop `.ttf` files into `composeApp/src/commonMain/composeResources/font/` with lowercase, underscore-separated
+   names (e.g. `inter_regular.ttf`, `inter_medium.ttf`, `inter_semibold.ttf`, `inter_bold.ttf`).
+2. Run `./gradlew build` to generate `Res.font.*` accessors.
+3. Update `appFontFamily()`:
 ```kotlin
 @Composable
-fun appFontFamily(): FontFamily {
-   return FontFamily(
-      Font(Res.font.roboto_regular, FontWeight.Normal),
-      Font(Res.font.roboto_medium, FontWeight.Medium),
-      Font(Res.font.roboto_bold, FontWeight.Bold)
-   )
-}
+fun appFontFamily(): FontFamily = FontFamily(
+        Font(Res.font.inter_regular, FontWeight.Normal),
+        Font(Res.font.inter_medium, FontWeight.Medium),
+        Font(Res.font.inter_semibold, FontWeight.SemiBold),
+        Font(Res.font.inter_bold, FontWeight.Bold)
+    )
 ```
 
-4. Rebuild: `./gradlew build`
-5. **No changes needed** in Type.kt or Theme.kt - they automatically use the new font!
+**Compose Multiplatform note**: `Font()` is a `@Composable` function (unlike Android-only Compose), so `FontFamily` and
+`Typography` must be created inside `@Composable` functions, not as top-level `val`s. That's why `appFontFamily()` and
+`appTypography()` are functions.
 
-#### Recommended Fonts for Dashboard Apps
+Recommended fonts for dashboards: Inter (general UI), Roboto (data tables), Manrope, DM Sans, Geist Sans.
 
-| Font           | Best For               | Key Strength             | Download                                                  |
-|----------------|------------------------|--------------------------|-----------------------------------------------------------|
-| **Inter**      | General UI, dashboards | Screen-optimized clarity | [Google Fonts](https://fonts.google.com/specimen/Inter)   |
-| **Roboto**     | Data tables, numbers   | Tabular figures          | [Google Fonts](https://fonts.google.com/specimen/Roboto)  |
-| **Geist Sans** | Developer tools        | Modern tech aesthetic    | [Vercel](https://vercel.com/font)                         |
-| **Manrope**    | Dense information      | Space efficiency         | [Google Fonts](https://fonts.google.com/specimen/Manrope) |
-| **DM Sans**    | Small text             | Small-scale legibility   | [Google Fonts](https://fonts.google.com/specimen/DM+Sans) |
+### UI Conventions
 
-#### Important: Font() is Composable
+- **Spacing**: multiples of 4dp (4, 8, 12, 16, 24, 32)
+- **Corner radii**: small components 8–12dp, buttons/text fields 12dp, cards/dialogs 16–24dp
+- **Touch targets**: minimum 48dp × 48dp
+- **Icons**: `androidx.compose.material.icons.Icons.Default.*`, tinted with theme colors
+- **Always provide `contentDescription`** on `Icon`/`Image`
+- **Use semantic colors** (`error` for errors, etc.) — don't hardcode red/green
 
-In Compose Multiplatform (unlike Android-only Jetpack Compose), **Font() is a @Composable function
-**:
-
-- FontFamily must be created inside `@Composable` functions
-- Typography must be created inside `@Composable` functions
-- Cannot define fonts as top-level `val` properties
-
-**This is why** `appFontFamily()` and `appTypography()` are functions, not values.
-
-### Creating New Screens
-
-When creating new UI screens, follow these best practices:
-
-#### 1. Use the Established Color Palette
+### Quick Component Patterns
 
 ```kotlin
-@Composable
-fun MyNewScreen() {
-   Column(
-      modifier = Modifier
-         .fillMaxSize()
-         .background(MaterialTheme.colorScheme.background)
-         .padding(16.dp)
-   ) {
-      // Page title
-      Text(
-         text = "Screen Title",
-         style = MaterialTheme.typography.headlineMedium,
-         color = MaterialTheme.colorScheme.onSurface
-      )
-
-      // Content card
-      Card(
-         modifier = Modifier.fillMaxWidth(),
-         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-         )
-      ) {
-         // Card content
-      }
-
-      // Primary action button
-      Button(
-         onClick = { },
-         modifier = Modifier.fillMaxWidth(),
-         colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary
-         )
-      ) {
-         Text("Action", style = MaterialTheme.typography.labelLarge)
-      }
-   }
-}
-```
-
-#### 2. Follow Material 3 Component Patterns
-
-**Inputs with icons**:
-
-```kotlin
+// Outlined input
 OutlinedTextField(
-   value = value,
-   onValueChange = { value = it },
-   label = { Text("Label") },
-   leadingIcon = {
-      Icon(
-         imageVector = Icons.Default.Person,
-         contentDescription = "Icon",
-         tint = MaterialTheme.colorScheme.primary
-      )
-   },
-   colors = OutlinedTextFieldDefaults.colors(
-      focusedBorderColor = MaterialTheme.colorScheme.primary,
-      unfocusedBorderColor = MaterialTheme.colorScheme.outline
-   )
+    value = value, onValueChange = { value = it },
+    label = { Text("Label") },
+    leadingIcon = { Icon(Icons.Default.Person, null, tint = MaterialTheme.colorScheme.primary) },
+    colors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+    )
 )
-```
 
-**Cards with emphasis**:
-
-```kotlin
-Card(
-   modifier = Modifier.fillMaxWidth(),
-   shape = RoundedCornerShape(16.dp),
-   colors = CardDefaults.cardColors(
-      containerColor = MaterialTheme.colorScheme.primaryContainer
-   ),
-   elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-) {
-   // Emphasized content
-}
-```
-
-**Buttons**:
-
-```kotlin
-// Primary action
+// Primary / secondary / text buttons
 Button(
-   onClick = { },
-   colors = ButtonDefaults.buttonColors(
-      containerColor = MaterialTheme.colorScheme.primary
-   )
-) { Text("Primary Action") }
+    onClick = { }, colors = ButtonDefaults.buttonColors(
+        containerColor = MaterialTheme.colorScheme.primary
+    )
+) { Text("Primary") }
+OutlinedButton(onClick = { }) { Text("Secondary") }
+TextButton(onClick = { }) { Text("Cancel", color = MaterialTheme.colorScheme.primary) }
 
-// Secondary action
-OutlinedButton(onClick = { }) {
-   Text("Secondary Action")
-}
-
-// Tertiary/text action
-TextButton(onClick = { }) {
-   Text("Cancel", color = MaterialTheme.colorScheme.primary)
-}
-```
-
-#### 3. Consistent Spacing and Layout
-
-Use **multiples of 4dp** for spacing:
-
-```kotlin
-val spacing = object {
-   val extraSmall = 4.dp
-   val small = 8.dp
-   val medium = 16.dp
-   val large = 24.dp
-   val extraLarge = 32.dp
-}
-
-Column(
-   modifier = Modifier.padding(spacing.medium),
-   verticalArrangement = Arrangement.spacedBy(spacing.small)
-) {
-   // Content with consistent spacing
-}
-```
-
-#### 4. Rounded Corners
-
-The app uses **consistent corner radii**:
-
-- **Small components** (chips, small cards): `8.dp` or `12.dp`
-- **Medium components** (buttons, text fields): `12.dp`
-- **Large components** (cards, dialogs): `16.dp` or `24.dp`
-
-```kotlin
+// Emphasized card
 Card(
-   shape = RoundedCornerShape(16.dp)
-) { /* ... */ }
-
-Button(
-   shape = RoundedCornerShape(12.dp)
-) { /* ... */ }
-```
-
-#### 5. Icons and Visual Elements
-
-Use Material Icons for consistency:
-
-```kotlin
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-
-Icon(
-   imageVector = Icons.Default.Home,
-   contentDescription = "Home",
-   tint = MaterialTheme.colorScheme.primary
-)
+    shape = RoundedCornerShape(16.dp),
+    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+) { /* … */ }
 ```
 
 ### Dark Theme Best Practices
 
-The app is **dark-first**, but supports light theme as a fallback.
+- In light theme, swap the bright neon `#00E676` for a darker green like `#1B5E20`
+- Avoid pure `#000000`; use `#0F1419`
+- Use color tints for elevation rather than shadows
+- Test with `GreenhouseTheme(darkTheme = false/true)` previews
 
-#### Key Principles
+### Status Bar / System UI
 
-1. **Desaturated colors in dark mode**: Primary green (`#00E676`) is bright in dark theme, but would
-   use darker green (`#1B5E20`) in light theme
-2. **Sufficient contrast**: Always ensure text has adequate contrast against backgrounds
-3. **Avoid pure black**: Use dark grays (`#0F1419`) instead of `#000000` for better visual comfort
-4. **Elevation with tints**: Use slight color tints instead of shadows for elevation in dark theme
+Edge-to-edge with adaptive icon colors that switch based on `darkTheme`. Implementation uses `expect/actual`:
 
-#### Testing Both Themes
+```
+theme/
+├── Theme.kt          # ConfigureSystemUI() expect
+├── Theme.android.kt  # WindowCompat-based actual
+├── Theme.ios.kt      # placeholder
+└── Theme.{jvm,js,wasmJs}.kt  # no-op
+```
 
-To test light theme during development:
-
+**MainActivity**:
 ```kotlin
-@Preview
-@Composable
-fun MyScreenPreviewLight() {
-   GreenhouseTheme(darkTheme = false) {
-      MyScreen()
-   }
-}
-
-@Preview
-@Composable
-fun MyScreenPreviewDark() {
-   GreenhouseTheme(darkTheme = true) {
-      MyScreen()
-   }
-}
+enableEdgeToEdge(
+    statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
+    navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT)
+)
 ```
 
-### Component Library Patterns
-
-When creating reusable components, follow this pattern:
-
-```kotlin
-/**
- * Reusable sensor card component showing current readings.
- *
- * @param title The sensor name (e.g., "Temperature")
- * @param value The current reading
- * @param unit The measurement unit (e.g., "°C")
- * @param icon The icon to display
- * @param accentColor Optional accent color (defaults to primary)
- * @param onClick Optional click handler
- */
-@Composable
-fun SensorCard(
-   title: String,
-   value: String,
-   unit: String,
-   icon: ImageVector,
-   accentColor: Color = MaterialTheme.colorScheme.primary,
-   onClick: (() -> Unit)? = null
-) {
-   Card(
-      modifier = Modifier
-         .fillMaxWidth()
-         .then(
-            if (onClick != null) {
-               Modifier.clickable(onClick = onClick)
-            } else {
-               Modifier
-            }
-         ),
-      colors = CardDefaults.cardColors(
-         containerColor = MaterialTheme.colorScheme.surface
-      )
-   ) {
-      Row(
-         modifier = Modifier.padding(16.dp),
-         verticalAlignment = Alignment.CenterVertically
-      ) {
-         Icon(
-            imageVector = icon,
-            contentDescription = title,
-            tint = accentColor,
-            modifier = Modifier.size(40.dp)
-         )
-
-         Spacer(modifier = Modifier.width(16.dp))
-
-         Column {
-            Text(
-               text = title,
-               style = MaterialTheme.typography.bodySmall,
-               color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Row(
-               verticalAlignment = Alignment.Bottom,
-               horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-               Text(
-                  text = value,
-                  style = MaterialTheme.typography.headlineSmall,
-                  color = MaterialTheme.colorScheme.onSurface
-               )
-               Text(
-                  text = unit,
-                  style = MaterialTheme.typography.bodyMedium,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant
-               )
-            }
-         }
-      }
-   }
-}
-```
-
-### Status Bar & System UI Management
-
-#### Overview
-
-The app implements **edge-to-edge** design with adaptive status bar icon colors that automatically
-adjust based on the current theme (dark/light mode). This ensures optimal visibility of system
-status icons in all scenarios.
-
-#### Implementation Architecture
-
-The status bar management uses an **expect/actual pattern** for platform-specific implementations:
-
-```
-presentation/ui/theme/
-├── Theme.kt           # Common theme with ConfigureSystemUI() expect declaration
-├── Theme.android.kt   # Android implementation using WindowCompat
-├── Theme.ios.kt       # iOS implementation (placeholder)
-├── Theme.jvm.kt       # Desktop (no-op)
-├── Theme.js.kt        # Web JS (no-op)
-└── Theme.wasmJs.kt    # Web Wasm (no-op)
-```
-
-#### Android Implementation
-
-**MainActivity.kt** configures edge-to-edge with `SystemBarStyle.auto()`:
-
-```kotlin
-class MainActivity : ComponentActivity() {
-   override fun onCreate(savedInstanceState: Bundle?) {
-      // Configure edge-to-edge with auto-adjusting status bar icons
-      enableEdgeToEdge(
-         statusBarStyle = SystemBarStyle.auto(
-            lightScrim = Color.TRANSPARENT,
-            darkScrim = Color.TRANSPARENT
-         ),
-         navigationBarStyle = SystemBarStyle.auto(
-            lightScrim = Color.TRANSPARENT,
-            darkScrim = Color.TRANSPARENT
-         )
-      )
-      super.onCreate(savedInstanceState)
-      setContent { App() }
-   }
-}
-```
-
-**Theme.android.kt** uses `WindowCompat.getInsetsController()` to explicitly set icon appearance:
-
+**Theme.android.kt**:
 ```kotlin
 @Composable
 actual fun ConfigureSystemUI(darkTheme: Boolean) {
-   val view = LocalView.current
-   if (!view.isInEditMode) {
-      SideEffect {
-         val window = (view.context as Activity).window
-         val insetsController = WindowCompat.getInsetsController(window, view)
-
-         // isAppearanceLightStatusBars = true → dark icons (for light backgrounds)
-         // isAppearanceLightStatusBars = false → light icons (for dark backgrounds)
-         insetsController.isAppearanceLightStatusBars = !darkTheme
-         insetsController.isAppearanceLightNavigationBars = !darkTheme
-      }
-   }
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            val controller = WindowCompat.getInsetsController(window, view)
+            // true → dark icons (light bg); false → light icons (dark bg)
+            controller.isAppearanceLightStatusBars = !darkTheme
+            controller.isAppearanceLightNavigationBars = !darkTheme
+        }
+    }
 }
 ```
 
-#### Status Bar Behavior
+If status-bar icons disappear or don't update on theme switch:
 
-| Theme Mode | Background | Icon Color | Configuration                         |
-|------------|------------|------------|---------------------------------------|
-| Dark       | Dark       | White      | `isAppearanceLightStatusBars = false` |
-| Light      | Light      | Dark       | `isAppearanceLightStatusBars = true`  |
+1. Confirm `enableEdgeToEdge(SystemBarStyle.auto(...))` runs in `MainActivity`.
+2. `GreenhouseTheme` calls `ConfigureSystemUI(darkTheme)` on every recomposition.
+3. The logic is inverted: `isAppearanceLightStatusBars = !darkTheme`.
 
-#### Key Features
+iOS implementation is currently a no-op placeholder; extend with `UIApplication.shared.statusBarStyle` /
+`preferredStatusBarStyle` if needed.
 
-- **Automatic Adjustment**: Icons automatically change color when theme switches
-- **Edge-to-Edge**: Full-screen content with transparent status/navigation bars
-- **No API Checks**: `WindowCompat.getInsetsController()` works across all Android API levels
-- **Multi-Platform**: Each platform has appropriate implementation via expect/actual
+### Accessibility
 
-#### Common Issues & Solutions
+- `contentDescription` on all icons/images
+- Semantic colors over raw hex
+- 48dp minimum touch targets
+- Contrast ≥ 4.5:1 (body), ≥ 3:1 (large text)
 
-**Problem**: Status bar icons invisible in dark mode (dark icons on dark background)
+---
 
-**Solution**:
+## Useful Resources
 
-1. Ensure `enableEdgeToEdge()` is called with `SystemBarStyle.auto()` in MainActivity
-2. Verify `ConfigureSystemUI(darkTheme)` is called from GreenhouseTheme
-3. Check that `isAppearanceLightStatusBars = !darkTheme` (inverted logic)
-
-**Problem**: Icons don't update when switching between light/dark mode
-
-**Solution**: Ensure `GreenhouseTheme` receives the correct `darkTheme` parameter and calls
-`ConfigureSystemUI(darkTheme)` every time it recomposes.
-
-#### iOS Implementation (Placeholder)
-
-The iOS implementation currently does nothing but can be extended to use UIKit:
-
-```kotlin
-// TODO: Implement iOS status bar configuration
-// Use UIApplication.shared.statusBarStyle or preferredStatusBarStyle
-// Configure for light content in dark mode, dark content in light mode
-```
-
-#### References
-
-- **Edge-to-Edge**: https://developer.android.com/develop/ui/compose/system/system-bars
-- **SystemBarStyle**: Part of `androidx.activity:activity-compose:1.8.0+`
-- **WindowCompat**: Part of `androidx.core:core-ktx`
-
-### Accessibility Considerations
-
-1. **Always provide contentDescription** for icons and images
-2. **Use semantic colors** (error for errors, not red)
-3. **Minimum touch targets**: 48dp × 48dp for interactive elements
-4. **Text contrast**: Ensure sufficient contrast ratios (4.5:1 for body text, 3:1 for large text)
-5. **Status bar visibility**: Ensure adequate contrast between status bar icons and app background
-
-### Resources for UI Design
-
-- **Material Design 3**: https://m3.material.io
-- **Material 3 Color System**: https://m3.material.io/styles/color/overview
-- **Material 3 Typography**: https://m3.material.io/styles/typography/overview
-- **Compose Material 3**: https://developer.android.com/develop/ui/compose/designsystems/material3
-- **Google Fonts**: https://fonts.google.com
-- **Edge-to-Edge Design**: https://developer.android.com/develop/ui/compose/system/system-bars
+- KMP guide: https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html
+- Compose Multiplatform: https://www.jetbrains.com/compose-multiplatform/
+- Ktor Client: https://ktor.io/docs/client-create-multiplatform-application.html
+- Material 3: https://m3.material.io
+- Koin: https://insert-koin.io
+- Edge-to-Edge: https://developer.android.com/develop/ui/compose/system/system-bars
