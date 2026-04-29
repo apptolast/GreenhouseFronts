@@ -52,9 +52,7 @@ actual fun PlatformLineChart(
 
     val xAxisFormatter = remember(labels) {
         CartesianValueFormatter { _, value, _ ->
-            val index = value.toInt()
-            val label = labels.getOrNull(index)
-            if (!label.isNullOrBlank()) label else index.toString()
+            labels.getOrElse(value.toInt()) { value.toInt().toString() }
         }
     }
 
@@ -68,24 +66,27 @@ actual fun PlatformLineChart(
                             Fill(
                                 Brush.verticalGradient(
                                     listOf(
-                                        lineColor.copy(
-                                            alpha = 0.4f
-                                        ), lineColor.copy(alpha = 0.0f)
-                                    )
-                                )
-                            )
+                                        lineColor.copy(alpha = 0.4f),
+                                        lineColor.copy(alpha = 0.0f),
+                                    ),
+                                ),
+                            ),
                         ),
                     ),
                 ),
             ),
             startAxis = VerticalAxis.rememberStart(
                 guideline = null,
-                label = TextComponent(textStyle = TextStyle(color = labelColor))
+                label = TextComponent(textStyle = TextStyle(color = labelColor)),
             ),
             bottomAxis = HorizontalAxis.rememberBottom(
                 guideline = null,
                 valueFormatter = xAxisFormatter,
-                label = TextComponent(textStyle = TextStyle(color = labelColor))
+                label = TextComponent(textStyle = TextStyle(color = labelColor)),
+                labelRotationDegrees = 45f,
+                itemPlacer = remember {
+                    HorizontalAxis.ItemPlacer.aligned(addExtremeLabelPadding = true)
+                },
             ),
         ),
         modelProducer = modelProducer,
