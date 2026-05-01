@@ -1,13 +1,19 @@
 package com.apptolast.greenhousefronts.presentation.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navDeepLink
 import androidx.navigation.toRoute
+import com.apptolast.greenhousefronts.data.remote.push.AlertDeepLinkBus
+import com.apptolast.greenhousefronts.data.remote.push.PushTokenRegistrar
+import com.apptolast.greenhousefronts.presentation.navigation.BottomNavSelectionBus
 import com.apptolast.greenhousefronts.presentation.navigation.ConfigureWebNavigation
+import com.apptolast.greenhousefronts.presentation.navigation.PendingAlertSelectionBus
+import com.apptolast.greenhousefronts.presentation.ui.components.BottomNavTab
 import com.apptolast.greenhousefronts.presentation.navigation.ForgotPasswordRoute
 import com.apptolast.greenhousefronts.presentation.navigation.GreenhouseDetailRoute
 import com.apptolast.greenhousefronts.presentation.navigation.GreenhousesRoute
@@ -22,6 +28,7 @@ import com.apptolast.greenhousefronts.presentation.viewmodel.DeviceDetailViewMod
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseDetailViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.IrrigationConfigViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
 object StaticNavigator {
@@ -47,6 +54,32 @@ fun App() {
 
         // Configure platform-specific navigation (e.g., browser integration on Web)
         ConfigureWebNavigation(navController)
+
+        // Push token lifecycle: register on cold start (if there's already a session) and
+        // keep watching for FCM token rotations. Login/logout transitions are handled by
+        // AuthViewModel.
+        val pushTokenRegistrar: PushTokenRegistrar = koinInject()
+        LaunchedEffect(Unit) {
+            pushTokenRegistrar.startWatchingTokenUpdates()
+            pushTokenRegistrar.registerIfLoggedIn()
+        }
+
+        // Alert deep-link: tap on FCM notification → land on the Alerts tab with the
+        // alert pre-selected. The pending alert id survives across login: if the user
+        // wasn't authenticated, MainScreen will be reached after login and the
+        // AlertsViewModel will pick it up on its first refresh.
+        val pendingAlertSelection: PendingAlertSelectionBus = koinInject()
+        val bottomNavSelection: BottomNavSelectionBus = koinInject()
+        LaunchedEffect(Unit) {
+            AlertDeepLinkBus.events.collect { link ->
+                pendingAlertSelection.set(link.alertId)
+                navController.navigate(GreenhousesRoute) {
+                    popUpTo(GreenhousesRoute) { inclusive = false }
+                    launchSingleTop = true
+                }
+                bottomNavSelection.select(BottomNavTab.ALERTS)
+            }
+        }
 
         NavHost(
             navController = navController,

@@ -16,6 +16,7 @@ plugins {
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
     alias(libs.plugins.kotlinx.serialization)
+    alias(libs.plugins.google.services)
 }
 
 kotlin {
@@ -64,6 +65,10 @@ kotlin {
 
             // Chart Library - Vico (native platforms)
             implementation(libs.vico.multiplatform.m3)
+
+            // Firebase Cloud Messaging (BoM aligns versions)
+            implementation(project.dependencies.platform(libs.firebase.bom))
+            implementation(libs.firebase.messaging.ktx)
         }
         commonMain.dependencies {
             implementation(compose.runtime)

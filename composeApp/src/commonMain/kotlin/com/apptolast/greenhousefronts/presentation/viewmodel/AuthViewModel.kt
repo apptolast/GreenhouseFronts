@@ -3,6 +3,7 @@ package com.apptolast.greenhousefronts.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.apptolast.greenhousefronts.data.model.auth.RegisterRequest
+import com.apptolast.greenhousefronts.data.remote.push.PushTokenRegistrar
 import com.apptolast.greenhousefronts.domain.repository.AuthRepository
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -64,7 +65,8 @@ sealed interface AuthEvent {
  * @param authRepository Repository for auth operations
  */
 class AuthViewModel(
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val pushTokenRegistrar: PushTokenRegistrar,
 ) : ViewModel() {
 
     val uiState: StateFlow<AuthUiState>
@@ -181,6 +183,7 @@ class AuthViewModel(
                 )
                     .onSuccess {
                         uiState.update { it.copy(isLoading = false) }
+                        pushTokenRegistrar.registerIfLoggedIn()
                         _events.send(AuthEvent.LoginSuccess)
                     }
                     .onFailure { error ->
@@ -232,6 +235,7 @@ class AuthViewModel(
                 authRepository.register(request)
                     .onSuccess {
                         uiState.update { it.copy(isLoading = false) }
+                        pushTokenRegistrar.registerIfLoggedIn()
                         _events.send(AuthEvent.RegisterSuccess)
                     }
                     .onFailure { error ->
@@ -341,6 +345,9 @@ class AuthViewModel(
      */
     fun logout() {
         viewModelScope.launch {
+            // Drop the FCM token from the backend BEFORE the JWT is wiped, otherwise
+            // the DELETE call would fail authentication.
+            pushTokenRegistrar.unregisterCurrentToken()
             authRepository.logout()
             // Reset state
             uiState.update { AuthUiState() }

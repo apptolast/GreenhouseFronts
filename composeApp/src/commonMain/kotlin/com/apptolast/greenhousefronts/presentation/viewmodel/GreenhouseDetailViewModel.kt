@@ -11,7 +11,11 @@ import com.apptolast.greenhousefronts.domain.model.Greenhouse
 import com.apptolast.greenhousefronts.domain.model.SectorWithDevices
 import com.apptolast.greenhousefronts.domain.model.Setpoint
 import com.apptolast.greenhousefronts.domain.repository.GreenhouseRepository
+import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseDetailViewModel.Companion.SETPOINT_CONFIRM_TIMEOUT_MS
+import com.apptolast.greenhousefronts.util.isFalseLike
+import com.apptolast.greenhousefronts.util.isTrueLike
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
@@ -46,6 +50,17 @@ class GreenhouseDetailViewModel(
         field = MutableStateFlow(GreenhouseDetailUiState())
 
     private var wsJob: Job? = null
+
+    /**
+     * Setpoints awaiting WebSocket confirmation after a sendCommand.
+     * The spinner stays visible until either:
+     *   - the WS pushes a status where this setpoint's `currentValue` matches `expectedValue` (success)
+     *   - [SETPOINT_CONFIRM_TIMEOUT_MS] elapses (timeout → user-facing error)
+     *   - the REST POST itself fails (immediate clear)
+     */
+    private data class PendingSetpoint(val expectedValue: String, val timeoutJob: Job)
+
+    private val pendingSetpoints = mutableMapOf<String, PendingSetpoint>()
 
     fun loadGreenhouse(greenhouseId: Long) {
         viewModelScope.launch {
@@ -87,15 +102,15 @@ class GreenhouseDetailViewModel(
 
                     if (wsGreenhouse != null) {
                         val sectors = mapSectorsWithDevices(wsGreenhouse)
+                        reconcilePendingSetpoints(sectors)
                         uiState.update {
                             it.copy(
                                 isLoading = false,
                                 sectors = sectors,
+                                savingSetpointCodes = pendingSetpoints.keys.toSet(),
                                 // Keep selected sector, but clamp if list changed
-                                selectedSectorIndex = it.selectedSectorIndex.coerceIn(
-                                    0,
-                                    (sectors.size - 1).coerceAtLeast(0),
-                                ),
+                                selectedSectorIndex = it.selectedSectorIndex
+                                    .coerceIn(0, (sectors.size - 1).coerceAtLeast(0)),
                             )
                         }
                     } else {
@@ -143,23 +158,78 @@ class GreenhouseDetailViewModel(
      * Sends a setpoint command to the PLC via the commands endpoint.
      * The backend validates the code, persists the command, and publishes to MQTT.
      * The PLC will update the value and the WebSocket will reflect it.
+     *
+     * The spinner is kept visible until the WebSocket confirms the new `currentValue`
+     * (typically 1–2 s) or [SETPOINT_CONFIRM_TIMEOUT_MS] elapses. The REST POST
+     * completing successfully is NOT enough to clear the spinner — only the WS
+     * round-trip proves the value reached the PLC.
      */
     fun sendSetpointCommand(code: String, newValue: String) {
-        if (uiState.value.savingSetpointCodes.contains(code)) return
+        if (pendingSetpoints.containsKey(code)) return
 
-        uiState.update { it.copy(savingSetpointCodes = it.savingSetpointCodes + code) }
+        val timeoutJob = viewModelScope.launch {
+            delay(SETPOINT_CONFIRM_TIMEOUT_MS)
+            resolveSetpointTimeout(code)
+        }
+        pendingSetpoints[code] = PendingSetpoint(newValue, timeoutJob)
+        uiState.update { it.copy(savingSetpointCodes = pendingSetpoints.keys.toSet()) }
 
         viewModelScope.launch {
             try {
                 commandApiService.sendCommand(code, newValue)
+                // Do not clear pending here: wait for WS reconciliation or timeout.
             } catch (e: Exception) {
+                pendingSetpoints.remove(code)?.timeoutJob?.cancel()
                 uiState.update {
-                    it.copy(error = e.message ?: "Error al enviar comando")
+                    it.copy(
+                        savingSetpointCodes = pendingSetpoints.keys.toSet(),
+                        error = e.message ?: "Error al enviar comando",
+                    )
                 }
-            } finally {
-                uiState.update { it.copy(savingSetpointCodes = it.savingSetpointCodes - code) }
             }
         }
+    }
+
+    private fun resolveSetpointTimeout(code: String) {
+        if (pendingSetpoints.remove(code) == null) return
+        uiState.update {
+            it.copy(
+                savingSetpointCodes = pendingSetpoints.keys.toSet(),
+                error = "No se pudo confirmar la actualización de $code (10 s).",
+            )
+        }
+    }
+
+    /**
+     * For each pending setpoint, checks whether the WS-reported `currentValue`
+     * matches the value the user sent. If so, cancels the timeout and clears
+     * the pending state so the spinner disappears.
+     */
+    private fun reconcilePendingSetpoints(sectors: List<SectorWithDevices>) {
+        if (pendingSetpoints.isEmpty()) return
+        val confirmed = mutableListOf<String>()
+        for ((code, pending) in pendingSetpoints) {
+            val setpoint = sectors.firstNotNullOfOrNull { sector ->
+                sector.setpoints.firstOrNull { it.code == code }
+            } ?: continue
+            if (matchesExpected(setpoint.currentValue, pending.expectedValue, setpoint.dataTypeName)) {
+                pending.timeoutJob.cancel()
+                confirmed += code
+            }
+        }
+        confirmed.forEach { pendingSetpoints.remove(it) }
+    }
+
+    private fun matchesExpected(current: String?, expected: String, dataType: String?): Boolean {
+        current ?: return false
+        if (dataType.equals("BOOLEAN", ignoreCase = true)) {
+            return (expected.isTrueLike() && current.isTrueLike()) ||
+                    (expected.isFalseLike() && current.isFalseLike())
+        }
+        val curNum = current.toDoubleOrNull()
+        val expNum = expected.toDoubleOrNull()
+        if (curNum != null && expNum != null) return curNum == expNum
+        return current == expected
     }
 
     fun clearError() {
@@ -169,7 +239,13 @@ class GreenhouseDetailViewModel(
     override fun onCleared() {
         super.onCleared()
         wsJob?.cancel()
+        pendingSetpoints.values.forEach { it.timeoutJob.cancel() }
+        pendingSetpoints.clear()
         println("[DETAIL-VM] ViewModel cleared, WebSocket job cancelled")
+    }
+
+    companion object {
+        private const val SETPOINT_CONFIRM_TIMEOUT_MS = 10_000L
     }
 
     private fun mapSectorsWithDevices(wsGreenhouse: WsGreenhouseResponse): List<SectorWithDevices> {

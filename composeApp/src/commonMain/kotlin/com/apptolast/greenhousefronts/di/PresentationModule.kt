@@ -1,5 +1,6 @@
 package com.apptolast.greenhousefronts.di
 
+import com.apptolast.greenhousefronts.presentation.viewmodel.AlertsViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.AuthViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.DeviceDetailViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseDetailViewModel
@@ -19,4 +20,5 @@ val presentationModule = module {
     viewModelOf(::GreenhouseDetailViewModel)
     viewModelOf(::IrrigationConfigViewModel)
     viewModelOf(::ProfileViewModel)
+    viewModelOf(::AlertsViewModel)
 }

@@ -162,7 +162,11 @@ class GreenhouseStatusWebSocket(
         private const val SUBSCRIBE_DESTINATION = "/user/queue/status/response"
         private const val SEND_DESTINATION = "/app/status/request"
         private const val POLL_INTERVAL_MS = 0L
-        private const val STOP_TIMEOUT_MS = 5_000L
-        private const val RECONNECT_DELAY_MS = 3_000L
+
+        //        private const val STOP_TIMEOUT_MS = 5_000L
+        private const val STOP_TIMEOUT_MS = 0L
+
+        //        private const val RECONNECT_DELAY_MS = 3_000L
+        private const val RECONNECT_DELAY_MS = 0L
     }
 }

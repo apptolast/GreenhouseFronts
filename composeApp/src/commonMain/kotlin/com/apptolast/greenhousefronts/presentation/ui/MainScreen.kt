@@ -39,15 +39,18 @@ import greenhousefronts.composeapp.generated.resources.Res
 import greenhousefronts.composeapp.generated.resources.ic_launcher_foreground
 import org.jetbrains.compose.resources.painterResource
 import com.apptolast.greenhousefronts.domain.model.Greenhouse
+import com.apptolast.greenhousefronts.presentation.navigation.BottomNavSelectionBus
 import com.apptolast.greenhousefronts.presentation.ui.components.BottomNavBar
 import com.apptolast.greenhousefronts.presentation.ui.components.LoadingBar
 import com.apptolast.greenhousefronts.presentation.ui.components.BottomNavTab
 import com.apptolast.greenhousefronts.presentation.ui.components.GreenhouseCard
 import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
+import com.apptolast.greenhousefronts.presentation.viewmodel.AlertsViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseListUiState
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseListViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.ProfileViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -63,6 +66,12 @@ fun MainScreen(
 ) {
     var selectedTab by remember { mutableStateOf(BottomNavTab.GREENHOUSES) }
     val greenhouseUiState by greenhouseListViewModel.uiState.collectAsState()
+
+    // Allow external triggers (e.g. the deep-link handler in App.kt) to switch tabs.
+    val bottomNavBus: BottomNavSelectionBus = koinInject()
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        bottomNavBus.requests.collect { selectedTab = it }
+    }
 
     @OptIn(ExperimentalMaterial3Api::class)
     Scaffold(
@@ -123,7 +132,10 @@ fun MainScreen(
                     )
                 }
 
-                BottomNavTab.ALERTS -> PlaceholderTab("Alertas")
+                BottomNavTab.ALERTS -> {
+                    val alertsViewModel: AlertsViewModel = koinViewModel()
+                    AlertsScreen(viewModel = alertsViewModel)
+                }
 
                 BottomNavTab.PROFILE -> {
                     ProfileScreen(
