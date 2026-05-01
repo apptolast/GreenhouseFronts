@@ -17,7 +17,7 @@
     <string name="login_password_placeholder">Enter your password</string>
     <string name="login_forgot_password">Forgot your password?</string>
     <string name="login_button">Sign In</string>
-    <string name="login_signup_prompt">Don\'t have an account?</string>
+    <string name="login_signup_prompt">Don't have an account?</string>
     <string name="login_signup_link">Sign Up</string>
 
     <!-- ========================================================================== -->

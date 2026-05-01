@@ -1,6 +1,5 @@
 package com.apptolast.greenhousefronts.presentation.ui
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -15,8 +14,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -54,7 +51,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -62,6 +58,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
 import com.apptolast.greenhousefronts.presentation.viewmodel.AuthEvent
 import com.apptolast.greenhousefronts.presentation.viewmodel.AuthUiState
@@ -82,8 +81,6 @@ import greenhousefronts.composeapp.generated.resources.login_subtitle
 import greenhousefronts.composeapp.generated.resources.login_username_label
 import greenhousefronts.composeapp.generated.resources.login_username_placeholder
 import greenhousefronts.composeapp.generated.resources.login_welcome_title
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -135,7 +132,6 @@ fun LoginScreen(
  * Content for the login screen (Stateless).
  * Displays the UI and delegates user actions to the callers.
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun LoginScreenContent(
     uiState: AuthUiState,
@@ -148,14 +144,19 @@ private fun LoginScreenContent(
     onNavigateToForgotPassword: () -> Unit = {},
 ) {
     val passwordFocusRequester = remember { FocusRequester() }
-
-    // BringIntoViewRequester smoothly scrolls each field into view when it gains focus,
-    // adding the imePadding-induced shift to a deliberate one — this hides the brief
-    // "blink" produced when Android animates the IME between two consecutive focus
-    // changes (Email → Next → Password).
-    val emailBringIntoView = remember { BringIntoViewRequester() }
-    val passwordBringIntoView = remember { BringIntoViewRequester() }
-    val scope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+    val scrollJob = remember { mutableStateOf<Job?>(null) }
+    val onFieldFocused: () -> Unit = {
+        scrollJob.value?.cancel()
+        scrollJob.value = coroutineScope.launch {
+            // Wait for BasicTextField's internal bringIntoView and the IME
+            // animation to settle so scrollState.maxValue reflects the
+            // viewport reduced by imePadding before we scroll to the end.
+            delay(300)
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
 
     val canSubmit = !uiState.isLoading && uiState.email.isNotBlank() && uiState.password.isNotBlank()
     val submit: () -> Unit = {
@@ -184,8 +185,8 @@ private fun LoginScreenContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
-                    .verticalScroll(rememberScrollState())
                     .imePadding()
+                    .verticalScroll(scrollState)
                     .padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Top
@@ -241,15 +242,8 @@ private fun LoginScreenContent(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .bringIntoViewRequester(emailBringIntoView)
                         .onFocusEvent { focusState ->
-                            if (focusState.isFocused) {
-                                scope.launch {
-                                    // Wait for the IME show animation before scrolling.
-                                    delay(IME_ANIMATION_MS)
-                                    emailBringIntoView.bringIntoView()
-                                }
-                            }
+                            if (focusState.isFocused) onFieldFocused()
                         },
                     singleLine = true,
                     enabled = !uiState.isLoading,
@@ -300,14 +294,8 @@ private fun LoginScreenContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(passwordFocusRequester)
-                        .bringIntoViewRequester(passwordBringIntoView)
                         .onFocusEvent { focusState ->
-                            if (focusState.isFocused) {
-                                scope.launch {
-                                    delay(IME_ANIMATION_MS)
-                                    passwordBringIntoView.bringIntoView()
-                                }
-                            }
+                            if (focusState.isFocused) onFieldFocused()
                         },
                     singleLine = true,
                     enabled = !uiState.isLoading,
@@ -344,7 +332,9 @@ private fun LoginScreenContent(
                 // Login Button
                 Button(
                     onClick = submit,
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
                     enabled = canSubmit,
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
@@ -391,21 +381,11 @@ private fun LoginScreenContent(
                     }
                 }
 
-                // Breathing room above the IME — the focused field stops snapping
-                // flush against the keyboard and the layout has slack to scroll into.
-                Spacer(modifier = Modifier.height(64.dp))
+                //Spacer(modifier = Modifier.height(14.dp))
             }
         }
     }
 }
-
-/**
- * Approximate duration of the system keyboard show animation. The
- * `BringIntoViewRequester` waits this long before scrolling the focused field into view
- * so the scroll animation chains cleanly after the IME has settled instead of fighting
- * with it (which is what produced the visible "blink" on Email→Password).
- */
-private const val IME_ANIMATION_MS: Long = 200L
 
 @Preview
 @Composable
