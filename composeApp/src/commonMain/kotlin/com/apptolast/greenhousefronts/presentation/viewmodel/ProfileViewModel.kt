@@ -2,6 +2,7 @@ package com.apptolast.greenhousefronts.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.apptolast.greenhousefronts.data.remote.push.PushTokenRegistrar
 import com.apptolast.greenhousefronts.domain.model.UserProfile
 import com.apptolast.greenhousefronts.domain.repository.AuthRepository
 import com.apptolast.greenhousefronts.domain.repository.UserRepository
@@ -34,10 +35,14 @@ sealed interface ProfileEvent {
  *
  * @param userRepository Repository for user profile data
  * @param authRepository Repository for auth operations (logout)
+ * @param pushTokenRegistrar Used to drop the FCM token from the backend BEFORE the JWT
+ *   is wiped — same contract as `AuthViewModel.logout()`. Without this the backend
+ *   would keep pushing notifications to a "ghost" device until the next login.
  */
 class ProfileViewModel(
     private val userRepository: UserRepository,
     private val authRepository: AuthRepository,
+    private val pushTokenRegistrar: PushTokenRegistrar,
 ) : ViewModel() {
 
     val uiState: StateFlow<ProfileUiState>
@@ -74,6 +79,10 @@ class ProfileViewModel(
 
         viewModelScope.launch {
             uiState.update { it.copy(isLoggingOut = true) }
+            // Drop the FCM token from the backend BEFORE the JWT is wiped, otherwise
+            // the DELETE call would fail authentication. Same order as in
+            // `AuthViewModel.logout()`.
+            pushTokenRegistrar.unregisterCurrentToken()
             authRepository.logout()
             _events.send(ProfileEvent.LogoutSuccess)
         }

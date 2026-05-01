@@ -21,10 +21,12 @@ import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 import kotlinx.serialization.json.Json
 import org.hildan.krossbow.stomp.StompClient
 import org.hildan.krossbow.stomp.StompSession
+import org.hildan.krossbow.stomp.config.HeartBeat
 import org.hildan.krossbow.stomp.sendEmptyMsg
 import org.hildan.krossbow.stomp.subscribeText
 import org.hildan.krossbow.websocket.ktor.KtorWebSocketClient
@@ -97,7 +99,21 @@ class GreenhouseStatusWebSocket(
         // `suspend` and only returns once the SUBSCRIBE frame has been written to the
         // socket. Calling `sendEmptyMsg()` afterwards on the same connection guarantees
         // ordered delivery via TCP, and the broker processes frames FIFO per session.
-        StompClient(wsClient)
+        //
+        // `heartBeat = 10s/10s`: STOMP-level keep-alive negotiated with the broker.
+        // Mobile carriers and home routers tend to drop idle TCP connections after
+        // 30-60 s of inactivity (NAT timeouts), and Spring's SimpleBroker honours STOMP
+        // 1.2 heart-beats. With this config the client sends a heart-beat at most every
+        // 10 s when nothing else is being written and expects a heart-beat (or any frame)
+        // from the server within 10 s. If the negotiated period elapses with no traffic,
+        // Krossbow surfaces the disconnection through the channelFlow's exception path
+        // and our `retryWhen` reconnects normally.
+        StompClient(wsClient) {
+            heartBeat = HeartBeat(
+                minSendPeriod = 10.seconds,
+                expectedPeriod = 10.seconds,
+            )
+        }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
