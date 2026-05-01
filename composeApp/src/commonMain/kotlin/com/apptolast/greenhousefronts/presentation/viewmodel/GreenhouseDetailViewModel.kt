@@ -37,8 +37,11 @@ data class GreenhouseDetailUiState(
 
 /**
  * ViewModel for the greenhouse detail screen.
- * Loads basic greenhouse info via REST, then maintains a persistent
- * WebSocket connection for real-time device data updates.
+ *
+ * The screen reflects the WebSocket snapshot as the single source of truth — no initial
+ * REST fetch is performed. The first STOMP frame populates the greenhouse, its sectors,
+ * devices, setpoints and alert count in one shot. The toggle-active action fires only a
+ * PUT and lets the backend's `GREENHOUSE_CRUD` push update the UI.
  */
 class GreenhouseDetailViewModel(
     private val greenhouseRepository: GreenhouseRepository,
@@ -63,58 +66,83 @@ class GreenhouseDetailViewModel(
     private val pendingSetpoints = mutableMapOf<String, PendingSetpoint>()
 
     fun loadGreenhouse(greenhouseId: Long) {
-        viewModelScope.launch {
-            uiState.update { it.copy(isLoading = true, error = null) }
-
-            // Load greenhouse info via REST (for toggle active, basic info)
-            greenhouseRepository.getGreenhouseDetail(greenhouseId)
-                .onSuccess { greenhouse ->
-                    uiState.update { it.copy(greenhouse = greenhouse) }
-                }
-                .onFailure { error ->
-                    uiState.update {
-                        it.copy(isLoading = false, error = error.message ?: "Error al cargar invernadero")
-                    }
-                    return@launch
-                }
-
-            // Start persistent WebSocket flow for real-time device data
-            startDeviceUpdates(greenhouseId)
-        }
+        uiState.update { it.copy(isLoading = true, error = null) }
+        startDeviceUpdates(greenhouseId)
     }
 
     /**
-     * Starts collecting the WebSocket statusFlow for continuous updates.
-     * Cancels any previous collection job first.
+     * Collects the WebSocket statusFlow and projects it to [GreenhouseDetailUiState].
+     * Cancels any previous collection job first so re-entering the screen with a
+     * different greenhouseId does not leave a stale collector running.
+     *
+     * The user-driven `isTogglingActive` flag is preserved across emissions so the
+     * switch keeps showing the spinner while the PUT is in flight, even if a WS
+     * push arrives meanwhile.
      */
     private fun startDeviceUpdates(greenhouseId: Long) {
         wsJob?.cancel()
         wsJob = viewModelScope.launch {
             webSocket.statusFlow()
                 .catch { e ->
-                    println("[DETAIL-VM] WebSocket flow error: ${e.message}")
-                    uiState.update { it.copy(isLoading = false) }
+                    println("[DETAIL-VM] WebSocket flow error: ${e::class.simpleName}: ${e.message}")
+                    uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            error = "No se pudo conectar al servidor en tiempo real. Reintentando…",
+                        )
+                    }
                 }
                 .collect { status ->
                     val wsGreenhouse = status.tenants
                         .flatMap { it.greenhouses }
                         .find { it.id == greenhouseId }
 
-                    if (wsGreenhouse != null) {
-                        val sectors = mapSectorsWithDevices(wsGreenhouse)
-                        reconcilePendingSetpoints(sectors)
-                        uiState.update {
-                            it.copy(
-                                isLoading = false,
-                                sectors = sectors,
-                                savingSetpointCodes = pendingSetpoints.keys.toSet(),
-                                // Keep selected sector, but clamp if list changed
-                                selectedSectorIndex = it.selectedSectorIndex
-                                    .coerceIn(0, (sectors.size - 1).coerceAtLeast(0)),
-                            )
+                    if (wsGreenhouse == null) {
+                        // The current snapshot doesn't include this greenhouseId. The first
+                        // arriving snapshot for a new connection might not carry it yet
+                        // (replay = 1 may surface the previous detail's snapshot); skip
+                        // silently while loading. If we already had data and it disappeared,
+                        // surface an error so the screen doesn't go blank without feedback.
+                        if (uiState.value.greenhouse != null) {
+                            uiState.update {
+                                it.copy(
+                                    isLoading = false,
+                                    error = "Este invernadero ya no está disponible para tu cuenta.",
+                                )
+                            }
                         }
-                    } else {
-                        uiState.update { it.copy(isLoading = false) }
+                        return@collect
+                    }
+
+                    val sectors = mapSectorsWithDevices(wsGreenhouse)
+                    reconcilePendingSetpoints(sectors)
+                    val activeAlertCount = wsGreenhouse.sectors
+                        .sumOf { sector -> sector.alerts.count { !it.isResolved } }
+
+                    uiState.update { current ->
+                        // Build the domain Greenhouse from WS data. Preserve the local
+                        // optimistic `isActive` while a toggle PUT is in flight — the
+                        // server push that confirms the change will overwrite it once
+                        // `isTogglingActive` clears.
+                        val previous = current.greenhouse
+                        val merged = mapGreenhouse(wsGreenhouse, sectors, activeAlertCount).let {
+                            if (current.isTogglingActive && previous != null) {
+                                it.copy(isActive = previous.isActive)
+                            } else {
+                                it
+                            }
+                        }
+
+                        current.copy(
+                            isLoading = false,
+                            error = null,
+                            greenhouse = merged,
+                            sectors = sectors,
+                            savingSetpointCodes = pendingSetpoints.keys.toSet(),
+                            // Keep selected sector, but clamp if list changed
+                            selectedSectorIndex = current.selectedSectorIndex
+                                .coerceIn(0, (sectors.size - 1).coerceAtLeast(0)),
+                        )
                     }
                 }
         }
@@ -130,6 +158,7 @@ class GreenhouseDetailViewModel(
 
         val newActive = !greenhouse.isActive
 
+        // Optimistic update — the WS push will confirm (and overwrite) when it arrives.
         uiState.update {
             it.copy(
                 greenhouse = greenhouse.copy(isActive = newActive),
@@ -139,10 +168,11 @@ class GreenhouseDetailViewModel(
 
         viewModelScope.launch {
             greenhouseRepository.setGreenhouseActive(greenhouse.id, newActive)
-                .onSuccess { updated ->
-                    uiState.update { it.copy(greenhouse = updated, isTogglingActive = false) }
+                .onSuccess {
+                    uiState.update { it.copy(isTogglingActive = false) }
                 }
                 .onFailure { error ->
+                    // Revert optimistic update on failure.
                     uiState.update {
                         it.copy(
                             greenhouse = greenhouse,
@@ -246,6 +276,23 @@ class GreenhouseDetailViewModel(
 
     companion object {
         private const val SETPOINT_CONFIRM_TIMEOUT_MS = 10_000L
+    }
+
+    private fun mapGreenhouse(
+        wsGreenhouse: WsGreenhouseResponse,
+        sectors: List<SectorWithDevices>,
+        activeAlertCount: Int,
+    ): Greenhouse {
+        return Greenhouse(
+            id = wsGreenhouse.id,
+            code = wsGreenhouse.code,
+            name = wsGreenhouse.name,
+            isActive = wsGreenhouse.isActive,
+            areaM2 = wsGreenhouse.areaM2,
+            sectorCount = sectors.size,
+            alertCount = activeAlertCount,
+            sectorNames = sectors.map { it.name }.sorted(),
+        )
     }
 
     private fun mapSectorsWithDevices(wsGreenhouse: WsGreenhouseResponse): List<SectorWithDevices> {

@@ -1,4 +1,5 @@
 package com.apptolast.greenhousefronts.presentation.ui
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -64,11 +65,11 @@ import com.apptolast.greenhousefronts.domain.model.Greenhouse
 import com.apptolast.greenhousefronts.domain.model.SectorWithDevices
 import com.apptolast.greenhousefronts.domain.model.Setpoint
 import com.apptolast.greenhousefronts.presentation.ui.components.LoadingBar
-import com.apptolast.greenhousefronts.util.isFalseLike
-import com.apptolast.greenhousefronts.util.isTrueLike
 import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseDetailUiState
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseDetailViewModel
+import com.apptolast.greenhousefronts.util.isFalseLike
+import com.apptolast.greenhousefronts.util.isTrueLike
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -78,6 +79,7 @@ fun GreenhouseDetailScreen(
     onNavigateBack: () -> Unit,
     onNavigateToIrrigationConfig: (Long) -> Unit,
     onNavigateToDeviceDetail: (String) -> Unit = {},
+    onNavigateToAlerts: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -93,6 +95,7 @@ fun GreenhouseDetailScreen(
         onSelectSector = viewModel::selectSector,
         onDeviceClick = onNavigateToDeviceDetail,
         onSendSetpointCommand = viewModel::sendSetpointCommand,
+        onNavigateToAlerts = onNavigateToAlerts,
     )
 }
 
@@ -106,6 +109,7 @@ private fun GreenhouseDetailContent(
     onSelectSector: (Int) -> Unit,
     onDeviceClick: (String) -> Unit = {},
     onSendSetpointCommand: (code: String, newValue: String) -> Unit = { _, _ -> },
+    onNavigateToAlerts: () -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -174,6 +178,7 @@ private fun GreenhouseDetailContent(
                     onSelectSector = onSelectSector,
                     onDeviceClick = onDeviceClick,
                     onSendSetpointCommand = onSendSetpointCommand,
+                    onNavigateToAlerts = onNavigateToAlerts,
                 )
             }
         }
@@ -191,6 +196,7 @@ private fun GreenhouseDetailBody(
     onSelectSector: (Int) -> Unit,
     onDeviceClick: (String) -> Unit = {},
     onSendSetpointCommand: (code: String, newValue: String) -> Unit = { _, _ -> },
+    onNavigateToAlerts: () -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -199,29 +205,12 @@ private fun GreenhouseDetailBody(
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // Alert banner
+        // Active alerts card (clickable, navigates to alerts screen)
         if (greenhouse.alertCount > 0) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f))
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(18.dp),
-                )
-                Text(
-                    text = "${greenhouse.alertCount} ${if (greenhouse.alertCount == 1) "alerta activa" else "alertas activas"} en este invernadero",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
+            ActiveAlertsCard(
+                count = greenhouse.alertCount,
+                onClick = onNavigateToAlerts,
+            )
         }
 
         // Stats row
@@ -236,15 +225,6 @@ private fun GreenhouseDetailBody(
                     "$area m²"
                 }
                 StatCard(value = formatted, label = "Área", modifier = Modifier.weight(1f))
-            }
-
-            if (greenhouse.alertCount > 0) {
-                StatCard(
-                    value = greenhouse.alertCount.toString(),
-                    label = "Alertas",
-                    modifier = Modifier.weight(1f),
-                    highlighted = true,
-                )
             }
         }
 
@@ -791,6 +771,47 @@ private fun SetpointTextEditor(
                     modifier = Modifier.size(18.dp),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ActiveAlertsCard(count: Int, onClick: () -> Unit) {
+    val errorColor = MaterialTheme.colorScheme.error
+    Card(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .border(1.dp, errorColor.copy(alpha = 0.6f), RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = errorColor.copy(alpha = 0.15f),
+        ),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Warning,
+                contentDescription = null,
+                tint = errorColor,
+                modifier = Modifier.size(36.dp),
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(
+                text = "$count ${if (count == 1) "alerta activa" else "alertas activas"}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = errorColor,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = errorColor,
+            )
         }
     }
 }

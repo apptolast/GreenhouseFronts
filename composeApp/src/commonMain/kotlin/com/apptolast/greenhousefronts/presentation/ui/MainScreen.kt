@@ -25,6 +25,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -128,6 +131,7 @@ fun MainScreen(
                     GreenhouseListContent(
                         uiState = greenhouseUiState,
                         onRetry = greenhouseListViewModel::loadGreenhouses,
+                        onRefresh = greenhouseListViewModel::refresh,
                         onGreenhouseClick = { onNavigateToGreenhouseDetail(it.id) },
                     )
                 }
@@ -148,56 +152,76 @@ fun MainScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun GreenhouseListContent(
     uiState: GreenhouseListUiState,
     onRetry: () -> Unit,
+    onRefresh: () -> Unit = {},
     onGreenhouseClick: (Greenhouse) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         LoadingBar(isLoading = uiState.isLoading)
 
         Box(modifier = Modifier.weight(1f)) {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                // Section title
-                item {
-                    Text(
-                        text = "Mis Invernaderos",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                }
+            val pullState = rememberPullToRefreshState()
 
-                // Greenhouse cards
-                if (uiState.greenhouses.isEmpty() && !uiState.isLoading) {
+            PullToRefreshBox(
+                isRefreshing = uiState.isRefreshing,
+                onRefresh = onRefresh,
+                state = pullState,
+                modifier = Modifier.fillMaxSize(),
+                indicator = {
+                    PullToRefreshDefaults.Indicator(
+                        state = pullState,
+                        isRefreshing = uiState.isRefreshing,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                },
+            ) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    // Section title
                     item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 32.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = "No hay invernaderos registrados",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        Text(
+                            text = "Mis Invernaderos",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+                    }
+
+                    // Greenhouse cards
+                    if (uiState.greenhouses.isEmpty() && !uiState.isLoading && !uiState.isRefreshing) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 32.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = "No hay invernaderos registrados",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    } else {
+                        items(
+                            count = uiState.greenhouses.size,
+                            key = { uiState.greenhouses[it].id },
+                        ) { index ->
+                            GreenhouseCard(
+                                greenhouse = uiState.greenhouses[index],
+                                onClick = { onGreenhouseClick(uiState.greenhouses[index]) },
                             )
                         }
-                    }
-                } else {
-                    items(
-                        count = uiState.greenhouses.size,
-                        key = { uiState.greenhouses[it].id },
-                    ) { index ->
-                        GreenhouseCard(
-                            greenhouse = uiState.greenhouses[index],
-                            onClick = { onGreenhouseClick(uiState.greenhouses[index]) },
-                        )
                     }
                 }
             }

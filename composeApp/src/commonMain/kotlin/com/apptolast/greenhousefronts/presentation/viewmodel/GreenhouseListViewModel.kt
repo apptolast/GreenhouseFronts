@@ -12,9 +12,14 @@ import kotlinx.coroutines.launch
 
 /**
  * UI state for the greenhouse list screen.
+ *
+ * `isLoading` is for the initial fetch (covers the screen with a progress bar);
+ * `isRefreshing` is the user-driven pull-to-refresh state (drives the M3 indicator
+ * without blocking the visible list).
  */
 data class GreenhouseListUiState(
     val isLoading: Boolean = true,
+    val isRefreshing: Boolean = false,
     val greenhouses: List<Greenhouse> = emptyList(),
     val displayName: String = "",
     val error: String? = null,
@@ -39,25 +44,44 @@ class GreenhouseListViewModel(
         loadGreenhouses()
     }
 
+    /**
+     * Initial fetch — drives [GreenhouseListUiState.isLoading] and a full-screen spinner.
+     * Called from `init` and from `LifecycleResumeEffect` whenever the tab regains focus.
+     */
     fun loadGreenhouses() {
         viewModelScope.launch {
             uiState.update { it.copy(isLoading = true, error = null) }
-
-            greenhouseRepository.getGreenhouses()
-                .onSuccess { greenhouses ->
-                    uiState.update {
-                        it.copy(isLoading = false, greenhouses = greenhouses)
-                    }
-                }
-                .onFailure { error ->
-                    uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            error = error.message ?: "Error al cargar invernaderos",
-                        )
-                    }
-                }
+            fetch()
+            uiState.update { it.copy(isLoading = false) }
         }
+    }
+
+    /**
+     * User-initiated pull-to-refresh — drives [GreenhouseListUiState.isRefreshing].
+     * The visible list stays on screen while the indicator spins.
+     */
+    fun refresh() {
+        if (uiState.value.isRefreshing) return
+        viewModelScope.launch {
+            uiState.update { it.copy(isRefreshing = true, error = null) }
+            fetch()
+            uiState.update { it.copy(isRefreshing = false) }
+        }
+    }
+
+    /**
+     * Single fetch routine shared by [loadGreenhouses] and [refresh]. Updates the list and
+     * the error string but leaves the loading/refreshing flags to the caller, so each entry
+     * point can drive its own UI semantics.
+     */
+    private suspend fun fetch() {
+        greenhouseRepository.getGreenhouses()
+            .onSuccess { greenhouses ->
+                uiState.update { it.copy(greenhouses = greenhouses, error = null) }
+            }
+            .onFailure { error ->
+                uiState.update { it.copy(error = error.message ?: "Error al cargar invernaderos") }
+            }
     }
 
     fun clearError() {

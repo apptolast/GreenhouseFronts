@@ -203,6 +203,10 @@ fun App() {
                     onNavigateToDeviceDetail = { deviceCode ->
                         navController.navigate(DeviceDetailRoute(deviceCode, route.greenhouseId))
                     },
+                    onNavigateToAlerts = {
+                        navController.popBackStack()
+                        bottomNavSelection.select(BottomNavTab.ALERTS)
+                    },
                 )
             }
 

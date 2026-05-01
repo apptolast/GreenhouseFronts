@@ -63,6 +63,22 @@ class GreenhouseStatusWebSocket(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    // Krossbow's StompClient/KtorWebSocketClient are stateless wrappers around configuration —
+    // a fresh instance per `connect()` allocates a new Ktor HttpClient under the hood every
+    // time, which is wasteful in the reconnect loop. Cache both as singletons inside this
+    // singleton; each `connect()` still produces an independent StompSession.
+    private val wsClient by lazy { KtorWebSocketClient() }
+    private val stompClient by lazy {
+        // No `autoReceipt`: Spring's SimpleBroker (`enableSimpleBroker(...)` in the
+        // backend's WebSocketConfig) does NOT send STOMP RECEIPT frames, so requesting
+        // one would always time out with LostReceiptException. We rely instead on the
+        // contract documented in `createPollFlow` step (1): `subscribeText()` is
+        // `suspend` and only returns once the SUBSCRIBE frame has been written to the
+        // socket. Calling `sendEmptyMsg()` afterwards on the same connection guarantees
+        // ordered delivery via TCP, and the broker processes frames FIFO per session.
+        StompClient(wsClient)
+    }
+
     private val sharedStatusFlow: SharedFlow<GreenhouseStatusResponse> by lazy {
         createPollFlow()
             .retryWhen { cause, attempt ->
@@ -152,16 +168,6 @@ class GreenhouseStatusWebSocket(
     private suspend fun connect(): StompSession {
         val token = tokenStorage.getToken()
         val wsUrl = Environment.current.wsUrl
-
-        val wsClient = KtorWebSocketClient()
-        // No `autoReceipt`: Spring's SimpleBroker (`enableSimpleBroker(...)` in the
-        // backend's WebSocketConfig) does NOT send STOMP RECEIPT frames, so requesting
-        // one would always time out with LostReceiptException. We rely instead on the
-        // contract documented in `createPollFlow` step (1): `subscribeText()` is
-        // `suspend` and only returns once the SUBSCRIBE frame has been written to the
-        // socket. Calling `sendEmptyMsg()` afterwards on the same connection guarantees
-        // ordered delivery via TCP, and the broker processes frames FIFO per session.
-        val stompClient = StompClient(wsClient)
 
         val headers = buildMap {
             if (token != null) {

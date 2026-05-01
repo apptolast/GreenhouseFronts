@@ -33,6 +33,10 @@ data class WsGreenhouseResponse(
     val code: String,
     val name: String,
     val location: WsLocationDto? = null,
+    // Backend type is BigDecimal; serialised as a JSON number, identical to the REST
+    // contract (`GreenhouseResponse.areaM2: Double?`). Keep `Double?` here so both paths
+    // share the same decoded shape — precision is non-issue for greenhouse areas (a few
+    // thousand m² at most).
     val areaM2: Double? = null,
     val timezone: String? = null,
     val isActive: Boolean = true,
