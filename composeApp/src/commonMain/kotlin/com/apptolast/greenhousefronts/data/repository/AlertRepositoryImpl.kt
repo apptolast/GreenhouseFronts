@@ -13,7 +13,12 @@ class AlertRepositoryImpl(
 
     override suspend fun getActive(): Result<List<Alert>> = listFiltered(isResolved = false)
 
-    override suspend fun getHistory(): Result<List<Alert>> = listFiltered(isResolved = true)
+    override suspend fun getHistory(): Result<List<Alert>> = runCatching {
+        val tenantId = tokenStorage.getTenantId()
+            ?: error("No tenantId in JWT — user is not properly logged in")
+        api.listHistory(tenantId = tenantId)
+            .map { it.toDomain() }
+    }
 
     override suspend fun getById(alertId: Long): Result<Alert> = runCatching {
         api.getById(alertId).toDomain()

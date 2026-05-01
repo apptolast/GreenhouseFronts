@@ -2,7 +2,6 @@ package com.apptolast.greenhousefronts.data.remote.websocket
 
 import com.apptolast.greenhousefronts.data.local.auth.TokenStorage
 import com.apptolast.greenhousefronts.util.Environment
-import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -47,10 +46,12 @@ import org.hildan.krossbow.websocket.ktor.KtorWebSocketClient
  *    after the last one cancels — keeps tab-switches between screens cheap.
  *  - On error the upstream is restarted after [RECONNECT_DELAY_MS]. `replay = 1` means a
  *    fresh subscriber may still see the previous status while the reconnection is in flight.
- *  - `autoReceipt = true` on the underlying client makes both `subscribeText(...)` and
- *    `sendEmptyMsg(...)` suspend until the broker ACKs the frame, eliminating the
- *    SUBSCRIBE/SEND race that previously left the UI stuck on Loading whenever the
- *    network reordered our two opening frames.
+ *  - SUBSCRIBE/SEND ordering is guaranteed by the synchronous flow in [createPollFlow]:
+ *    `subscribeText(...)` is `suspend` and only returns after the SUBSCRIBE frame has been
+ *    written to the socket; `sendEmptyMsg(...)` is then called on the same TCP connection,
+ *    so the backend's STOMP processor receives both frames in order and registers the
+ *    subscription before resolving the request. Auto-receipt (RECEIPT frames) is *not*
+ *    used because Spring's SimpleBroker on the backend doesn't implement them.
  */
 class GreenhouseStatusWebSocket(
     private val tokenStorage: TokenStorage,
@@ -132,14 +133,14 @@ class GreenhouseStatusWebSocket(
         val wsUrl = Environment.current.wsUrl
 
         val wsClient = KtorWebSocketClient()
-        // Auto-receipt makes SUBSCRIBE/SEND suspend until the broker ACKs the frame.
-        // It is the only robust way to guarantee the SUBSCRIBE arrives before our first
-        // SEND in createPollFlow — without it, the broker may discard the response when
-        // the SEND is processed before the SUBSCRIBE.
-        val stompClient = StompClient(wsClient) {
-            autoReceipt = true
-            receiptTimeout = 5.seconds
-        }
+        // No `autoReceipt`: Spring's SimpleBroker (`enableSimpleBroker(...)` in the
+        // backend's WebSocketConfig) does NOT send STOMP RECEIPT frames, so requesting
+        // one would always time out with LostReceiptException. We rely instead on the
+        // contract documented in `createPollFlow` step (1): `subscribeText()` is
+        // `suspend` and only returns once the SUBSCRIBE frame has been written to the
+        // socket. Calling `sendEmptyMsg()` afterwards on the same connection guarantees
+        // ordered delivery via TCP, and the broker processes frames FIFO per session.
+        val stompClient = StompClient(wsClient)
 
         val headers = buildMap {
             if (token != null) {
