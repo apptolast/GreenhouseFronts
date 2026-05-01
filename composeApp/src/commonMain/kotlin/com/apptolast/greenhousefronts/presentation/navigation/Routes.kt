@@ -3,8 +3,21 @@ package com.apptolast.greenhousefronts.presentation.navigation
 import kotlinx.serialization.Serializable
 
 /**
+ * Splash / route-decider. The single fixed `startDestination` of the only NavHost. It
+ * runs `AuthRepository.bootstrap()` on entry and routes the user to either [LoginRoute] or
+ * [GreenhousesRoute] based on the resulting [com.apptolast.greenhousefronts.domain.model.AuthState].
+ *
+ * Following the canonical Navigation Compose pattern (see Android Developers and Mantel's
+ * conditional-navigation guide): keep one fixed start destination, decide the real
+ * destination from a splash, then `popUpTo(SplashRoute) { inclusive = true }` so the
+ * splash is removed from the back stack.
+ */
+@Serializable
+object SplashRoute
+
+/**
  * Represents the login screen route.
- * This is the initial screen where users authenticate.
+ * Shown after the splash decides there is no valid session.
  */
 @Serializable
 object LoginRoute

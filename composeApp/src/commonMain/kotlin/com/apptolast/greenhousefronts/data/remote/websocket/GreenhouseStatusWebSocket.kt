@@ -1,9 +1,12 @@
 package com.apptolast.greenhousefronts.data.remote.websocket
 
-import com.apptolast.greenhousefronts.data.local.auth.TokenStorage
+import com.apptolast.greenhousefronts.domain.model.AuthState
+import com.apptolast.greenhousefronts.domain.repository.AuthRepository
 import com.apptolast.greenhousefronts.util.Environment
+import com.apptolast.greenhousefronts.util.JwtDecoder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -11,6 +14,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.isActive
@@ -22,6 +28,15 @@ import org.hildan.krossbow.stomp.StompSession
 import org.hildan.krossbow.stomp.sendEmptyMsg
 import org.hildan.krossbow.stomp.subscribeText
 import org.hildan.krossbow.websocket.ktor.KtorWebSocketClient
+
+/**
+ * Thrown by the WS pipeline when the cached JWT is expired before we even try to connect.
+ * Caught by [GreenhouseStatusWebSocket]'s `retryWhen` block, which terminates the upstream
+ * (no exponential storm of pointless reconnects) and asks the AuthRepository to invalidate
+ * the session — the global Snackbar listener in App.kt then surfaces the error and
+ * navigates the user to Login.
+ */
+private class TokenExpiredException : RuntimeException("WS bearer expired")
 
 /**
  * STOMP WebSocket client for greenhouse status.
@@ -38,17 +53,23 @@ import org.hildan.krossbow.websocket.ktor.KtorWebSocketClient
  * The legacy `@MessageMapping("/status/request")` + `@SendToUser` round-trip is
  * still alive on the backend and is used here exactly once per (re)connection
  * (see [createPollFlow] step 3) to materialise the initial snapshot without
- * waiting for the next event. After that the client is silent on the upstream;
- * any positive [POLL_INTERVAL_MS] reactivates the legacy polling as a
- * diagnostics fallback.
+ * waiting for the next event.
  *
- * ## Connection lifecycle
+ * ## Connection lifecycle and AuthState integration
  *
+ *  - The upstream is gated on [AuthRepository.authState]: only emissions while the user is
+ *    [AuthState.Authenticated] open a STOMP session. A transition to [AuthState.Unauthenticated]
+ *    cancels the in-flight connection via `flatMapLatest`, and a token change (different
+ *    bearer for the same authenticated user) reopens it transparently.
+ *  - Pre-check: before opening, [JwtDecoder.isTokenExpired] inspects the bearer's `exp`
+ *    claim. An expired token short-circuits with [TokenExpiredException] and triggers
+ *    [AuthRepository.invalidateSession] — there is no point hammering the broker with a
+ *    bearer that the backend will silently downgrade to anonymous.
  *  - One shared STOMP connection across all subscribers (see [sharedStatusFlow]).
  *  - The connection opens on the first subscriber and stays alive for [STOP_TIMEOUT_MS]
  *    after the last one cancels — keeps tab-switches between screens cheap.
- *  - On error the upstream is restarted after [RECONNECT_DELAY_MS]. `replay = 1` means a
- *    fresh subscriber may still see the previous status while the reconnection is in flight.
+ *  - On any other error the upstream is restarted after [RECONNECT_DELAY_MS]. `replay = 1`
+ *    means a fresh subscriber may still see the previous status while reconnecting.
  *  - SUBSCRIBE/SEND ordering is guaranteed by the synchronous flow in [createPollFlow]:
  *    `subscribeText(...)` is `suspend` and only returns after the SUBSCRIBE frame has been
  *    written to the socket; `sendEmptyMsg(...)` is then called on the same TCP connection,
@@ -57,7 +78,7 @@ import org.hildan.krossbow.websocket.ktor.KtorWebSocketClient
  *    used because Spring's SimpleBroker on the backend doesn't implement them.
  */
 class GreenhouseStatusWebSocket(
-    private val tokenStorage: TokenStorage,
+    private val authRepository: AuthRepository,
     private val json: Json,
 ) {
 
@@ -79,12 +100,24 @@ class GreenhouseStatusWebSocket(
         StompClient(wsClient)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     private val sharedStatusFlow: SharedFlow<GreenhouseStatusResponse> by lazy {
-        createPollFlow()
+        authRepository.authState
+            .filterIsInstance<AuthState.Authenticated>()
+            // Reconnect when the bearer changes (token rotation, login-as-different-user)
+            // but skip emissions that change only `expiresAtEpochSec` for the same token.
+            .distinctUntilChangedBy { it.token }
+            .flatMapLatest { state -> createPollFlow(state.token) }
             .retryWhen { cause, attempt ->
-                println("$TAG Connection error (attempt $attempt), reconnecting in ${RECONNECT_DELAY_MS}ms: ${cause::class.simpleName}: ${cause.message}")
-                delay(RECONNECT_DELAY_MS)
-                true
+                if (cause is TokenExpiredException) {
+                    println("$TAG token expired — invalidating session, no retry")
+                    authRepository.invalidateSession(AuthState.Reason.EXPIRED)
+                    false
+                } else {
+                    println("$TAG Connection error (attempt $attempt), reconnecting in ${RECONNECT_DELAY_MS}ms: ${cause::class.simpleName}: ${cause.message}")
+                    delay(RECONNECT_DELAY_MS)
+                    true
+                }
             }
             .shareIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), replay = 1)
     }
@@ -109,9 +142,14 @@ class GreenhouseStatusWebSocket(
      *     backend gains broadcast support, this loop is disabled (interval = 0) and the
      *     flow degenerates into pure push consumption — no other code path changes.
      */
-    private fun createPollFlow(): Flow<GreenhouseStatusResponse> = channelFlow {
+    private fun createPollFlow(token: String): Flow<GreenhouseStatusResponse> = channelFlow {
+        if (JwtDecoder.isTokenExpired(token)) {
+            // No retry, no reconnect — surface upward so retryWhen can route to invalidateSession.
+            throw TokenExpiredException()
+        }
+
         println("$TAG statusFlow: connecting...")
-        val session = connect()
+        val session = connect(token)
         var receiveCount = 0
         var lastReceiveMark: TimeSource.Monotonic.ValueTimeMark? = null
 
@@ -165,23 +203,14 @@ class GreenhouseStatusWebSocket(
         }
     }
 
-    private suspend fun connect(): StompSession {
-        val token = tokenStorage.getToken()
+    private suspend fun connect(token: String): StompSession {
         val wsUrl = Environment.current.wsUrl
 
-        val headers = buildMap {
-            if (token != null) {
-                put("Authorization", "Bearer $token")
-            }
-        }
+        val headers = mapOf("Authorization" to "Bearer $token")
 
-        // bearerPresent=false here means the targeted broadcast pipeline
-        // (`convertAndSendToUser`) won't deliver to this session — only the explicit
-        // request/response via `/app/status/request` will work, and only one snapshot
-        // will arrive after CONNECT.
-        println(
-            "$TAG Connecting to $wsUrl bearerPresent=${token != null} bearerLen=${token?.length ?: 0}"
-        )
+        // bearerPresent=true is enforced by the upstream `filterIsInstance<Authenticated>`
+        // — we never reach this point with a missing token.
+        println("$TAG Connecting to $wsUrl bearerPresent=true bearerLen=${token.length}")
         return stompClient.connect(wsUrl, customStompConnectHeaders = headers).also {
             println("$TAG STOMP CONNECTED")
         }

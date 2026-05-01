@@ -1,6 +1,7 @@
 package com.apptolast.greenhousefronts.data.remote
 
 import com.apptolast.greenhousefronts.data.local.auth.TokenStorage
+import com.apptolast.greenhousefronts.domain.repository.SessionInvalidator
 import com.apptolast.greenhousefronts.util.Environment
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.auth.Auth
@@ -45,11 +46,15 @@ fun createUnauthenticatedHttpClient(jsonConfig: Json) = HttpClient {
  *
  * @param jsonConfig JSON serialization configuration
  * @param tokenStorage Token storage for retrieving the current access token
+ * @param sessionInvalidator Hook called by Ktor on a 401 — today it forwards to the
+ *   AuthRepository to clear the session and emit Unauthenticated; later (when the backend
+ *   ships `/auth/refresh`) it will return a refreshed access token transparently.
  * @return Configured HttpClient with Auth plugin and Bearer token injection
  */
 fun createAuthenticatedHttpClient(
     jsonConfig: Json,
-    tokenStorage: TokenStorage
+    tokenStorage: TokenStorage,
+    sessionInvalidator: SessionInvalidator,
 ) = HttpClient {
     install(ContentNegotiation) {
         json(jsonConfig)
@@ -74,6 +79,19 @@ fun createAuthenticatedHttpClient(
                 } else {
                     null
                 }
+            }
+
+            // Invoked automatically by Ktor on any 401 response. Per the official Ktor 3.x
+            // bearer-auth docs (https://ktor.io/docs/client-bearer-auth.html), returning
+            // null here makes Ktor surface the 401 to the caller; returning a fresh
+            // BearerTokens triggers a transparent retry of the original request.
+            //
+            // Today the backend has no refresh endpoint, so `tryRefreshOrInvalidate()` is a
+            // stub that clears the session and returns null. When `/auth/refresh` ships,
+            // the implementation is replaced and this block requires no changes.
+            refreshTokens {
+                val newToken = sessionInvalidator.tryRefreshOrInvalidate()
+                newToken?.let { BearerTokens(it, "") }
             }
 
             // Send auth headers without waiting for 401

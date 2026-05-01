@@ -6,18 +6,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
@@ -29,6 +23,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,20 +33,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import greenhousefronts.composeapp.generated.resources.Res
-import greenhousefronts.composeapp.generated.resources.ic_launcher_foreground
-import org.jetbrains.compose.resources.painterResource
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.apptolast.greenhousefronts.domain.model.Greenhouse
 import com.apptolast.greenhousefronts.presentation.navigation.BottomNavSelectionBus
 import com.apptolast.greenhousefronts.presentation.ui.components.BottomNavBar
-import com.apptolast.greenhousefronts.presentation.ui.components.LoadingBar
 import com.apptolast.greenhousefronts.presentation.ui.components.BottomNavTab
 import com.apptolast.greenhousefronts.presentation.ui.components.GreenhouseCard
+import com.apptolast.greenhousefronts.presentation.ui.components.LoadingBar
 import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
 import com.apptolast.greenhousefronts.presentation.viewmodel.AlertsViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseListUiState
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseListViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.ProfileViewModel
+import greenhousefronts.composeapp.generated.resources.Res
+import greenhousefronts.composeapp.generated.resources.ic_launcher_foreground
+import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -71,9 +67,15 @@ fun MainScreen(
     val greenhouseUiState by greenhouseListViewModel.uiState.collectAsState()
 
     // Allow external triggers (e.g. the deep-link handler in App.kt) to switch tabs.
+    // Backed by a StateFlow so a tab selection emitted while the user was still on Login
+    // is replayed once MainScreen subscribes for the first time.
     val bottomNavBus: BottomNavSelectionBus = koinInject()
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        bottomNavBus.requests.collect { selectedTab = it }
+    val pendingTab by bottomNavBus.pending.collectAsState()
+    LaunchedEffect(pendingTab) {
+        pendingTab?.let { tab ->
+            selectedTab = tab
+            bottomNavBus.consume()
+        }
     }
 
     @OptIn(ExperimentalMaterial3Api::class)

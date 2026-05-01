@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.apptolast.greenhousefronts.data.model.auth.RegisterRequest
 import com.apptolast.greenhousefronts.data.remote.push.PushTokenRegistrar
+import com.apptolast.greenhousefronts.domain.model.AuthState
 import com.apptolast.greenhousefronts.domain.repository.AuthRepository
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -78,6 +79,24 @@ class AuthViewModel(
 
     // Mutex to prevent concurrent auth operations
     private val authMutex = Mutex()
+
+    init {
+        // Pre-fill the email field when the user arrives at Login because their previous
+        // session was lost (token expired or backend invalidated). On a clean cold-start
+        // (Reason.INITIAL) there is no previous email, so leave the field empty. Manual
+        // logout intentionally clears credentials to encourage entering them again.
+        viewModelScope.launch {
+            val state = authRepository.authState.value
+            if (state is AuthState.Unauthenticated &&
+                (state.reason == AuthState.Reason.EXPIRED ||
+                        state.reason == AuthState.Reason.INVALIDATED_BY_SERVER)
+            ) {
+                authRepository.getUsername()?.takeIf { it.isNotBlank() }?.let { email ->
+                    uiState.update { it.copy(email = email) }
+                }
+            }
+        }
+    }
 
     // ========== Login Field Updates ==========
 
@@ -183,7 +202,8 @@ class AuthViewModel(
                 )
                     .onSuccess {
                         uiState.update { it.copy(isLoading = false) }
-                        pushTokenRegistrar.registerIfLoggedIn()
+                        // FCM registration is handled by PushTokenRegistrar's reactive
+                        // collector on AuthRepository.authState — no explicit call needed.
                         _events.send(AuthEvent.LoginSuccess)
                     }
                     .onFailure { error ->
@@ -235,7 +255,8 @@ class AuthViewModel(
                 authRepository.register(request)
                     .onSuccess {
                         uiState.update { it.copy(isLoading = false) }
-                        pushTokenRegistrar.registerIfLoggedIn()
+                        // FCM registration is handled by PushTokenRegistrar's reactive
+                        // collector on AuthRepository.authState — no explicit call needed.
                         _events.send(AuthEvent.RegisterSuccess)
                     }
                     .onFailure { error ->

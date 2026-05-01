@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -74,6 +75,11 @@ fun AlertsScreen(
         modifier = modifier,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
+        // Nested inside MainScreen's Scaffold, which already consumes the system status
+        // bar and navigation bar insets. Without this, both Scaffolds reserve the status
+        // bar inset and the content drops by ~status_bar_height below the parent's
+        // TopAppBar — visible as a large empty band above the "Activas/Histórico" tabs.
+        contentWindowInsets = WindowInsets(0),
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             AlertsTabRow(

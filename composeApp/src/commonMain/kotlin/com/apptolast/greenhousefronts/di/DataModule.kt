@@ -25,6 +25,7 @@ import com.apptolast.greenhousefronts.data.repository.UserRepositoryImpl
 import com.apptolast.greenhousefronts.domain.repository.AlertRepository
 import com.apptolast.greenhousefronts.domain.repository.AuthRepository
 import com.apptolast.greenhousefronts.domain.repository.GreenhouseRepository
+import com.apptolast.greenhousefronts.domain.repository.SessionInvalidator
 import com.apptolast.greenhousefronts.domain.repository.UserRepository
 import com.apptolast.greenhousefronts.presentation.navigation.BottomNavSelectionBus
 import com.apptolast.greenhousefronts.presentation.navigation.PendingAlertSelectionBus
@@ -60,18 +61,37 @@ val dataModule = module {
     // Token Storage - uses default platform Settings
     single<TokenStorage> { TokenStorageImpl() }
 
-    // Unauthenticated HttpClient (for login/register)
+    // Unauthenticated HttpClient (for login/register/forgot/reset/logout)
     single(UNAUTHENTICATED_CLIENT) {
         createUnauthenticatedHttpClient(get())
     }
 
-    // Authenticated HttpClient (for protected endpoints)
-    single(AUTHENTICATED_CLIENT) {
-        createAuthenticatedHttpClient(get(), get())
-    }
-
-    // Auth API Service - uses unauthenticated client
+    // Auth API Service - uses unauthenticated client. Built BEFORE AuthRepository because
+    // AuthRepository depends on it.
     single { AuthApiService(get(UNAUTHENTICATED_CLIENT)) }
+
+    // Auth Repository — exposed under both AuthRepository and SessionInvalidator. This is
+    // the cycle-breaking trick: the authenticated HttpClient below depends on
+    // SessionInvalidator (a tiny interface), not on AuthRepository (which depends on the
+    // unauthenticated client). Same singleton, two interfaces.
+    single<AuthRepositoryImpl> {
+        AuthRepositoryImpl(
+            authApiService = get(),
+            tokenStorage = get(),
+        )
+    }
+    single<AuthRepository> { get<AuthRepositoryImpl>() }
+    single<SessionInvalidator> { get<AuthRepositoryImpl>() }
+
+    // Authenticated HttpClient (for protected endpoints) — depends on SessionInvalidator
+    // for the bearer.refreshTokens block.
+    single(AUTHENTICATED_CLIENT) {
+        createAuthenticatedHttpClient(
+            jsonConfig = get(),
+            tokenStorage = get(),
+            sessionInvalidator = get(),
+        )
+    }
 
     // Greenhouse API Service - uses authenticated client
     single { GreenhouseApiService(get(AUTHENTICATED_CLIENT)) }
@@ -95,13 +115,16 @@ val dataModule = module {
     single<PushTokenProvider> { providePushTokenProvider() }
     single<PushNotifier> { providePushNotifier() }
     single { PushTokenApiService(get(AUTHENTICATED_CLIENT)) }
-    single { PushTokenRegistrar(get(), get(), get(), get()) }
-
-    // Auth Repository
-    single<AuthRepository> {
-        AuthRepositoryImpl(
-            authApiService = get(),
+    // createdAtStart = true so the constructor's init block runs at app boot; the
+    // registrar then attaches its reactive collectors on AuthState + FCM token rotations
+    // without requiring an explicit call from App.kt.
+    single(createdAtStart = true) {
+        PushTokenRegistrar(
+            tokenProvider = get(),
+            notifier = get(),
+            api = get(),
             tokenStorage = get(),
+            authRepository = get(),
         )
     }
 

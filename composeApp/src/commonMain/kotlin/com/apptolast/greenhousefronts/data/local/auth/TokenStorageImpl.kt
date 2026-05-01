@@ -50,11 +50,24 @@ class TokenStorageImpl : TokenStorage {
         return settings.getStringOrNull(TokenStorageKeys.DISPLAY_NAME)
     }
 
+    override suspend fun saveTokenExpiry(epochSec: Long) {
+        settings.putLong(TokenStorageKeys.TOKEN_EXP, epochSec)
+    }
+
+    override suspend fun getTokenExpiry(): Long? {
+        return if (settings.hasKey(TokenStorageKeys.TOKEN_EXP)) {
+            settings.getLong(TokenStorageKeys.TOKEN_EXP, 0L)
+        } else {
+            null
+        }
+    }
+
     override suspend fun clearAll() {
         settings.remove(TokenStorageKeys.ACCESS_TOKEN)
         settings.remove(TokenStorageKeys.USERNAME)
         settings.remove(TokenStorageKeys.TENANT_ID)
         settings.remove(TokenStorageKeys.DISPLAY_NAME)
+        settings.remove(TokenStorageKeys.TOKEN_EXP)
     }
 
     override fun hasToken(): Boolean {

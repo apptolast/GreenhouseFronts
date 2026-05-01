@@ -65,6 +65,19 @@ interface TokenStorage {
     suspend fun getDisplayName(): String?
 
     /**
+     * Persists the access-token expiration (Unix epoch seconds, RFC 7519 `exp` claim).
+     * Stored alongside the token on login / register so [getTokenExpiry] is fast and does
+     * not require re-decoding the JWT on every check.
+     */
+    suspend fun saveTokenExpiry(epochSec: Long)
+
+    /**
+     * Retrieves the stored access-token expiration in Unix epoch seconds, or null if no
+     * token has been persisted with an expiry yet.
+     */
+    suspend fun getTokenExpiry(): Long?
+
+    /**
      * Checks if a valid token is currently stored.
      * Note: Does not validate token expiration, only presence.
      * @return true if a token exists
@@ -82,4 +95,5 @@ internal object TokenStorageKeys {
     const val USERNAME = "${PREFIX}username"
     const val TENANT_ID = "${PREFIX}tenant_id"
     const val DISPLAY_NAME = "${PREFIX}display_name"
+    const val TOKEN_EXP = "${PREFIX}token_exp"
 }
