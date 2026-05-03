@@ -96,17 +96,12 @@ fun App() {
             }
         }
 
-        // Global session-expired feedback. The AuthRepository emits a SessionEvent any
-        // time the session is invalidated (mid-session 401, manual logout, JWT exp
-        // detected at startup). EXPIRED / INVALIDATED_BY_SERVER also force-redirect to
-        // Login popping the entire back stack so protected screens can't be revisited
-        // via the back button while the user is unauthenticated.
+        // Global session feedback. EXPIRED also pops the back stack so protected screens
+        // can't be revisited with the back button while unauthenticated.
         val snackbarHostState = remember { SnackbarHostState() }
         LaunchedEffect(Unit) {
             authRepository.sessionEvents.collect { event ->
-                if (event.reason == AuthState.Reason.EXPIRED ||
-                    event.reason == AuthState.Reason.INVALIDATED_BY_SERVER
-                ) {
+                if (event.reason == AuthState.Reason.EXPIRED) {
                     navController.navigate(LoginRoute) {
                         popUpTo(0) { inclusive = true }
                     }

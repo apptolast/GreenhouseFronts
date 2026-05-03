@@ -81,16 +81,11 @@ class AuthViewModel(
     private val authMutex = Mutex()
 
     init {
-        // Pre-fill the email field when the user arrives at Login because their previous
-        // session was lost (token expired or backend invalidated). On a clean cold-start
-        // (Reason.INITIAL) there is no previous email, so leave the field empty. Manual
-        // logout intentionally clears credentials to encourage entering them again.
+        // Pre-fill the email when the user lands on Login because their session expired —
+        // not on cold-start (INITIAL) or manual logout, both of which want a clean form.
         viewModelScope.launch {
             val state = authRepository.authState.value
-            if (state is AuthState.Unauthenticated &&
-                (state.reason == AuthState.Reason.EXPIRED ||
-                        state.reason == AuthState.Reason.INVALIDATED_BY_SERVER)
-            ) {
+            if (state is AuthState.Unauthenticated && state.reason == AuthState.Reason.EXPIRED) {
                 authRepository.getUsername()?.takeIf { it.isNotBlank() }?.let { email ->
                     uiState.update { it.copy(email = email) }
                 }
@@ -380,45 +375,6 @@ class AuthViewModel(
      */
     fun clearError() {
         uiState.update { it.copy(error = null) }
-    }
-
-    /**
-     * Checks if user is currently logged in.
-     */
-    fun isLoggedIn(): Boolean {
-        return authRepository.isLoggedIn()
-    }
-
-    /**
-     * Clears login form fields.
-     */
-    fun clearLoginForm() {
-        uiState.update {
-            it.copy(
-                email = "",
-                password = "",
-                isPasswordVisible = false
-            )
-        }
-    }
-
-    /**
-     * Clears register form fields.
-     */
-    fun clearRegisterForm() {
-        uiState.update {
-            it.copy(
-                companyName = "",
-                taxId = "",
-                firstName = "",
-                lastName = "",
-                registerEmail = "",
-                registerPassword = "",
-                isRegisterPasswordVisible = false,
-                phone = "",
-                address = ""
-            )
-        }
     }
 
     fun clearForgotPasswordForm() {

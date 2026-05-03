@@ -3,31 +3,29 @@ package com.apptolast.greenhousefronts.domain.repository
 import com.apptolast.greenhousefronts.domain.model.AuthState
 
 /**
- * Narrow interface implemented by `AuthRepository` and consumed by `KtorClient`'s bearer
- * `refreshTokens` block. Carved out as a separate type so the authenticated `HttpClient`
- * does not need to depend on the full `AuthRepository` (which itself depends on the
- * unauthenticated `HttpClient` via `AuthApiService`) — this is what breaks the otherwise
- * circular Koin graph.
+ * Narrow refresh-and-invalidate slice of [AuthRepository]. Exposed separately so the
+ * authenticated `HttpClient` (which the repo depends on transitively) does not have to
+ * depend on the full repo — breaks the otherwise circular Koin graph.
  */
 interface SessionInvalidator {
 
     /**
-     * Best-effort refresh: when the backend exposes `/api/v1/auth/refresh`, this will issue
-     * the call with the stored refresh token and return the new access token. Until then it
-     * is a stub that immediately calls [invalidateSession] with [AuthState.Reason.EXPIRED]
-     * and returns `null`, so the Ktor `bearer { refreshTokens { … } }` block treats the
-     * 401 as terminal and the caller propagates the failure to the UI.
+     * `POST /auth/refresh` with the stored refresh token. Returns the new access token or
+     * `null` if the session could not be recovered. Returning `null` is load-bearing —
+     * the Ktor `Auth` plugin treats it as "give up and surface the 401".
      *
-     * Returning `null` is a load-bearing contract: the Ktor `Auth` plugin interprets a
-     * `null` from `refreshTokens` as "give up and surface the original 401".
+     *  - 200          → persists the rotated pair, sets Authenticated, returns new access.
+     *  - 4xx          → drops the dead refresh + invalidates the session.
+     *  - 5xx (incl. 503 kill-switch) → keeps the refresh, invalidates the session.
+     *  - I/O failure  → keeps both tokens, no invalidation; next caller retries.
+     *
+     * Concurrent callers are coalesced internally — only the first issues the HTTP call.
      */
     suspend fun tryRefreshOrInvalidate(): String?
 
     /**
-     * Marks the current session as gone. Clears persisted credentials, transitions
-     * [com.apptolast.greenhousefronts.domain.repository.AuthRepository.authState] to
-     * [AuthState.Unauthenticated] with the supplied [reason], and emits a corresponding
-     * [com.apptolast.greenhousefronts.domain.model.SessionEvent] for the UI to react to.
+     * Clears credentials, transitions [AuthRepository.authState] to Unauthenticated, and
+     * emits a [com.apptolast.greenhousefronts.domain.model.SessionEvent] with [reason].
      */
     suspend fun invalidateSession(reason: AuthState.Reason)
 }

@@ -46,15 +46,35 @@ data class RegisterRequest(
 )
 
 /**
- * Response from login/register endpoints containing JWT token.
- * The token should be stored securely and sent with subsequent requests.
+ * Response from `/auth/login`, `/auth/register` and `/auth/refresh`.
+ *
+ * `token`, `type`, `username` and `roles` are required by the OpenAPI schema.
+ * `refreshToken`, `expiresIn` and `refreshExpiresIn` are nullable because the backend
+ * exposes a kill-switch (`REFRESH_TOKEN_ENABLED`) that, when off, returns the legacy
+ * shape. In normal operation they are always informed.
+ *
+ *  - `expiresIn`         — access token TTL in seconds (default backend config: 3600).
+ *  - `refreshExpiresIn`  — refresh token TTL in seconds (default backend config: 2_592_000 = 30d).
+ *  - `refreshToken`      — opaque (NOT a JWT). Rotates on every successful `/auth/refresh`.
  */
 @Serializable
 data class JwtResponse(
     val token: String,
     val type: String = "Bearer",
     val username: String,
-    val roles: List<String> = emptyList()
+    val roles: List<String> = emptyList(),
+    val refreshToken: String? = null,
+    val expiresIn: Long? = null,
+    val refreshExpiresIn: Long? = null,
+)
+
+/**
+ * Request body for `POST /auth/refresh`. Identifies the user by the opaque token —
+ * no `Authorization` header is required (and Ktor's bearer plugin must not attach one).
+ */
+@Serializable
+data class RefreshRequest(
+    val refreshToken: String,
 )
 
 /**

@@ -37,14 +37,11 @@ sealed interface AuthState {
         /** No token has ever been stored on this device, or the user just opened the app fresh. */
         INITIAL,
 
-        /** Local `exp` check (or backend 401) found the token to be expired. */
+        /** Local `exp` check failed, or `/auth/refresh` returned a terminal failure. */
         EXPIRED,
 
         /** The user explicitly tapped "Cerrar sesión". */
         MANUAL_LOGOUT,
-
-        /** Backend rejected an authenticated request and the client could not refresh. */
-        INVALIDATED_BY_SERVER,
     }
 }
 

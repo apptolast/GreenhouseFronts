@@ -1,6 +1,7 @@
 package com.apptolast.greenhousefronts.presentation.ui
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -111,7 +112,7 @@ private fun SplashContent() {
 private fun PreviewSplashContent() {
     GreenhouseTheme(darkTheme = true) {
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         ) {
             SplashContent()
         }
@@ -127,7 +128,7 @@ private fun PreviewSplashContent() {
 private fun PreviewSplashContentLight() {
     GreenhouseTheme(darkTheme = false) {
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         ) {
             SplashContent()
         }

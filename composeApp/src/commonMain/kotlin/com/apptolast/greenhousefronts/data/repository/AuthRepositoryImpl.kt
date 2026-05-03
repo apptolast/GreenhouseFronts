@@ -5,6 +5,7 @@ import com.apptolast.greenhousefronts.data.model.auth.AuthError
 import com.apptolast.greenhousefronts.data.model.auth.ForgotPasswordRequest
 import com.apptolast.greenhousefronts.data.model.auth.JwtResponse
 import com.apptolast.greenhousefronts.data.model.auth.LoginRequest
+import com.apptolast.greenhousefronts.data.model.auth.RefreshRequest
 import com.apptolast.greenhousefronts.data.model.auth.RegisterRequest
 import com.apptolast.greenhousefronts.data.model.auth.ResetPasswordRequest
 import com.apptolast.greenhousefronts.data.remote.api.AuthApiService
@@ -13,8 +14,11 @@ import com.apptolast.greenhousefronts.domain.model.SessionEvent
 import com.apptolast.greenhousefronts.domain.repository.AuthRepository
 import com.apptolast.greenhousefronts.util.JwtDecoder
 import io.ktor.client.plugins.ClientRequestException
+import io.ktor.client.plugins.ServerResponseException
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -25,18 +29,14 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * Implementation of [AuthRepository].
+ * Source of truth for the session: owns [authState], [sessionEvents], and the refresh /
+ * invalidate hooks consumed by Ktor's `bearer { refreshTokens { … } }` block.
  *
- * In addition to the legacy login/register/logout flow, this class is now the single
- * source of truth for the session: it owns the [authState] StateFlow, the [sessionEvents]
- * SharedFlow, and the [invalidateSession] / [tryRefreshOrInvalidate] entry points consumed
- * by the Ktor `bearer { refreshTokens { … } }` block in `KtorClient.kt`.
- *
- * Backend constraint (verified on inverapi-dev Swagger): there is no `/auth/refresh`
- * endpoint yet. [tryRefreshOrInvalidate] is therefore a stub that immediately invalidates
- * the session and returns `null`. When the backend ships the endpoint, the body of that
- * method becomes the actual refresh call — no caller changes.
+ * Backend contract (verified against `inverapi-dev/v3/api-docs`): `/auth/refresh` rotates
+ * both tokens; reusing a revoked refresh revokes the whole family. Access TTL ≈ 1h,
+ * refresh TTL ≈ 30d.
  */
+@OptIn(ExperimentalTime::class)
 class AuthRepositoryImpl(
     private val authApiService: AuthApiService,
     private val tokenStorage: TokenStorage,
@@ -45,41 +45,66 @@ class AuthRepositoryImpl(
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
     override val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
-    // Replay = 1 so a Snackbar that subscribes a few frames after `invalidateSession` was
-    // called still picks up the message. Buffered to avoid blocking emitters.
+    // replay=1 so a Snackbar attached late still sees the last event.
     private val _sessionEvents = MutableSharedFlow<SessionEvent>(replay = 1, extraBufferCapacity = 4)
     override val sessionEvents: SharedFlow<SessionEvent> = _sessionEvents.asSharedFlow()
 
-    // Guards against concurrent bootstrap / invalidate races.
     private val sessionMutex = Mutex()
 
+    // Coalesces concurrent refresh attempts (Ktor bearer + WS reconnect can race).
+    // Held separately from sessionMutex: persistSuccessfulAuth / invalidateSession take
+    // sessionMutex from inside the refresh path, so nested locking would deadlock.
+    private val refreshMutex = Mutex()
+
     override suspend fun bootstrap() {
-        sessionMutex.withLock {
-            // If we've already settled to Authenticated/Unauthenticated for THIS app session,
-            // a second bootstrap call is a no-op. We only re-evaluate while still Loading.
-            if (_authState.value !is AuthState.Loading) return
+        // Early-return outside the mutex so nested calls below can't deadlock.
+        if (_authState.value !is AuthState.Loading) return
 
-            val token = tokenStorage.getToken()
-            if (token.isNullOrBlank()) {
-                _authState.value = AuthState.Unauthenticated(AuthState.Reason.INITIAL)
-                return
+        val token = tokenStorage.getToken()
+        if (token.isNullOrBlank()) {
+            settleUnauthenticated(AuthState.Reason.INITIAL, emitEvent = false)
+            return
+        }
+
+        if (!JwtDecoder.isTokenExpired(token)) {
+            sessionMutex.withLock {
+                if (_authState.value !is AuthState.Loading) return
+                _authState.value = AuthState.Authenticated(token, JwtDecoder.extractExpiration(token))
             }
+            return
+        }
 
-            if (JwtDecoder.isTokenExpired(token)) {
-                tokenStorage.clearAll()
-                _authState.value = AuthState.Unauthenticated(AuthState.Reason.EXPIRED)
+        // Access expired but the refresh window may still be open — try it before forcing Login.
+        if (refreshTokenLooksUsable()) {
+            // tryRefreshOrInvalidate transitions authState itself (Authenticated or
+            // Unauthenticated), so no follow-up work is needed regardless of the result.
+            tryRefreshOrInvalidate()
+            return
+        }
+
+        settleUnauthenticated(AuthState.Reason.EXPIRED, emitEvent = true)
+    }
+
+    private suspend fun refreshTokenLooksUsable(): Boolean {
+        if (tokenStorage.getRefreshToken().isNullOrBlank()) return false
+        val refreshExp = tokenStorage.getRefreshExpiry() ?: return true
+        // 30 s leeway mirrors JwtDecoder.isTokenExpired — avoids racing the backend clock.
+        return refreshExp > Clock.System.now().epochSeconds + 30
+    }
+
+    private suspend fun settleUnauthenticated(reason: AuthState.Reason, emitEvent: Boolean) {
+        sessionMutex.withLock {
+            if (_authState.value !is AuthState.Loading) return
+            tokenStorage.clearAll()
+            _authState.value = AuthState.Unauthenticated(reason)
+            if (emitEvent) {
                 _sessionEvents.tryEmit(
                     SessionEvent(
                         message = "Tu sesión ha caducado. Inicia sesión de nuevo.",
-                        reason = AuthState.Reason.EXPIRED,
+                        reason = reason,
                     )
                 )
-                return
             }
-
-            val exp = JwtDecoder.extractExpiration(token)
-            if (exp != null) tokenStorage.saveTokenExpiry(exp)
-            _authState.value = AuthState.Authenticated(token, exp)
         }
     }
 
@@ -148,8 +173,6 @@ class AuthRepositoryImpl(
         }
     }
 
-    override fun isLoggedIn(): Boolean = tokenStorage.hasToken()
-
     override suspend fun getToken(): String? = tokenStorage.getToken()
 
     override suspend fun getUsername(): String? = tokenStorage.getUsername()
@@ -158,13 +181,41 @@ class AuthRepositoryImpl(
 
     // --- SessionInvalidator ---
 
-    override suspend fun tryRefreshOrInvalidate(): String? {
-        // Forward-compat hook. Today: the backend has no /auth/refresh, so any 401 is
-        // terminal — clear the session and surface the EXPIRED reason. When backend ships
-        // the endpoint, replace this body with the actual call (using
-        // `markAsRefreshTokenRequest()` on the request to avoid recursion).
-        invalidateSession(AuthState.Reason.EXPIRED)
-        return null
+    override suspend fun tryRefreshOrInvalidate(): String? = refreshMutex.withLock {
+        // Coalesce: if another caller already refreshed inside the mutex, reuse its token.
+        val cachedAccess = tokenStorage.getToken()
+        if (!cachedAccess.isNullOrBlank() && !JwtDecoder.isTokenExpired(cachedAccess)) {
+            return@withLock cachedAccess
+        }
+
+        val refresh = tokenStorage.getRefreshToken()
+        if (refresh.isNullOrBlank()) {
+            invalidateSession(AuthState.Reason.EXPIRED)
+            return@withLock null
+        }
+
+        try {
+            val response = authApiService.refresh(RefreshRequest(refreshToken = refresh))
+            persistSuccessfulAuth(response)
+            response.token
+        } catch (e: ClientRequestException) {
+            // 4xx is terminal — 401 means revoked/reused (reuse revokes the family),
+            // 400 means malformed. Either way the stored refresh is dead.
+            println("[AUTH] /auth/refresh failed HTTP ${e.response.status.value} — invalidating")
+            tokenStorage.clearRefreshToken()
+            invalidateSession(AuthState.Reason.EXPIRED)
+            null
+        } catch (e: ServerResponseException) {
+            // 5xx incl. 503 kill-switch: keep the refresh (may flip back), invalidate now.
+            println("[AUTH] /auth/refresh HTTP ${e.response.status.value} — invalidating, refresh kept")
+            invalidateSession(AuthState.Reason.EXPIRED)
+            null
+        } catch (e: Exception) {
+            // Transient I/O — keep both tokens, next caller retries. Null surfaces the
+            // original 401 to Ktor as required by the bearer plugin.
+            println("[AUTH] /auth/refresh transient failure (${e::class.simpleName}) — kept for retry")
+            null
+        }
     }
 
     override suspend fun invalidateSession(reason: AuthState.Reason) {
@@ -176,10 +227,7 @@ class AuthRepositoryImpl(
             tokenStorage.clearAll()
             _authState.value = AuthState.Unauthenticated(reason)
             val message = when (reason) {
-                AuthState.Reason.EXPIRED,
-                AuthState.Reason.INVALIDATED_BY_SERVER ->
-                    "Tu sesión ha caducado. Inicia sesión de nuevo."
-
+                AuthState.Reason.EXPIRED -> "Tu sesión ha caducado. Inicia sesión de nuevo."
                 AuthState.Reason.MANUAL_LOGOUT -> "Sesión cerrada."
                 AuthState.Reason.INITIAL -> return // no message for cold-start unauth
             }
@@ -190,9 +238,9 @@ class AuthRepositoryImpl(
     // --- Internals ---
 
     /**
-     * Persists the JWT bundle returned by login / register and transitions [authState] to
-     * [AuthState.Authenticated]. Extracts `tenantId`, `firstName`/`first_name`/`name` and
-     * `exp` claims while we have the raw token in hand.
+     * Persists the JWT bundle from login / register / refresh and emits Authenticated.
+     * If [response] omits `refreshToken` (kill-switch path) the previously stored refresh
+     * is kept — wiping it would force a re-login on the next 401.
      */
     private suspend fun persistSuccessfulAuth(response: JwtResponse) {
         sessionMutex.withLock {
@@ -200,31 +248,31 @@ class AuthRepositoryImpl(
             tokenStorage.saveUsername(response.username)
             extractAndSaveJwtClaims(response.token)
 
+            response.refreshToken?.takeIf { it.isNotBlank() }?.let { newRefresh ->
+                tokenStorage.saveRefreshToken(newRefresh)
+                response.refreshExpiresIn?.let { ttlSec ->
+                    val expiresAt = Clock.System.now().epochSeconds + ttlSec
+                    tokenStorage.saveRefreshExpiry(expiresAt)
+                }
+            }
+
             val exp = JwtDecoder.extractExpiration(response.token)
             _authState.value = AuthState.Authenticated(response.token, exp)
         }
     }
 
-    /**
-     * Extracts tenantId, display name and `exp` from the JWT and saves them.
-     */
+    /** Extracts tenantId and display name from the JWT and persists them. */
     private suspend fun extractAndSaveJwtClaims(token: String) {
-        // Try common claim names for tenantId
         val tenantId = JwtDecoder.extractLongClaim(token, "tenantId")
             ?: JwtDecoder.extractLongClaim(token, "tenant_id")
             ?: JwtDecoder.extractStringClaim(token, "tenantId")?.toLongOrNull()
             ?: JwtDecoder.extractStringClaim(token, "tenant_id")?.toLongOrNull()
         tenantId?.let { tokenStorage.saveTenantId(it) }
 
-        // Try to extract display name
         val displayName = JwtDecoder.extractStringClaim(token, "firstName")
             ?: JwtDecoder.extractStringClaim(token, "first_name")
             ?: JwtDecoder.extractStringClaim(token, "name")
         displayName?.let { tokenStorage.saveDisplayName(it) }
-
-        // Persist `exp` for fast access from non-suspending consumers (the WebSocket pre-check
-        // and the splash route both pull this without re-decoding the JWT).
-        JwtDecoder.extractExpiration(token)?.let { tokenStorage.saveTokenExpiry(it) }
     }
 
     /**

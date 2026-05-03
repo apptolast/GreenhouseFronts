@@ -1,585 +1,222 @@
 # CLAUDE.md
 
-Guidance for Claude Code when working in this repository.
+Guidance for Claude Code when working in this repository. The global Anthropic CLAUDE.md
+(`~/.claude/CLAUDE.md`) covers the cross-project KMP standards (DI, theming, GitFlow,
+Jira, etc.). This file only contains project-specific facts that override or extend it.
 
-## Development Guidelines (IMPORTANT)
+## Ground rules
 
-1. **Do NOT invent or hallucinate** — Verify with official documentation. Use web search if unsure.
-2. **Ask if unclear** — Ask for clarification rather than guessing on architecture or requirements.
-3. **Follow existing patterns** — MVVM + Repository are already implemented. Match them.
-4. **Code comments in English** — All technical comments and KDoc in English. UI-facing strings stay in Spanish for the
-   target audience.
+1. **Verify, don't guess.** Backend contracts, library APIs, gradle tasks — check the
+   source / Swagger / official docs. Use web search if unsure.
+2. **Ask if unclear** before changing architecture or contracts.
+3. **Match existing patterns.** MVVM + Repository + Koin DI is already wired across the
+   app — extend it, don't reinvent it.
+4. **Comments in English. UI strings in Spanish** (target audience).
 
-## Project Overview
+## Stack snapshot
 
-**Kotlin Multiplatform** project using **Compose Multiplatform** for shared UI across Android, iOS, Desktop (JVM), and
-Web (Wasm/JS). Architecture: **MVVM** + **Repository pattern**. Network: **Ktor Client**. DI: **Koin**.
+- Kotlin 2.2.20, Compose Multiplatform 1.9.1, Ktor 3.0.3, Koin BOM 4.1.1
+- Targets: Android (minSdk 24, targetSdk 36), iOS, Desktop JVM, Web (Wasm + JS)
+- Architecture: MVVM + Repository · DI: Koin · HTTP: Ktor · Real-time: STOMP via Krossbow
+- Android namespace: `com.apptolast.greenhousefronts` · JVM heap: 4 GB · CC enabled
 
-## Build and Run Commands
-
-### Android
-```bash
-./gradlew :composeApp:assembleDebug    # Build debug APK
-./gradlew :composeApp:run              # Run on emulator/device
-```
-
-### Desktop (JVM)
-```bash
-./gradlew :composeApp:run
-```
-
-### Web
-```bash
-./gradlew :composeApp:wasmJsBrowserDevelopmentRun   # Wasm (recommended)
-./gradlew :composeApp:jsBrowserDevelopmentRun       # JS (legacy)
-```
-
-### iOS
-
-Open `iosApp/` in Xcode or use the IDE run configuration.
-
-### Yarn Lock File Management (IMPORTANT)
-
-When adding/modifying dependencies that have npm transitive deps (Krossbow, Ktor WebSockets, etc.), you **must manually
-update** the yarn.lock file for web targets:
+## Build & run
 
 ```bash
-./gradlew kotlinUpgradeYarnLock        # JS target
-./gradlew kotlinWasmUpgradeYarnLock    # WASM target
+./gradlew :composeApp:assembleDebug                  # Android APK
+./gradlew :composeApp:run                            # Android or Desktop (JVM)
+./gradlew :composeApp:wasmJsBrowserDevelopmentRun    # Web (preferred)
+./gradlew :composeApp:jsBrowserDevelopmentRun        # Web (legacy JS)
+# iOS: open iosApp/ in Xcode
 ```
 
-Run after adding/updating deps in `gradle/libs.versions.toml`, or when the build error says
-`"Lock file was changed. Run the kotlinUpgradeYarnLock task"`. **Always commit the updated `yarn.lock` files** alongside
-your code changes — they're tracked for build reproducibility.
+### Yarn lock (web targets)
 
-## API Configuration
+When you add/update deps that pull npm transitives (Krossbow, Ktor WebSockets, etc.):
 
-### Environments
-
-Configured in `util/Environment.kt`. Switch by modifying `Environment.current`.
-
-- **DEV**: `https://inverapi-dev.apptolast.com`
-- **PROD**: `https://inverapi-prod.apptolast.com`
-
-### Swagger
-
-- DEV: https://inverapi-dev.apptolast.com/swagger-ui/index.html
-- PROD: https://inverapi-prod.apptolast.com/swagger-ui/index.html
-
-### Key API Endpoints
-
-#### GET /api/greenhouse/messages/recent
-Retrieves recent greenhouse sensor messages.
-
-**Response**: Array of GreenhouseMessage:
-```json
-[{
-  "timestamp": "2025-11-11T21:54:17.336Z",
-  "sensor01": 0.1,
-  "sensor02": 0.1,
-  "setpoint01": 0.1,
-  "setpoint02": 0.1,
-  "setpoint03": 0.1,
-  "greenhouseId": "string",
-  "rawPayload": "string"
-}]
+```bash
+./gradlew kotlinUpgradeYarnLock        # JS
+./gradlew kotlinWasmUpgradeYarnLock    # WASM
 ```
 
-#### POST /api/mqtt/publish/custom
+Commit the updated `yarn.lock` files alongside the code change — they're tracked.
 
-Publishes a custom MQTT message.
+## Environment
 
-**Query params**: `topic` (default `"GREENHOUSE/RESPONSE"`), `qos` (0/1/2, default 0).
-**Body**: GreenhouseMessage (same as above).
-**Auth**: None for current endpoints.
+`util/Environment.kt` — switch by changing `Environment.current`.
 
-## Architecture
+| Env  | REST base URL                                | WebSocket URL                                                   |
+|------|----------------------------------------------|-----------------------------------------------------------------|
+| DEV  | `https://inverapi-dev.apptolast.com/api/v1`  | `wss://inverapi-dev.apptolast.com/ws/greenhouse/status/client`  |
+| PROD | `https://inverapi-prod.apptolast.com/api/v1` | `wss://inverapi-prod.apptolast.com/ws/greenhouse/status/client` |
 
-### MVVM Layout
+Live OpenAPI: `https://inverapi-{dev,prod}.apptolast.com/v3/api-docs` ·
+Swagger UI: `…/swagger-ui.html`. **The live spec is the source of truth** — verify
+contracts against it before coding any new endpoint integration.
+
+## Project layout (commonMain)
 
 ```
-presentation/
-├── ui/              # Composable UI (View)
-└── viewmodel/       # ViewModels
+data/
+├── local/auth/          # TokenStorage (multiplatform-settings)
+├── model/               # DTOs (auth, alerts, greenhouse, …)
+├── remote/
+│   ├── api/             # ApiService classes (one per resource)
+│   ├── push/            # FCM token registrar + provider expect/actual
+│   ├── websocket/       # GreenhouseStatusWebSocket (STOMP)
+│   └── KtorClient.kt    # Authenticated + unauthenticated HttpClient factories
+└── repository/          # *RepositoryImpl
 
 domain/
-└── repository/      # Repository interfaces
+├── model/               # AuthState, SessionEvent, UserProfile, …
+└── repository/          # Repository + SessionInvalidator interfaces
 
-data/
-├── model/           # DTOs
-├── remote/api/      # API service definitions
-├── remote/KtorClient.kt
-└── repository/      # Repository implementations
+presentation/
+├── navigation/          # Routes (Splash, Login, Greenhouses, *Detail, …)
+├── ui/                  # Composables (Screen + ScreenContent + Preview per file)
+├── ui/components/       # Reusable composables
+├── ui/theme/            # Color, Type, Font, Theme + ConfigureSystemUI expect/actual
+└── viewmodel/           # ViewModels (StateFlow + sealed UiState)
 
-util/
-├── Environment.kt
-└── DateTimeProvider.kt   # expect/actual for timestamps
-
-di/                  # Koin modules (see DI section)
+di/                      # KoinInitializer + dataModule / domainModule / presentationModule / platformModule
+util/                    # Environment, DateTimeProvider (expect/actual), JwtDecoder
 ```
 
-### Multiplatform Source Sets
-```
-composeApp/src/
-├── commonMain/{kotlin,composeResources}
-├── androidMain/, iosMain/, jvmMain/, jsMain/, wasmJsMain/
-└── commonTest/
-```
-
-### Network Layer (Ktor)
-
-- Configuration: `data/remote/KtorClient.kt`
-- Features: ContentNegotiation (JSON), Logging, Serialization
-- Engines: OkHttp (Android/JVM), Darwin (iOS)
-
-### Adding New Code
-
-- **Models** → `data/model/`
-- **API services** → `data/remote/api/`
-- **Repositories** → interface in `domain/repository/`, impl in `data/repository/`
-- **ViewModels** → `presentation/viewmodel/`
-- **UI** → `presentation/ui/`
-- **Platform-specific** → respective platform source set
-
-## Key Versions (`gradle/libs.versions.toml`)
-
-- Kotlin 2.2.20, Compose Multiplatform 1.9.1
-- Android minSdk 24, targetSdk 36
-- Ktor 3.0.3, kotlinx.serialization 1.8.0
-- Koin BOM 4.1.1
-- Android namespace: `com.apptolast.greenhousefronts`
-- JVM max memory: 4GB, configuration cache enabled
-
-## Current Main UI
-
-`presentation/ui/App.kt` connects to `GreenhouseViewModel` and shows:
-
-- Sensor data from the most recent API message
-- Greenhouse ID
-- OutlinedTextField for setpoint input + "Enviar" button (POST to MQTT)
-- Loading via `CircularProgressIndicator`, errors/success via Snackbar
-
-State is `StateFlow` in the ViewModel, collected with `collectAsState()`.
-
-## Development Notes
-
-- All technical docs/comments in English; user-facing UI strings in Spanish
-- Material Design 3 throughout
-- Network through Ktor Client (not Retrofit)
-- All API access goes through the Repository pattern
-- ViewModels use Coroutines + StateFlow
-
----
-
-## Dependency Injection (Koin 4.1.1+)
-
-### Why Koin
-
-Multiplatform-native, lightweight (no codegen/reflection), first-class Compose support via `koinViewModel()`, easy fakes
-for testing.
-
-### DI Structure
-```
-di/
-├── KoinInitializer.kt       # initKoin() entry point
-├── DataModule.kt            # HttpClient, API, Repository
-├── DomainModule.kt          # use cases
-├── PresentationModule.kt    # ViewModels
-└── PlatformModule.kt        # expect/actual platform deps
-```
-
-### Versions (libs.versions.toml)
-```toml
-[versions]
-koin-bom = "4.1.1"
-
-[libraries]
-koin-bom = { module = "io.insert-koin:koin-bom", version.ref = "koin-bom" }
-koin-core = { module = "io.insert-koin:koin-core" }
-koin-compose = { module = "io.insert-koin:koin-compose" }
-koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel" }
-koin-compose-viewmodel-navigation = { module = "io.insert-koin:koin-compose-viewmodel-navigation" }
-koin-android = { module = "io.insert-koin:koin-android" }
-koin-test = { module = "io.insert-koin:koin-test" }
-```
-
-Wire in `composeApp/build.gradle.kts`: BOM + `koin-core/compose/compose-viewmodel/compose-viewmodel-navigation` in
-`commonMain`, `koin-android` in `androidMain`, `koin-test` in `commonTest`.
-
-### Module Examples
-
-```kotlin
-val dataModule = module {
-    single { createHttpClient() }
-    single { createStompClient() }
-    singleOf(::GreenhouseApiService)
-    singleOf(::StompWebSocketClient)
-    singleOf(::GreenhouseRepositoryImpl) bind GreenhouseRepository::class
-}
-
-val presentationModule = module {
-    viewModelOf(::GreenhouseViewModel)
-}
-```
-
-- `single` → app-lifetime singleton; `singleOf(::Class)` → ctor injection
-- `bind` exposes the impl by interface
-- `viewModelOf` → ViewModel-scoped (survives config changes)
-
-### Injecting ViewModels in Composables
-
-Use `koinViewModel()` for **all scenarios**, including Navigation Compose. `koinNavViewModel()` is **deprecated** in
-Koin 4.1+.
-
-```kotlin
-import org.koin.compose.viewmodel.koinViewModel
-
-NavHost(navController, startDestination = LoginRoute) {
-    composable<HomeRoute> {
-        val viewModel: GreenhouseViewModel = koinViewModel()
-        HomeScreen(viewModel = viewModel)
-    }
-}
-```
-
-`koinViewModel()` automatically handles NavBackStackEntry integration, SavedStateHandle, navigation argument injection,
-and lifecycle scoping.
-
-**Shared ViewModel across destinations** — scope to a parent route's `NavBackStackEntry`:
-```kotlin
-NavHost(navController, startDestination = "screenA", route = "parentRoute") {
-    composable("screenA") { backStackEntry ->
-        val parentEntry = remember(backStackEntry) {
-            navController.getBackStackEntry("parentRoute")
-        }
-        val shared: SharedViewModel = koinViewModel(viewModelStoreOwner = parentEntry)
-        ScreenA(shared)
-    }
-    // screenB does the same → same instance
-}
-```
-
-### Constructor Injection
-
-Always constructor injection — never field injection. Koin resolves deps automatically:
-```kotlin
-class GreenhouseViewModel(private val repository: GreenhouseRepository) : ViewModel()
-class GreenhouseRepositoryImpl(
-    private val apiService: GreenhouseApiService,
-    private val webSocketClient: StompWebSocketClient
-) : GreenhouseRepository
-```
-
-### Platform Initialization
-
-**Android** (`GreenhouseApplication`, registered in `AndroidManifest.xml` via `android:name`):
-```kotlin
-class GreenhouseApplication : Application() {
-    override fun onCreate() {
-        super.onCreate()
-        initKoin {
-            androidLogger()
-            androidContext(this@GreenhouseApplication)
-        }
-    }
-}
-```
-
-**iOS** (`iOSApp.swift`): `KoinInitializerKt.doInitKoin()` in `init()`.
-**Desktop / Web**: call `initKoin()` from `main()` before composing.
-
-### Scoping
-
-| Scope         | Use                             | Lifetime                |
-|---------------|---------------------------------|-------------------------|
-| `single`      | HttpClient, repos, API services | App                     |
-| `factory`     | Use cases, transient objects    | Per injection           |
-| `viewModelOf` | ViewModels                      | Survives config changes |
-
-### Best Practices
-
-- Constructor injection only — never field injection
-- Depend on interfaces (`GreenhouseRepository`), not impls
-- Separate modules by layer (data/domain/presentation)
-- Platform deps via `expect`/`actual` `platformModule`
-
-### Testing
-```kotlin
-class FakeGreenhouseRepository : GreenhouseRepository {
-    var shouldReturnError = false
-    var fakeMessages = emptyList<GreenhouseMessage>()
-    override suspend fun getRecentMessages() =
-        if (shouldReturnError) Result.failure(Exception("Test error"))
-        else Result.success(fakeMessages)
-}
-
-class GreenhouseViewModelTest : KoinTest {
-    @Before
-    fun setup() = startKoin { modules(testModule) }
-    @After
-    fun teardown() = stopKoin()
-    companion object {
-        private val testModule = module {
-            single<GreenhouseRepository> { FakeGreenhouseRepository() }
-            viewModelOf(::GreenhouseViewModel)
-        }
-    }
-}
-```
-
-### Common Issues
-
-- **`KoinAppAlreadyStartedException`** → `initKoin()` called more than once. Call only at app entry point.
-- **Missing dependency** → Class not registered. Add to the right module.
-- **Circular dependency** → Refactor; introduce a mediator.
-
-Docs: https://insert-koin.io · KMP: https://insert-koin.io/docs/reference/koin-mp/kmp/
-
----
-
-## Expect/Actual Pattern
-
-### When to Use
-
-Only when there's a real platform need: no multiplatform library exists, factory functions returning platform impls,
-inheriting platform classes, or direct native API access.
-
-### When NOT to Use
-
-**Prefer interfaces** over expect/actual in most cases. Don't use it if:
-
-- A multiplatform library already covers it (kotlinx-datetime, kotlinx-coroutines, etc.)
-- An interface + DI would suffice
-
-Interfaces allow multiple impls per platform, are easier to test, and avoid Beta limitations.
-
-### Example in This Project
-
-`util/DateTimeProvider.kt`:
-```kotlin
-// commonMain
-expect fun getCurrentTimestamp(): String
-
-// androidMain / jvmMain / wasm / js
-actual fun getCurrentTimestamp(): String =
-    kotlin.time.Clock.System.now().toString()
-
-// iosMain — uses Foundation directly for native integration
-actual fun getCurrentTimestamp(): String {
-    val formatter = NSISO8601DateFormatter()
-    return formatter.stringFromDate(NSDate())
-}
-```
-
-### Rules
-
-1. `expect` in `commonMain`, `actual` in each platform source set
-2. Identical package on both sides
-3. Names, parameters, return types must match exactly
-4. `expect` declarations contain no implementation
-5. Every target platform must provide an `actual`
-
-### Process Before Reaching for Expect/Actual
-
-1. Search kotlinx.* and Maven Central for existing KMP libraries
-2. Verify multiplatform support and target compatibility
-3. Test integration in `commonMain`
-4. Only then implement expect/actual; document why and the alternatives evaluated
-
-### Beta Warning
-
-Expected/actual classes are still **Beta**. Suppress with:
-```kotlin
-freeCompilerArgs.add("-Xexpect-actual-classes")
-```
-
----
-
-## UI Design & Theming
-
-Custom Material 3 theme — **dark-first** with neon green accents, designed for greenhouse monitoring dashboards. Located
-in `presentation/ui/theme/`:
+## Authentication & session lifecycle
+
+Backend issues an access JWT (~1 h TTL) plus an opaque rotating refresh token (~30 d TTL).
+Refresh rotates both; reusing a revoked refresh revokes the whole family server-side.
+
+### Components
+
+| Type                        | Role                                                                                                                                                                                                |
+|-----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `AuthApiService`            | `/auth/login`, `/register`, `/refresh`, `/forgot-password`, `/reset-password`, `/logout` — wired to the **unauthenticated** HttpClient (refresh would otherwise recurse through the bearer plugin). |
+| `TokenStorage`              | Persists access + refresh + refresh expiry + tenantId/displayName on multiplatform-settings.                                                                                                        |
+| `JwtDecoder`                | `extractStringClaim` / `extractLongClaim` / `extractExpiration` / `isTokenExpired(skewSeconds=30)`.                                                                                                 |
+| `AuthRepository`            | Owns `authState: StateFlow<AuthState>` and `sessionEvents: SharedFlow<SessionEvent>`.                                                                                                               |
+| `SessionInvalidator`        | Narrow slice (`tryRefreshOrInvalidate`, `invalidateSession`) injected into the authenticated HttpClient — breaks the otherwise circular Koin graph. Same instance as `AuthRepository`.              |
+| `GreenhouseStatusWebSocket` | Subscribes the STOMP stream gated on `AuthState`; reacts to token rotation.                                                                                                                         |
+
+### Login flow
+
+1. `AuthViewModel.login()` → `AuthRepository.login(...)` → `AuthApiService.login(...)`.
+2. On 200 `JwtResponse`, `persistSuccessfulAuth` saves access + refresh + computed
+   `refreshExpiresAt` and emits `AuthState.Authenticated(token, exp)`.
+3. `PushTokenRegistrar` (reactive collector on `authState`) registers the FCM token.
+4. `SplashScreen` / global navigation react to the new state and navigate to Home.
+
+### Refresh flow (transparent)
 
 ```
-theme/
-├── Color.kt    # light + dark color schemes
-├── Font.kt     # appFontFamily() composable
-├── Type.kt     # Material 3 type scale
-└── Theme.kt    # GreenhouseTheme + ConfigureSystemUI() expect
+HTTP request → 401 → Ktor bearer{ refreshTokens } ─┐
+                                                   ├──► AuthRepository.tryRefreshOrInvalidate()
+WebSocket pre-check / retryWhen on TokenExpiredEx ─┘                │
+                                                                    ▼
+                                       refreshMutex (coalesces concurrent callers)
+                                                                    │
+                                                                    ▼
+                              POST /auth/refresh { refreshToken }   │
+                                                                    │
+                  ┌─────────────┬────────────────────────┬──────────┴──────────┐
+                  ▼             ▼                        ▼                     ▼
+              200 → persist  4xx → drop refresh       5xx → keep refresh   I/O → keep both,
+              new pair,         + invalidate(EXPIRED)    + invalidate          return null,
+              return access     return null               (kill-switch)        next caller retries
 ```
 
-### Color Palette (Dark — Primary)
+- The Ktor `bearer { refreshTokens { … } }` block calls this on any 401 and retries the
+  original request transparently with the new bearer.
+- The WebSocket pipeline (`flatMapLatest { state -> createSessionFlow(state.token) }` +
+  `retryWhen`) detects an expired bearer pre-connect, calls the same hook, and reopens
+  the STOMP session with the rotated token (via `distinctUntilChangedBy { it.token }`).
+- An internal `refreshMutex` makes "5 simultaneous 401s + WS reconnect" issue **one**
+  HTTP call; the rest receive the cached fresh token.
 
-| Role                         | Hex       | Use                               |
-|------------------------------|-----------|-----------------------------------|
-| `primary`                    | `#00E676` | Neon green; FABs, primary actions |
-| `onPrimary`                  | `#003300` | Text on primary                   |
-| `primaryContainer`           | `#1E3A34` | Dark green-gray; emphasized cards |
-| `onPrimaryContainer`         | `#B2DFDB` | Light teal text                   |
-| `background`                 | `#0F1419` | Near-black with blue tint         |
-| `surface`                    | `#1A1E23` | Dark gray; cards                  |
-| `surfaceVariant`             | `#1E3A34` | Greenhouse-branded surfaces       |
-| `onBackground` / `onSurface` | `#E6E1E5` | Body text                         |
-| `tertiary`                   | `#4ECDC4` | Teal accent (humidity displays)   |
-| `onTertiary`                 | `#002020` | Dark teal text                    |
-| `tertiaryContainer`          | `#1A3635` | Dark teal-gray                    |
+### Cold-boot (`bootstrap()`)
 
-**Always use `MaterialTheme.colorScheme.*`** — never hardcode `Color(0x…)` in components. For custom hues outside
-Material 3 roles, define them in `Color.kt` and assign via `surfaceTint` or other flexible roles.
+1. No access stored → Unauthenticated(INITIAL).
+2. Access valid → Authenticated.
+3. Access expired + refresh still in window → silent refresh; success → Authenticated,
+   failure → Unauthenticated(EXPIRED).
+4. Both tokens dead → Unauthenticated(EXPIRED) + snackbar "Tu sesión ha caducado".
 
-### Material 3 Color Roles (Quick Reference)
+### Logout
 
-| Role                           | Typical Use                             |
-|--------------------------------|-----------------------------------------|
-| `primary` / `primaryContainer` | Brand color, prominent buttons          |
-| `secondary`                    | Less prominent actions, filter chips    |
-| `tertiary`                     | Contrasting accents, special highlights |
-| `surface` / `surfaceVariant`   | Cards, dialogs, input fields            |
-| `outline`                      | Borders, dividers                       |
-| `error`                        | Error/validation states                 |
+`AuthViewModel.logout()` and `ProfileViewModel.logout()` both:
 
-### Typography
+1. `pushTokenRegistrar.unregisterCurrentToken()` (must run **before** the JWT is wiped).
+2. `authRepository.logout()` → backend best-effort, then `tokenStorage.clearAll()`.
+3. Emit `AuthState.Unauthenticated(MANUAL_LOGOUT)`.
 
-Uses Material 3's 5-category type scale (Display, Headline, Title, Body, Label). Always reference via
-`MaterialTheme.typography.*` — e.g., `headlineMedium` for page titles, `titleLarge` for sections, `bodyMedium` for
-content, `labelLarge` for buttons.
+### TokenStorage keys
 
-### Custom Fonts
+Prefix `greenhouse_auth_`: `access_token`, `username`, `tenant_id`, `display_name`,
+`refresh_token`, `refresh_exp`. Backed by `multiplatform-settings` (SharedPreferences /
+NSUserDefaults / java.util.prefs / localStorage).
 
-**Current**: System default (`FontFamily.Default`).
+## DI specifics (project-only — see global CLAUDE.md for general Koin patterns)
 
-The font system is composable-based: `Font.kt` exposes `appFontFamily()`, `Type.kt` calls it, `Theme.kt` calls
-`appTypography()`. Swapping fonts only requires editing `Font.kt`.
+Two named HttpClients in `dataModule`:
 
-**To add a font** (e.g. Inter):
+- `UNAUTHENTICATED_CLIENT` → for `AuthApiService` only.
+- `AUTHENTICATED_CLIENT` → for every other `*ApiService` and the WebSocket. Receives
+  the `SessionInvalidator` for the bearer refresh hook.
 
-1. Drop `.ttf` files into `composeApp/src/commonMain/composeResources/font/` with lowercase, underscore-separated
-   names (e.g. `inter_regular.ttf`, `inter_medium.ttf`, `inter_semibold.ttf`, `inter_bold.ttf`).
-2. Run `./gradlew build` to generate `Res.font.*` accessors.
-3. Update `appFontFamily()`:
-```kotlin
-@Composable
-fun appFontFamily(): FontFamily = FontFamily(
-        Font(Res.font.inter_regular, FontWeight.Normal),
-        Font(Res.font.inter_medium, FontWeight.Medium),
-        Font(Res.font.inter_semibold, FontWeight.SemiBold),
-        Font(Res.font.inter_bold, FontWeight.Bold)
-    )
-```
+`AuthRepositoryImpl` is bound under **both** `AuthRepository` and `SessionInvalidator` —
+this is the cycle-breaking trick that lets the authenticated client depend on the
+invalidator interface without pulling in the whole repo (which itself depends on the
+unauthenticated client).
 
-**Compose Multiplatform note**: `Font()` is a `@Composable` function (unlike Android-only Compose), so `FontFamily` and
-`Typography` must be created inside `@Composable` functions, not as top-level `val`s. That's why `appFontFamily()` and
-`appTypography()` are functions.
+`PushTokenRegistrar` is created with `createdAtStart = true` so its reactive collectors
+on `authState` and FCM token rotations attach at app boot.
 
-Recommended fonts for dashboards: Inter (general UI), Roboto (data tables), Manrope, DM Sans, Geist Sans.
+## WebSocket (STOMP) notes
 
-### UI Conventions
+- `GreenhouseStatusWebSocket` exposes a single shared hot `Flow` via `shareIn`. All
+  ViewModels that need live status collect this same flow.
+- Heartbeat: 10 s/10 s — keeps mobile NATs from dropping the TCP connection.
+- No `autoReceipt` (Spring's `SimpleBroker` doesn't send STOMP RECEIPT frames).
+- Order is enforced by suspending `subscribeText`: the SUBSCRIBE frame is on the wire
+  before the initial `sendEmptyMsg("/app/status/request")` triggers the first snapshot.
+- Diagnostic log line `RECV #N Δms B`: if `N` stays at 1 forever the JWT in CONNECT was
+  rejected and the STOMP principal is anonymous (broadcasts won't be targeted).
 
-- **Spacing**: multiples of 4dp (4, 8, 12, 16, 24, 32)
-- **Corner radii**: small components 8–12dp, buttons/text fields 12dp, cards/dialogs 16–24dp
-- **Touch targets**: minimum 48dp × 48dp
-- **Icons**: `androidx.compose.material.icons.Icons.Default.*`, tinted with theme colors
-- **Always provide `contentDescription`** on `Icon`/`Image`
-- **Use semantic colors** (`error` for errors, etc.) — don't hardcode red/green
+## UI / theming pointers
 
-### Quick Component Patterns
+Material 3 dark-first theme with neon-green accents — see `presentation/ui/theme/`
+(`Color.kt`, `Type.kt`, `Font.kt`, `Theme.kt`). Always go through `MaterialTheme.colorScheme.*`
+and `MaterialTheme.typography.*`; never hardcode colours.
 
-```kotlin
-// Outlined input
-OutlinedTextField(
-    value = value, onValueChange = { value = it },
-    label = { Text("Label") },
-    leadingIcon = { Icon(Icons.Default.Person, null, tint = MaterialTheme.colorScheme.primary) },
-    colors = OutlinedTextFieldDefaults.colors(
-        focusedBorderColor = MaterialTheme.colorScheme.primary,
-        unfocusedBorderColor = MaterialTheme.colorScheme.outline
-    )
-)
+Conventions: spacing in 4 dp multiples; corner radii 8–12 dp small / 16–24 dp cards;
+touch targets ≥ 48 dp; every `Icon`/`Image` carries a `contentDescription`.
 
-// Primary / secondary / text buttons
-Button(
-    onClick = { }, colors = ButtonDefaults.buttonColors(
-        containerColor = MaterialTheme.colorScheme.primary
-    )
-) { Text("Primary") }
-OutlinedButton(onClick = { }) { Text("Secondary") }
-TextButton(onClick = { }) { Text("Cancel", color = MaterialTheme.colorScheme.primary) }
+Every stateless `*Content` / `*Screen` and reusable component MUST ship with a
+`@Preview` (`PreviewXxx`) wrapped in `GreenhouseTheme`. Use realistic fake data.
 
-// Emphasized card
-Card(
-    shape = RoundedCornerShape(16.dp),
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-) { /* … */ }
-```
+### Edge-to-edge / status bar
 
-### Dark Theme Best Practices
+`MainActivity.enableEdgeToEdge(...)` + `ConfigureSystemUI(darkTheme)` (expect in
+`Theme.kt`, actual in `Theme.android.kt` — toggles `isAppearanceLightStatusBars`/`-NavigationBars`
+to `!darkTheme`). iOS `actual` is currently a no-op placeholder; JVM/Web are no-ops.
 
-- In light theme, swap the bright neon `#00E676` for a darker green like `#1B5E20`
-- Avoid pure `#000000`; use `#0F1419`
-- Use color tints for elevation rather than shadows
-- Test with `GreenhouseTheme(darkTheme = false/true)` previews
+Troubleshooting: if status-bar icons disappear on theme switch, confirm
+`enableEdgeToEdge(SystemBarStyle.auto(...))` in `MainActivity` and that `GreenhouseTheme`
+calls `ConfigureSystemUI(darkTheme)` on every recomposition.
 
-### Status Bar / System UI
+## Tests
 
-Edge-to-edge with adaptive icon colors that switch based on `darkTheme`. Implementation uses `expect/actual`:
+Currently only a placeholder `commonTest` (`assertEquals(3, 1+2)`). Real tests would need
+Ktor's `MockEngine` for `AuthRepository`/`AuthApiService` coverage (refresh happy path,
+4xx/5xx/I-O paths, refreshMutex coalescing) and `koin-test` for the DI graph. Spin up
+the harness in a dedicated PR if/when needed.
 
-```
-theme/
-├── Theme.kt          # ConfigureSystemUI() expect
-├── Theme.android.kt  # WindowCompat-based actual
-├── Theme.ios.kt      # placeholder
-└── Theme.{jvm,js,wasmJs}.kt  # no-op
-```
+## Useful resources
 
-**MainActivity**:
-```kotlin
-enableEdgeToEdge(
-    statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
-    navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT)
-)
-```
-
-**Theme.android.kt**:
-```kotlin
-@Composable
-actual fun ConfigureSystemUI(darkTheme: Boolean) {
-    val view = LocalView.current
-    if (!view.isInEditMode) {
-        SideEffect {
-            val window = (view.context as Activity).window
-            val controller = WindowCompat.getInsetsController(window, view)
-            // true → dark icons (light bg); false → light icons (dark bg)
-            controller.isAppearanceLightStatusBars = !darkTheme
-            controller.isAppearanceLightNavigationBars = !darkTheme
-        }
-    }
-}
-```
-
-If status-bar icons disappear or don't update on theme switch:
-
-1. Confirm `enableEdgeToEdge(SystemBarStyle.auto(...))` runs in `MainActivity`.
-2. `GreenhouseTheme` calls `ConfigureSystemUI(darkTheme)` on every recomposition.
-3. The logic is inverted: `isAppearanceLightStatusBars = !darkTheme`.
-
-iOS implementation is currently a no-op placeholder; extend with `UIApplication.shared.statusBarStyle` /
-`preferredStatusBarStyle` if needed.
-
-### Accessibility
-
-- `contentDescription` on all icons/images
-- Semantic colors over raw hex
-- 48dp minimum touch targets
-- Contrast ≥ 4.5:1 (body), ≥ 3:1 (large text)
-
----
-
-## Useful Resources
-
-- KMP guide: https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html
+- KMP: https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html
 - Compose Multiplatform: https://www.jetbrains.com/compose-multiplatform/
 - Ktor Client: https://ktor.io/docs/client-create-multiplatform-application.html
+- Ktor bearer auth (refreshTokens contract): https://ktor.io/docs/client-bearer-auth.html
 - Material 3: https://m3.material.io
 - Koin: https://insert-koin.io
-- Edge-to-Edge: https://developer.android.com/develop/ui/compose/system/system-bars
+- Edge-to-edge: https://developer.android.com/develop/ui/compose/system/system-bars
