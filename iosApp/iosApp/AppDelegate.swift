@@ -59,7 +59,11 @@ class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNUserNot
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        // Show banner & sound while app is in foreground.
+        let severity = notification.request.content.userInfo["severity"] as? String
+        guard IOSPushBridge.shared.shouldShowNotification(severity: severity) else {
+            completionHandler([])
+            return
+        }
         completionHandler([.banner, .sound, .badge])
     }
 

@@ -33,8 +33,6 @@ import com.apptolast.greenhousefronts.presentation.navigation.GreenhousesRoute
 import com.apptolast.greenhousefronts.presentation.navigation.DeviceDetailRoute
 import com.apptolast.greenhousefronts.presentation.navigation.IrrigationConfigRoute
 import com.apptolast.greenhousefronts.presentation.navigation.LoginRoute
-import com.apptolast.greenhousefronts.presentation.navigation.NotificationLogRoute
-import com.apptolast.greenhousefronts.presentation.navigation.NotificationPreferencesRoute
 import com.apptolast.greenhousefronts.presentation.navigation.RegisterRoute
 import com.apptolast.greenhousefronts.presentation.navigation.ResetPasswordRoute
 import com.apptolast.greenhousefronts.presentation.navigation.SplashRoute
@@ -43,8 +41,6 @@ import com.apptolast.greenhousefronts.presentation.viewmodel.AuthViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.DeviceDetailViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseDetailViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.IrrigationConfigViewModel
-import com.apptolast.greenhousefronts.presentation.viewmodel.NotificationLogViewModel
-import com.apptolast.greenhousefronts.presentation.viewmodel.NotificationPreferencesViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -242,30 +238,6 @@ fun App() {
                         onNavigateToGreenhouseDetail = { greenhouseId ->
                             navController.navigate(GreenhouseDetailRoute(greenhouseId))
                         },
-                        onNavigateToNotificationPreferences = {
-                            navController.navigate(NotificationPreferencesRoute)
-                        },
-                        onNavigateToNotificationLog = {
-                            navController.navigate(NotificationLogRoute)
-                        },
-                    )
-                }
-
-                // Notification preferences screen (entered from Profile).
-                composable<NotificationPreferencesRoute> {
-                    val viewModel: NotificationPreferencesViewModel = koinViewModel()
-                    NotificationPreferencesScreen(
-                        viewModel = viewModel,
-                        onNavigateBack = { navController.popBackStack() },
-                    )
-                }
-
-                // In-app notification log (entered from Profile).
-                composable<NotificationLogRoute> {
-                    val viewModel: NotificationLogViewModel = koinViewModel()
-                    NotificationLogScreen(
-                        viewModel = viewModel,
-                        onNavigateBack = { navController.popBackStack() },
                     )
                 }
 

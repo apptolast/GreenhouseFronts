@@ -1,5 +1,7 @@
 package com.apptolast.greenhousefronts.data.remote.push
 
+import com.apptolast.greenhousefronts.data.local.notification.AlertNotificationSettings
+import com.apptolast.greenhousefronts.domain.model.AlertSeverity
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -30,6 +32,22 @@ object IOSPushBridge {
     /** Called from Swift when the user taps a push notification. Map keys come from FCM `data`. */
     fun handleAlertDeepLink(payload: Map<String, String>) {
         AlertDeepLinkBus.emitFromData(payload)
+    }
+
+    /**
+     * Called from Swift's UNUserNotificationCenterDelegate `willPresent` to decide whether
+     * to display an incoming notification. Checks the locally persisted alert preferences.
+     *
+     * @param severity The severity name from FCM data payload (e.g. "WARNING"), or null if absent.
+     * @return true if the notification should be shown to the user.
+     */
+    fun shouldShowNotification(severity: String?): Boolean {
+        val settings = AlertNotificationSettings()
+        if (!settings.alertsEnabled) return false
+        val incoming = AlertSeverity.fromName(severity) ?: return true
+        val minLevel = AlertSeverity.entries.firstOrNull { it.level.toInt() == settings.minSeverityLevel }
+            ?: AlertSeverity.INFO
+        return incoming.level >= minLevel.level
     }
 
     internal fun currentToken(): String? = tokenStateFlow.value

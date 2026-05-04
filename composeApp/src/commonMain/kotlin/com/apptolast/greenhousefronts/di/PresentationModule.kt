@@ -6,8 +6,6 @@ import com.apptolast.greenhousefronts.presentation.viewmodel.DeviceDetailViewMod
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseDetailViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseListViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.IrrigationConfigViewModel
-import com.apptolast.greenhousefronts.presentation.viewmodel.NotificationLogViewModel
-import com.apptolast.greenhousefronts.presentation.viewmodel.NotificationPreferencesViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.ProfileViewModel
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
@@ -23,6 +21,4 @@ val presentationModule = module {
     viewModelOf(::IrrigationConfigViewModel)
     viewModelOf(::ProfileViewModel)
     viewModelOf(::AlertsViewModel)
-    viewModelOf(::NotificationPreferencesViewModel)
-    viewModelOf(::NotificationLogViewModel)
 }

@@ -2,7 +2,6 @@ package com.apptolast.greenhousefronts.presentation.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +19,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Badge
@@ -28,10 +26,8 @@ import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -41,6 +37,10 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,10 +51,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key.Companion.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.apptolast.greenhousefronts.domain.model.AlertSeverity
 import com.apptolast.greenhousefronts.domain.model.UserProfile
 import com.apptolast.greenhousefronts.getPlatform
 import com.apptolast.greenhousefronts.presentation.ui.components.LoadingBar
@@ -62,18 +64,20 @@ import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
 import com.apptolast.greenhousefronts.presentation.viewmodel.ProfileEvent
 import com.apptolast.greenhousefronts.presentation.viewmodel.ProfileUiState
 import com.apptolast.greenhousefronts.presentation.viewmodel.ProfileViewModel
+import greenhousefronts.composeapp.generated.resources.Res
+import greenhousefronts.composeapp.generated.resources.app_name
+import greenhousefronts.composeapp.generated.resources.profile_notif_alerts_desc
+import greenhousefronts.composeapp.generated.resources.profile_notif_alerts_title
+import greenhousefronts.composeapp.generated.resources.profile_notif_min_severity_desc
+import greenhousefronts.composeapp.generated.resources.profile_notif_min_severity_title
+import greenhousefronts.composeapp.generated.resources.profile_section_notifications
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-/**
- * Profile screen (stateful wrapper).
- * Collects ViewModel state and delegates to stateless content.
- */
 @Composable
 fun ProfileScreen(
     viewModel: ProfileViewModel,
     onLogoutSuccess: () -> Unit,
-    onNavigateToNotificationPreferences: () -> Unit,
-    onNavigateToNotificationLog: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -89,8 +93,8 @@ fun ProfileScreen(
         uiState = uiState,
         onLogout = viewModel::logout,
         onRetry = viewModel::loadProfile,
-        onNavigateToNotificationPreferences = onNavigateToNotificationPreferences,
-        onNavigateToNotificationLog = onNavigateToNotificationLog,
+        onAlertsEnabledChange = viewModel::setAlertsEnabled,
+        onMinSeverityChange = viewModel::setMinSeverity,
     )
 }
 
@@ -99,8 +103,8 @@ private fun ProfileContent(
     uiState: ProfileUiState,
     onLogout: () -> Unit,
     onRetry: () -> Unit,
-    onNavigateToNotificationPreferences: () -> Unit,
-    onNavigateToNotificationLog: () -> Unit,
+    onAlertsEnabledChange: (Boolean) -> Unit,
+    onMinSeverityChange: (AlertSeverity) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         LoadingBar(isLoading = uiState.isLoading)
@@ -131,44 +135,6 @@ private fun ProfileContent(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    // Avatar
-                    Box(
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp)
-                            .size(80.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primaryContainer),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = profile.username.take(2).uppercase(),
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                    }
-
-                    Column(modifier = Modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-                        // Name
-                        Text(
-                            text = profile.username,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground,
-                        )
-
-                        // Role badge
-                        RoleBadge(role = profile.role)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
 
                 // User info card
                 ProfileSectionCard(title = "Cuenta") {
@@ -248,21 +214,65 @@ private fun ProfileContent(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Notifications hub: preferences + delivered-notifications log.
-                ProfileSectionCard(title = "Notificaciones") {
-                    ProfileNavRow(
-                        icon = Icons.Default.Tune,
-                        title = "Preferencias de notificaciones",
-                        subtitle = "Categorías, severidad mínima, horario silencioso",
-                        onClick = onNavigateToNotificationPreferences,
-                    )
+                // Inline notification preferences: alerts toggle + min severity selector.
+                ProfileSectionCard(title = stringResource(Res.string.profile_section_notifications)) {
+                    // Alerts enabled toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(Res.string.profile_notif_alerts_title),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Text(
+                                text = stringResource(Res.string.profile_notif_alerts_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Switch(
+                            checked = uiState.alertsEnabled,
+                            onCheckedChange = onAlertsEnabledChange,
+                        )
+                    }
+
                     ProfileDivider()
-                    ProfileNavRow(
-                        icon = Icons.Default.Notifications,
-                        title = "Notificaciones recibidas",
-                        subtitle = "Historial de mensajes enviados a tu cuenta",
-                        onClick = onNavigateToNotificationLog,
-                    )
+
+                    // Minimum severity selector
+                    Column {
+                        Text(
+                            text = stringResource(Res.string.profile_notif_min_severity_title),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(Res.string.profile_notif_min_severity_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            AlertSeverity.entries.forEachIndexed { index, severity ->
+                                SegmentedButton(
+                                    selected = severity == uiState.minSeverity,
+                                    onClick = { onMinSeverityChange(severity) },
+                                    shape = SegmentedButtonDefaults.itemShape(
+                                        index = index,
+                                        count = AlertSeverity.entries.size,
+                                    ),
+                                    enabled = uiState.alertsEnabled,
+                                ) {
+                                    Text(severity.display)
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(32.dp))
@@ -307,7 +317,7 @@ private fun ProfileContent(
 
                 // App version
                 Text(
-                    text = "GreenhouseFronts v${getPlatform().versionName}",
+                    text = "${stringResource(Res.string.app_name)} v${getPlatform().versionName}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                     textAlign = TextAlign.Center,
@@ -372,49 +382,6 @@ private fun ProfileInfoRow(
 }
 
 @Composable
-private fun ProfileNavRow(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .clickable(onClick = onClick),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = title,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(20.dp),
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.Medium,
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp),
-        )
-    }
-}
-
-@Composable
 private fun ProfileSectionCard(
     title: String,
     content: @Composable () -> Unit,
@@ -464,7 +431,6 @@ private fun formatRole(role: String): String {
 }
 
 private fun formatTimestamp(iso: String): String {
-    // Extract date part from ISO-8601 timestamp
     return iso.substringBefore("T").ifBlank { iso }
 }
 
@@ -475,6 +441,8 @@ private fun PreviewProfileContent() {
         ProfileContent(
             uiState = ProfileUiState(
                 isLoading = false,
+                alertsEnabled = true,
+                minSeverity = AlertSeverity.INFO,
                 profile = UserProfile(
                     id = 1L,
                     code = "USR-00001",
@@ -492,8 +460,40 @@ private fun PreviewProfileContent() {
             ),
             onLogout = {},
             onRetry = {},
-            onNavigateToNotificationPreferences = {},
-            onNavigateToNotificationLog = {},
+            onAlertsEnabledChange = {},
+            onMinSeverityChange = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewProfileContentAlertsDisabled() {
+    GreenhouseTheme(darkTheme = true) {
+        ProfileContent(
+            uiState = ProfileUiState(
+                isLoading = false,
+                alertsEnabled = false,
+                minSeverity = AlertSeverity.WARNING,
+                profile = UserProfile(
+                    id = 2L,
+                    code = null,
+                    username = "Ana López",
+                    email = "ana@invernaderos.com",
+                    role = "OPERATOR",
+                    isActive = true,
+                    lastLogin = null,
+                    createdAt = null,
+                    companyName = null,
+                    companyPhone = null,
+                    province = null,
+                    country = null,
+                ),
+            ),
+            onLogout = {},
+            onRetry = {},
+            onAlertsEnabledChange = {},
+            onMinSeverityChange = {},
         )
     }
 }
@@ -506,8 +506,8 @@ private fun PreviewProfileLoading() {
             uiState = ProfileUiState(isLoading = true),
             onLogout = {},
             onRetry = {},
-            onNavigateToNotificationPreferences = {},
-            onNavigateToNotificationLog = {},
+            onAlertsEnabledChange = {},
+            onMinSeverityChange = {},
         )
     }
 }
