@@ -62,6 +62,8 @@ fun MainScreen(
     profileViewModel: ProfileViewModel = koinViewModel(),
     onLogoutSuccess: () -> Unit = {},
     onNavigateToGreenhouseDetail: (Long) -> Unit = {},
+    onNavigateToNotificationPreferences: () -> Unit = {},
+    onNavigateToNotificationLog: () -> Unit = {},
 ) {
     var selectedTab by remember { mutableStateOf(BottomNavTab.GREENHOUSES) }
     val greenhouseUiState by greenhouseListViewModel.uiState.collectAsState()
@@ -147,6 +149,8 @@ fun MainScreen(
                     ProfileScreen(
                         viewModel = profileViewModel,
                         onLogoutSuccess = onLogoutSuccess,
+                        onNavigateToNotificationPreferences = onNavigateToNotificationPreferences,
+                        onNavigateToNotificationLog = onNavigateToNotificationLog,
                     )
                 }
             }

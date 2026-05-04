@@ -85,3 +85,17 @@ data class DeviceDetailRoute(
     val deviceCode: String,
     val greenhouseId: Long,
 )
+
+/**
+ * Notification preferences screen — categories, severity threshold, quiet hours,
+ * preferred channel, locale. Reached from Profile.
+ */
+@Serializable
+object NotificationPreferencesRoute
+
+/**
+ * In-app notification log — paginated history of pushes delivered to the user.
+ * Reached from Profile.
+ */
+@Serializable
+object NotificationLogRoute

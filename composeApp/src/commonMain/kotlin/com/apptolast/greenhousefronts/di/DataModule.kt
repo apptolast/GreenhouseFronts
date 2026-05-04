@@ -7,6 +7,8 @@ import com.apptolast.greenhousefronts.data.remote.api.AlertHistoryApiService
 import com.apptolast.greenhousefronts.data.remote.api.AuthApiService
 import com.apptolast.greenhousefronts.data.remote.api.CommandApiService
 import com.apptolast.greenhousefronts.data.remote.api.GreenhouseApiService
+import com.apptolast.greenhousefronts.data.remote.api.NotificationLogApiService
+import com.apptolast.greenhousefronts.data.remote.api.NotificationPreferencesApiService
 import com.apptolast.greenhousefronts.data.remote.api.PushTokenApiService
 import com.apptolast.greenhousefronts.data.remote.api.SensorApiService
 import com.apptolast.greenhousefronts.data.remote.api.SettingsApiService
@@ -22,10 +24,14 @@ import com.apptolast.greenhousefronts.data.remote.websocket.GreenhouseStatusWebS
 import com.apptolast.greenhousefronts.data.repository.AlertRepositoryImpl
 import com.apptolast.greenhousefronts.data.repository.AuthRepositoryImpl
 import com.apptolast.greenhousefronts.data.repository.GreenhouseRepositoryImpl
+import com.apptolast.greenhousefronts.data.repository.NotificationLogRepositoryImpl
+import com.apptolast.greenhousefronts.data.repository.NotificationPreferencesRepositoryImpl
 import com.apptolast.greenhousefronts.data.repository.UserRepositoryImpl
 import com.apptolast.greenhousefronts.domain.repository.AlertRepository
 import com.apptolast.greenhousefronts.domain.repository.AuthRepository
 import com.apptolast.greenhousefronts.domain.repository.GreenhouseRepository
+import com.apptolast.greenhousefronts.domain.repository.NotificationLogRepository
+import com.apptolast.greenhousefronts.domain.repository.NotificationPreferencesRepository
 import com.apptolast.greenhousefronts.domain.repository.SessionInvalidator
 import com.apptolast.greenhousefronts.domain.repository.UserRepository
 import com.apptolast.greenhousefronts.presentation.navigation.BottomNavSelectionBus
@@ -139,6 +145,14 @@ val dataModule = module {
     single { AlertApiService(get(AUTHENTICATED_CLIENT)) }
     single { AlertHistoryApiService(get(AUTHENTICATED_CLIENT)) }
     singleOf(::AlertRepositoryImpl) bind AlertRepository::class
+
+    // Notification preferences (per-user settings)
+    single { NotificationPreferencesApiService(get(AUTHENTICATED_CLIENT)) }
+    singleOf(::NotificationPreferencesRepositoryImpl) bind NotificationPreferencesRepository::class
+
+    // Notification log (cursor-paginated history of pushes delivered to the user)
+    single { NotificationLogApiService(get(AUTHENTICATED_CLIENT)) }
+    singleOf(::NotificationLogRepositoryImpl) bind NotificationLogRepository::class
 
     // Buses for FCM deep-link → Alerts tab routing
     single { PendingAlertSelectionBus() }

@@ -32,10 +32,19 @@ class AlertRepositoryImpl(
             // set is identical so the UI doesn't recompose pointlessly.
             .distinctUntilChanged()
 
-    override suspend fun getTransitionHistory(page: Int, size: Int): Result<PagedResult<AlertTransition>> =
+    override suspend fun getTransitionHistory(
+        page: Int,
+        size: Int,
+        severityIds: List<Short>,
+    ): Result<PagedResult<AlertTransition>> =
         runCatching {
             val tenantId = requireTenantId()
-            val response = historyApi.getEvents(tenantId = tenantId, page = page, size = size)
+            val response = historyApi.getEvents(
+                tenantId = tenantId,
+                page = page,
+                size = size,
+                severityIds = severityIds,
+            )
             PagedResult(
                 items = response.items.map { it.toDomain() },
                 page = response.page,

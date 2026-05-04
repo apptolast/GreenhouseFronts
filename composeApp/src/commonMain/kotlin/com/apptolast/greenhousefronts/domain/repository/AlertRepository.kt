@@ -18,10 +18,13 @@ interface AlertRepository {
      * 30 days (server-side default for the `from`/`to` query params we don't send).
      *
      * Each row is a single state change — the same `alertId` may appear multiple times.
+     *
+     * Pass [severityIds] to filter server-side; empty list returns all severities.
      */
     suspend fun getTransitionHistory(
         page: Int = 0,
         size: Int = 50,
+        severityIds: List<Short> = emptyList(),
     ): Result<PagedResult<AlertTransition>>
 
     /** Single-alert lookup. Used by FCM deep links to decide which tab to open. */

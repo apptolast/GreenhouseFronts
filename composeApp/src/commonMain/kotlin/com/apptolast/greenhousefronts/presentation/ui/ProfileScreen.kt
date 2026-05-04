@@ -2,6 +2,7 @@ package com.apptolast.greenhousefronts.presentation.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -18,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Badge
@@ -25,8 +28,10 @@ import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -67,6 +72,8 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 fun ProfileScreen(
     viewModel: ProfileViewModel,
     onLogoutSuccess: () -> Unit,
+    onNavigateToNotificationPreferences: () -> Unit,
+    onNavigateToNotificationLog: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -82,6 +89,8 @@ fun ProfileScreen(
         uiState = uiState,
         onLogout = viewModel::logout,
         onRetry = viewModel::loadProfile,
+        onNavigateToNotificationPreferences = onNavigateToNotificationPreferences,
+        onNavigateToNotificationLog = onNavigateToNotificationLog,
     )
 }
 
@@ -90,6 +99,8 @@ private fun ProfileContent(
     uiState: ProfileUiState,
     onLogout: () -> Unit,
     onRetry: () -> Unit,
+    onNavigateToNotificationPreferences: () -> Unit,
+    onNavigateToNotificationLog: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         LoadingBar(isLoading = uiState.isLoading)
@@ -235,6 +246,25 @@ private fun ProfileContent(
                     }
                 }
 
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Notifications hub: preferences + delivered-notifications log.
+                ProfileSectionCard(title = "Notificaciones") {
+                    ProfileNavRow(
+                        icon = Icons.Default.Tune,
+                        title = "Preferencias de notificaciones",
+                        subtitle = "Categorías, severidad mínima, horario silencioso",
+                        onClick = onNavigateToNotificationPreferences,
+                    )
+                    ProfileDivider()
+                    ProfileNavRow(
+                        icon = Icons.Default.Notifications,
+                        title = "Notificaciones recibidas",
+                        subtitle = "Historial de mensajes enviados a tu cuenta",
+                        onClick = onNavigateToNotificationLog,
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(32.dp))
 
                 // Logout button
@@ -342,6 +372,49 @@ private fun ProfileInfoRow(
 }
 
 @Composable
+private fun ProfileNavRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = title,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
+@Composable
 private fun ProfileSectionCard(
     title: String,
     content: @Composable () -> Unit,
@@ -419,6 +492,8 @@ private fun PreviewProfileContent() {
             ),
             onLogout = {},
             onRetry = {},
+            onNavigateToNotificationPreferences = {},
+            onNavigateToNotificationLog = {},
         )
     }
 }
@@ -431,6 +506,8 @@ private fun PreviewProfileLoading() {
             uiState = ProfileUiState(isLoading = true),
             onLogout = {},
             onRetry = {},
+            onNavigateToNotificationPreferences = {},
+            onNavigateToNotificationLog = {},
         )
     }
 }

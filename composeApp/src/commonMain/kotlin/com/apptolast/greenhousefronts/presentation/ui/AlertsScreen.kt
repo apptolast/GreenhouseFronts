@@ -24,10 +24,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -40,30 +42,31 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.apptolast.greenhousefronts.domain.model.Alert
 import com.apptolast.greenhousefronts.domain.model.AlertActor
 import com.apptolast.greenhousefronts.domain.model.AlertSeverity
 import com.apptolast.greenhousefronts.domain.model.AlertTransition
+import com.apptolast.greenhousefronts.presentation.ui.components.EmptyState
 import com.apptolast.greenhousefronts.presentation.ui.components.LoadingBar
+import com.apptolast.greenhousefronts.presentation.ui.components.formatTimestamp
+import com.apptolast.greenhousefronts.presentation.ui.components.parseHex
 import com.apptolast.greenhousefronts.presentation.viewmodel.AlertsTab
 import com.apptolast.greenhousefronts.presentation.viewmodel.AlertsViewModel
-import kotlinx.datetime.Instant
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 
 @Composable
 fun AlertsScreen(
@@ -110,9 +113,12 @@ fun AlertsScreen(
                     severityFilter = state.severityFilter,
                     expandedId = state.expandedTransitionId,
                     isLoading = state.historyIsLoading,
+                    isAppending = state.historyIsAppending,
                     hasMore = state.historyHasMore,
+                    appendError = state.historyAppendError,
                     onItemClick = viewModel::toggleExpandTransition,
                     onRefresh = viewModel::refreshHistory,
+                    onLoadMore = viewModel::loadNextHistoryPage,
                 )
             }
         }
@@ -192,6 +198,8 @@ private fun ActiveAlertsContent(
         alerts.filter { it.severity in severityFilter }
     }
     when {
+        severityFilter.isEmpty() && !isLoading ->
+            EmptyState(message = "Selecciona al menos una severidad")
         alerts.isEmpty() && !isLoading -> EmptyState(message = "No hay alertas activas")
         visible.isEmpty() && !isLoading -> EmptyState(message = "Ninguna alerta coincide con los filtros")
         else -> LazyColumn(
@@ -276,15 +284,16 @@ private fun HistoryTransitionsContent(
     severityFilter: Set<AlertSeverity>,
     expandedId: Long?,
     isLoading: Boolean,
+    isAppending: Boolean,
     hasMore: Boolean,
+    appendError: String?,
     onItemClick: (Long) -> Unit,
     onRefresh: () -> Unit,
+    onLoadMore: () -> Unit,
 ) {
-    val visible = remember(transitions, severityFilter) {
-        transitions.filter { it.severity in severityFilter }
-    }
     val pullState = rememberPullToRefreshState()
     PullToRefreshBox(
+        // Bind only to first-page loading; appending must not trigger the pull spinner.
         isRefreshing = isLoading,
         onRefresh = onRefresh,
         state = pullState,
@@ -300,22 +309,56 @@ private fun HistoryTransitionsContent(
         },
     ) {
         when {
-            transitions.isEmpty() && !isLoading -> EmptyState(message = "Sin transiciones en el histórico")
-            visible.isEmpty() && !isLoading -> EmptyState(message = "Ninguna transición coincide con los filtros")
-            else -> LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                contentPadding = PaddingValues(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(visible, key = { it.transitionId }) { tx ->
-                    TransitionItem(
-                        transition = tx,
-                        expanded = tx.transitionId == expandedId,
-                        onClick = { onItemClick(tx.transitionId) },
-                    )
+            severityFilter.isEmpty() ->
+                EmptyState(message = "Selecciona al menos una severidad")
+
+            transitions.isEmpty() && !isLoading ->
+                EmptyState(message = "Sin transiciones en el histórico")
+
+            else -> {
+                val listState = rememberLazyListState()
+                // Auto-load when the user gets within 5 items of the bottom. The
+                // LaunchedEffect re-fires whenever any of the inputs change, but the VM
+                // guards against re-entry.
+                val shouldLoadMore by remember {
+                    derivedStateOf {
+                        val info = listState.layoutInfo
+                        val total = info.totalItemsCount
+                        if (total == 0) false
+                        else {
+                            val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: 0
+                            lastVisible >= total - LOAD_MORE_THRESHOLD
+                        }
+                    }
                 }
-                if (hasMore) {
-                    item { TruncationHint() }
+                LaunchedEffect(shouldLoadMore, hasMore, isAppending, isLoading) {
+                    if (shouldLoadMore && hasMore && !isAppending && !isLoading) {
+                        onLoadMore()
+                    }
+                }
+
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                    contentPadding = PaddingValues(vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(transitions, key = { it.transitionId }) { tx ->
+                        TransitionItem(
+                            transition = tx,
+                            expanded = tx.transitionId == expandedId,
+                            onClick = { onItemClick(tx.transitionId) },
+                        )
+                    }
+                    // Footer: spinner / retry button / fallback "Cargar más" / nothing.
+                    if (isAppending) {
+                        item { AppendingFooter() }
+                    } else if (appendError != null) {
+                        item { AppendErrorFooter(message = appendError, onRetry = onLoadMore) }
+                    } else if (hasMore && !isLoading) {
+                        // Fallback for tiny lists where the auto-load watcher doesn't trip.
+                        item { LoadMoreFooter(onClick = onLoadMore) }
+                    }
                 }
             }
         }
@@ -494,51 +537,46 @@ private fun SeverityBadge(severity: AlertSeverity) {
 }
 
 @Composable
-private fun EmptyState(message: String) {
+private fun AppendingFooter() {
     Box(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        CircularProgressIndicator(
+            modifier = Modifier.size(28.dp),
+            color = MaterialTheme.colorScheme.primary,
+            strokeWidth = 2.dp,
         )
     }
 }
 
 @Composable
-private fun TruncationHint() {
-    Text(
-        text = "Hay más resultados. Tira para refrescar.",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-        textAlign = TextAlign.Center,
-    )
+private fun AppendErrorFooter(message: String, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+        TextButton(onClick = onRetry) {
+            Text("Reintentar")
+        }
+    }
 }
 
-/**
- * Multiplatform-safe hex parser. Handles `#RRGGBB`; falls back to gray on malformed input.
- */
-private fun parseHex(hex: String): Color {
-    val cleaned = hex.removePrefix("#")
-    return runCatching {
-        val rgb = cleaned.toLong(16)
-        Color(0xFF000000 or rgb)
-    }.getOrDefault(Color.Gray)
+@Composable
+private fun LoadMoreFooter(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        TextButton(onClick = onClick) {
+            Text("Cargar más")
+        }
+    }
 }
 
-/**
- * `2026-04-30T07:14:23.123Z` → `2026-04-30 07:14`. Round-trips unparseable input unchanged.
- */
-private fun formatTimestamp(raw: String): String {
-    if (raw.isBlank()) return "—"
-    val instant = runCatching { Instant.parse(raw) }.getOrNull() ?: return raw
-    val local = instant.toLocalDateTime(TimeZone.currentSystemDefault())
-    val month = local.monthNumber.toString().padStart(2, '0')
-    val day = local.dayOfMonth.toString().padStart(2, '0')
-    val hour = local.hour.toString().padStart(2, '0')
-    val minute = local.minute.toString().padStart(2, '0')
-    return "${local.year}-$month-$day $hour:$minute"
-}
+private const val LOAD_MORE_THRESHOLD = 5
