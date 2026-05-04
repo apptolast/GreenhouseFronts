@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -27,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -38,6 +40,9 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -47,9 +52,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.apptolast.greenhousefronts.domain.model.Alert
+import com.apptolast.greenhousefronts.domain.model.AlertActor
 import com.apptolast.greenhousefronts.domain.model.AlertSeverity
+import com.apptolast.greenhousefronts.domain.model.AlertTransition
 import com.apptolast.greenhousefronts.presentation.ui.components.LoadingBar
 import com.apptolast.greenhousefronts.presentation.viewmodel.AlertsTab
 import com.apptolast.greenhousefronts.presentation.viewmodel.AlertsViewModel
@@ -75,46 +83,43 @@ fun AlertsScreen(
         modifier = modifier,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
-        // Nested inside MainScreen's Scaffold, which already consumes the system status
-        // bar and navigation bar insets. Without this, both Scaffolds reserve the status
-        // bar inset and the content drops by ~status_bar_height below the parent's
-        // TopAppBar — visible as a large empty band above the "Activas/Histórico" tabs.
+        // Nested inside MainScreen's Scaffold which already consumes system bar insets.
         contentWindowInsets = WindowInsets(0),
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            AlertsTabRow(
-                selected = state.tab,
-                onSelected = viewModel::selectTab,
-            )
+            AlertsTabRow(selected = state.tab, onSelected = viewModel::selectTab)
+            SeverityFilterRow(selected = state.severityFilter, onToggle = viewModel::toggleSeverity)
 
-            SeverityFilterRow(
-                selected = state.severityFilter,
-                onToggle = viewModel::toggleSeverity,
-            )
-
-            LoadingBar(isLoading = state.isLoading)
-
-            val visibleAlerts = remember(state.alerts, state.severityFilter) {
-                state.alerts.filter { it.severity in state.severityFilter }
+            val isLoading = when (state.tab) {
+                AlertsTab.ACTIVE -> state.activeIsLoading
+                AlertsTab.HISTORY -> state.historyIsLoading
             }
+            LoadingBar(isLoading = isLoading)
 
-            when {
-                state.alerts.isEmpty() && !state.isLoading -> AlertsEmptyState(state.tab)
-                visibleAlerts.isEmpty() && !state.isLoading -> AlertsEmptyState(
-                    tab = state.tab,
-                    overrideMessage = "Ninguna alerta coincide con los filtros seleccionados",
+            when (state.tab) {
+                AlertsTab.ACTIVE -> ActiveAlertsContent(
+                    alerts = state.activeAlerts,
+                    severityFilter = state.severityFilter,
+                    expandedId = state.expandedActiveId,
+                    isLoading = state.activeIsLoading,
+                    onItemClick = viewModel::toggleExpandActive,
                 )
 
-                else -> AlertsList(
-                    alerts = visibleAlerts,
-                    expandedId = state.expandedAlertId,
-                    truncated = state.truncated,
-                    onItemClick = viewModel::toggleExpand,
+                AlertsTab.HISTORY -> HistoryTransitionsContent(
+                    transitions = state.historyTransitions,
+                    severityFilter = state.severityFilter,
+                    expandedId = state.expandedTransitionId,
+                    isLoading = state.historyIsLoading,
+                    hasMore = state.historyHasMore,
+                    onItemClick = viewModel::toggleExpandTransition,
+                    onRefresh = viewModel::refreshHistory,
                 )
             }
         }
     }
 }
+
+// ───────── Tabs / filters ─────────
 
 @Composable
 private fun AlertsTabRow(
@@ -173,54 +178,32 @@ private fun SeverityFilterRow(
     }
 }
 
-@Composable
-private fun AlertsEmptyState(
-    tab: AlertsTab,
-    overrideMessage: String? = null,
-) {
-    val message = overrideMessage ?: when (tab) {
-        AlertsTab.ACTIVE -> "No hay alertas activas"
-        AlertsTab.HISTORY -> "Sin alertas en el histórico"
-    }
-    Box(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
+// ───────── Active tab ─────────
 
 @Composable
-private fun AlertsList(
+private fun ActiveAlertsContent(
     alerts: List<Alert>,
+    severityFilter: Set<AlertSeverity>,
     expandedId: Long?,
-    truncated: Boolean,
+    isLoading: Boolean,
     onItemClick: (Long) -> Unit,
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        items(alerts, key = { it.id }) { alert ->
-            AlertItem(
-                alert = alert,
-                expanded = alert.id == expandedId,
-                onClick = { onItemClick(alert.id) },
-            )
-        }
-        if (truncated) {
-            item {
-                Text(
-                    text = "Mostrando las últimas 100 alertas",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+    val visible = remember(alerts, severityFilter) {
+        alerts.filter { it.severity in severityFilter }
+    }
+    when {
+        alerts.isEmpty() && !isLoading -> EmptyState(message = "No hay alertas activas")
+        visible.isEmpty() && !isLoading -> EmptyState(message = "Ninguna alerta coincide con los filtros")
+        else -> LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(visible, key = { it.id }) { alert ->
+                ActiveAlertItem(
+                    alert = alert,
+                    expanded = alert.id == expandedId,
+                    onClick = { onItemClick(alert.id) },
                 )
             }
         }
@@ -228,7 +211,7 @@ private fun AlertsList(
 }
 
 @Composable
-private fun AlertItem(
+private fun ActiveAlertItem(
     alert: Alert,
     expanded: Boolean,
     onClick: () -> Unit,
@@ -241,33 +224,13 @@ private fun AlertItem(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Header: severity dot + code · severity chip + status + date
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .background(severityColor, CircleShape),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = alert.code,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Spacer(Modifier.width(8.dp))
-                SeverityBadge(alert.severity)
-                Spacer(Modifier.weight(1f))
-                Text(
-                    text = formatTimestamp(alert.createdAt),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            ItemHeader(
+                code = alert.code,
+                severity = alert.severity,
+                severityColor = severityColor,
+                trailingTimestamp = formatTimestamp(alert.createdAt),
+            )
 
-            // Single-line summary (clientName ?? message ?? "Sin descripción")
             val summary = alert.clientName ?: alert.message ?: alert.description ?: "Sin descripción"
             Spacer(Modifier.height(6.dp))
             Text(
@@ -277,49 +240,220 @@ private fun AlertItem(
                 maxLines = if (expanded) Int.MAX_VALUE else 2,
             )
 
-            // Status row
             Spacer(Modifier.height(6.dp))
-            Text(
-                text = if (alert.isResolved) "Resuelta" else "Activa",
-                style = MaterialTheme.typography.labelMedium,
-                color = if (alert.isResolved) {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                } else {
-                    severityColor
-                },
-            )
+            StatusLine(text = "Activa", color = severityColor)
 
             AnimatedVisibility(
                 visible = expanded,
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically(),
             ) {
-                AlertDetails(alert)
+                ActiveAlertDetails(alert)
             }
         }
     }
 }
 
 @Composable
-private fun AlertDetails(alert: Alert) {
+private fun ActiveAlertDetails(alert: Alert) {
     Column(modifier = Modifier.padding(top = 12.dp)) {
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
         Spacer(Modifier.height(12.dp))
+        DetailRow("Sector", alert.sectorCode ?: "—")
+        alert.alertTypeName?.let { DetailRow("Tipo", it) }
+        alert.message?.takeIf { it.isNotBlank() }?.let { DetailRow("Mensaje", it) }
+        alert.description?.takeIf { it.isNotBlank() }?.let { DetailRow("Descripción", it) }
+        DetailRow("Creada", formatTimestamp(alert.createdAt))
+    }
+}
 
-        DetailRow(label = "Sector", value = alert.sectorCode ?: "—")
-        alert.alertTypeName?.let { DetailRow(label = "Tipo", value = it) }
-        alert.message?.takeIf { it.isNotBlank() }?.let { DetailRow(label = "Mensaje", value = it) }
-        alert.description?.takeIf { it.isNotBlank() }?.let { DetailRow(label = "Descripción", value = it) }
-        DetailRow(label = "Creada", value = formatTimestamp(alert.createdAt))
+// ───────── History tab ─────────
 
-        if (alert.isResolved) {
-            val resolvedSuffix = alert.resolvedByUserName?.let { " · $it" } ?: ""
-            DetailRow(
-                label = "Resuelta",
-                value = (alert.resolvedAt?.let { formatTimestamp(it) } ?: "—") + resolvedSuffix,
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HistoryTransitionsContent(
+    transitions: List<AlertTransition>,
+    severityFilter: Set<AlertSeverity>,
+    expandedId: Long?,
+    isLoading: Boolean,
+    hasMore: Boolean,
+    onItemClick: (Long) -> Unit,
+    onRefresh: () -> Unit,
+) {
+    val visible = remember(transitions, severityFilter) {
+        transitions.filter { it.severity in severityFilter }
+    }
+    val pullState = rememberPullToRefreshState()
+    PullToRefreshBox(
+        isRefreshing = isLoading,
+        onRefresh = onRefresh,
+        state = pullState,
+        modifier = Modifier.fillMaxSize(),
+        indicator = {
+            PullToRefreshDefaults.Indicator(
+                state = pullState,
+                isRefreshing = isLoading,
+                modifier = Modifier.align(Alignment.TopCenter),
+                containerColor = MaterialTheme.colorScheme.surface,
+                color = MaterialTheme.colorScheme.primary,
             )
+        },
+    ) {
+        when {
+            transitions.isEmpty() && !isLoading -> EmptyState(message = "Sin transiciones en el histórico")
+            visible.isEmpty() && !isLoading -> EmptyState(message = "Ninguna transición coincide con los filtros")
+            else -> LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(visible, key = { it.transitionId }) { tx ->
+                    TransitionItem(
+                        transition = tx,
+                        expanded = tx.transitionId == expandedId,
+                        onClick = { onItemClick(tx.transitionId) },
+                    )
+                }
+                if (hasMore) {
+                    item { TruncationHint() }
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun TransitionItem(
+    transition: AlertTransition,
+    expanded: Boolean,
+    onClick: () -> Unit,
+) {
+    val severityColor = parseHex(transition.severity.colorHex)
+    val statusText = if (transition.toResolved) "Resuelta" else "Abierta"
+    val statusColor = if (transition.toResolved) {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    } else {
+        severityColor
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            ItemHeader(
+                code = transition.alertCode,
+                severity = transition.severity,
+                severityColor = severityColor,
+                trailingTimestamp = formatTimestamp(transition.at),
+            )
+
+            val summary = transition.alertMessage?.takeIf { it.isNotBlank() } ?: "Sin descripción"
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = summary,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = if (expanded) Int.MAX_VALUE else 2,
+            )
+
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                StatusLine(text = statusText, color = statusColor)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "· ${transition.actor.label}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            AnimatedVisibility(
+                visible = expanded,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                TransitionDetails(transition)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TransitionDetails(transition: AlertTransition) {
+    Column(modifier = Modifier.padding(top = 12.dp)) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+        Spacer(Modifier.height(12.dp))
+        DetailRow("Sector", transition.sectorCode ?: "—")
+        transition.alertTypeName?.let { DetailRow("Tipo", it) }
+        DetailRow("Origen", sourceLabel(transition.source))
+        DetailRow("Actor", actorDetail(transition.actor))
+        DetailRow("Cuándo", formatTimestamp(transition.at))
+        if (transition.occurrenceNumber > 0) {
+            DetailRow("Aparición #", transition.occurrenceNumber.toString())
+        }
+    }
+}
+
+private fun sourceLabel(source: String): String = when (source.uppercase()) {
+    "MQTT" -> "Sensor (MQTT)"
+    "API" -> "Acción manual (API)"
+    "SYSTEM" -> "Sistema"
+    else -> source
+}
+
+private fun actorDetail(actor: AlertActor): String = when (actor.kind) {
+    AlertActor.ActorKind.USER -> {
+        val name = actor.displayName ?: actor.username ?: "Usuario"
+        actor.username?.takeIf { it.isNotBlank() && it != name }?.let { "$name (@$it)" } ?: name
+    }
+
+    AlertActor.ActorKind.DEVICE -> actor.ref?.let { "Sensor $it" } ?: "Sensor"
+    AlertActor.ActorKind.SYSTEM -> "Sistema (automático)"
+    AlertActor.ActorKind.UNKNOWN -> "—"
+}
+
+// ───────── Shared bits ─────────
+
+@Composable
+private fun ItemHeader(
+    code: String,
+    severity: AlertSeverity,
+    severityColor: Color,
+    trailingTimestamp: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier.size(10.dp).background(severityColor, CircleShape),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = code,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.width(8.dp))
+        SeverityBadge(severity)
+        Spacer(Modifier.weight(1f))
+        Text(
+            text = trailingTimestamp,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun StatusLine(text: String, color: Color) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        color = color,
+    )
 }
 
 @Composable
@@ -359,9 +493,33 @@ private fun SeverityBadge(severity: AlertSeverity) {
     }
 }
 
+@Composable
+private fun EmptyState(message: String) {
+    Box(
+        modifier = Modifier.fillMaxSize().padding(32.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun TruncationHint() {
+    Text(
+        text = "Hay más resultados. Tira para refrescar.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+        textAlign = TextAlign.Center,
+    )
+}
+
 /**
- * Multiplatform-safe hex parser. Compose's `Color(android.graphics.Color.parseColor(...))`
- * isn't available in commonMain; we handle the `#RRGGBB` shape manually.
+ * Multiplatform-safe hex parser. Handles `#RRGGBB`; falls back to gray on malformed input.
  */
 private fun parseHex(hex: String): Color {
     val cleaned = hex.removePrefix("#")
@@ -372,8 +530,7 @@ private fun parseHex(hex: String): Color {
 }
 
 /**
- * `2026-04-30T07:14:23.123Z` → `2026-04-30 07:14`. Wrong-format strings round-trip
- * unchanged so we never crash the screen on a backend timestamp the parser doesn't like.
+ * `2026-04-30T07:14:23.123Z` → `2026-04-30 07:14`. Round-trips unparseable input unchanged.
  */
 private fun formatTimestamp(raw: String): String {
     if (raw.isBlank()) return "—"

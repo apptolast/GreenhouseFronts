@@ -428,6 +428,7 @@ private fun InfoRow(label: String, value: String) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,

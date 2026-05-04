@@ -3,6 +3,7 @@ package com.apptolast.greenhousefronts.di
 import com.apptolast.greenhousefronts.data.local.auth.TokenStorage
 import com.apptolast.greenhousefronts.data.local.auth.TokenStorageImpl
 import com.apptolast.greenhousefronts.data.remote.api.AlertApiService
+import com.apptolast.greenhousefronts.data.remote.api.AlertHistoryApiService
 import com.apptolast.greenhousefronts.data.remote.api.AuthApiService
 import com.apptolast.greenhousefronts.data.remote.api.CommandApiService
 import com.apptolast.greenhousefronts.data.remote.api.GreenhouseApiService
@@ -136,6 +137,7 @@ val dataModule = module {
 
     // Alerts (REST + repository)
     single { AlertApiService(get(AUTHENTICATED_CLIENT)) }
+    single { AlertHistoryApiService(get(AUTHENTICATED_CLIENT)) }
     singleOf(::AlertRepositoryImpl) bind AlertRepository::class
 
     // Buses for FCM deep-link → Alerts tab routing

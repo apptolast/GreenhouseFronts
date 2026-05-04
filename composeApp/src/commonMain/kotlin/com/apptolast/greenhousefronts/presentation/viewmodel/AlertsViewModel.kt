@@ -2,9 +2,9 @@ package com.apptolast.greenhousefronts.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.apptolast.greenhousefronts.data.remote.api.AlertApiService
 import com.apptolast.greenhousefronts.domain.model.Alert
 import com.apptolast.greenhousefronts.domain.model.AlertSeverity
+import com.apptolast.greenhousefronts.domain.model.AlertTransition
 import com.apptolast.greenhousefronts.domain.repository.AlertRepository
 import com.apptolast.greenhousefronts.presentation.navigation.PendingAlertSelectionBus
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,16 +16,33 @@ enum class AlertsTab { ACTIVE, HISTORY }
 
 data class AlertsUiState(
     val tab: AlertsTab = AlertsTab.ACTIVE,
-    /** Severities the user wants to see. By default all four are selected. */
+    /** Severities the user wants to see (chips). Defaults to all selected. */
     val severityFilter: Set<AlertSeverity> = AlertSeverity.entries.toSet(),
-    val isLoading: Boolean = false,
-    val alerts: List<Alert> = emptyList(),
-    val expandedAlertId: Long? = null,
+
+    // Active tab — driven by the WebSocket snapshot.
+    val activeAlerts: List<Alert> = emptyList(),
+    /** True until the first WS frame arrives. */
+    val activeIsLoading: Boolean = true,
+    val expandedActiveId: Long? = null,
+
+    // History tab — REST-paginated transitions.
+    val historyTransitions: List<AlertTransition> = emptyList(),
+    val historyIsLoading: Boolean = false,
+    val historyHasMore: Boolean = false,
+    val expandedTransitionId: Long? = null,
+
     val error: String? = null,
-    /** True when the backend response hit the page limit — the UI shows a footer hint. */
-    val truncated: Boolean = false,
 )
 
+/**
+ * Two independent data sources behind one screen:
+ *  - **Active tab** collects [AlertRepository.observeActiveAlerts] from the WS snapshot —
+ *    real-time, no race with REST.
+ *  - **History tab** lazily fetches the first page of `/alert-events` whenever the user
+ *    enters the tab (or pull-to-refreshes). Each row is a state transition, not an alert.
+ *
+ * Deep links (FCM) use [AlertRepository.getById] to decide which tab to land on.
+ */
 class AlertsViewModel(
     private val repository: AlertRepository,
     private val pendingSelection: PendingAlertSelectionBus,
@@ -35,14 +52,22 @@ class AlertsViewModel(
         field = MutableStateFlow(AlertsUiState())
 
     init {
-        // Trigger the first load and consume any pending deep-link selection.
-        refresh(consumeDeepLink = true)
+        observeActiveAlerts()
+        viewModelScope.launch { handleDeepLinkOnStart() }
     }
 
     fun selectTab(tab: AlertsTab) {
         if (uiState.value.tab == tab) return
-        uiState.update { it.copy(tab = tab, expandedAlertId = null) }
-        refresh(consumeDeepLink = false)
+        uiState.update {
+            it.copy(
+                tab = tab,
+                expandedActiveId = if (tab == AlertsTab.ACTIVE) it.expandedActiveId else null,
+                expandedTransitionId = if (tab == AlertsTab.HISTORY) it.expandedTransitionId else null,
+            )
+        }
+        if (tab == AlertsTab.HISTORY && uiState.value.historyTransitions.isEmpty()) {
+            loadHistory()
+        }
     }
 
     fun toggleSeverity(severity: AlertSeverity) {
@@ -54,66 +79,54 @@ class AlertsViewModel(
         }
     }
 
-    fun toggleExpand(alertId: Long) {
-        uiState.update { state ->
-            state.copy(expandedAlertId = if (state.expandedAlertId == alertId) null else alertId)
+    fun toggleExpandActive(alertId: Long) {
+        uiState.update {
+            it.copy(expandedActiveId = if (it.expandedActiveId == alertId) null else alertId)
         }
     }
 
-    fun refresh() {
-        refresh(consumeDeepLink = false)
+    fun toggleExpandTransition(transitionId: Long) {
+        uiState.update {
+            it.copy(expandedTransitionId = if (it.expandedTransitionId == transitionId) null else transitionId)
+        }
     }
+
+    /** Pull-to-refresh on the History tab. */
+    fun refreshHistory() = loadHistory()
 
     fun clearError() {
         uiState.update { it.copy(error = null) }
     }
 
-    /**
-     * Load the current tab's data and, if [consumeDeepLink] is true, also handle a pending
-     * alert selection: switch tab if the alert lives in History, fetch it on demand if
-     * it's not already in the loaded list, and expand it.
-     */
-    private fun refresh(consumeDeepLink: Boolean) {
+    // --- Internals ---
+
+    private fun observeActiveAlerts() {
         viewModelScope.launch {
-            uiState.update { it.copy(isLoading = true, error = null) }
-
-            val pending = if (consumeDeepLink) pendingSelection.consume() else null
-
-            // If there's a deep-link target, fetch it first so we can decide which tab to show.
-            val deepLinkAlert = pending?.let { id ->
-                repository.getById(id).getOrNull()
+            repository.observeActiveAlerts().collect { list ->
+                uiState.update { it.copy(activeAlerts = list, activeIsLoading = false) }
             }
-            val targetTab = when {
-                deepLinkAlert != null && deepLinkAlert.isResolved -> AlertsTab.HISTORY
-                deepLinkAlert != null && !deepLinkAlert.isResolved -> AlertsTab.ACTIVE
-                else -> uiState.value.tab
-            }
+        }
+    }
 
-            val listResult = when (targetTab) {
-                AlertsTab.ACTIVE -> repository.getActive()
-                AlertsTab.HISTORY -> repository.getHistory()
-            }
-
-            listResult
-                .onSuccess { list ->
-                    val alerts = ensureContains(list, deepLinkAlert)
+    private fun loadHistory() {
+        if (uiState.value.historyIsLoading) return
+        viewModelScope.launch {
+            uiState.update { it.copy(historyIsLoading = true, error = null) }
+            repository.getTransitionHistory(page = 0, size = HISTORY_PAGE_SIZE)
+                .onSuccess { paged ->
                     uiState.update {
                         it.copy(
-                            tab = targetTab,
-                            isLoading = false,
-                            alerts = alerts,
-                            expandedAlertId = deepLinkAlert?.id ?: it.expandedAlertId,
-                            truncated = list.size >= AlertApiService.DEFAULT_LIMIT,
-                            error = null,
+                            historyIsLoading = false,
+                            historyTransitions = paged.items,
+                            historyHasMore = paged.hasMore,
                         )
                     }
                 }
                 .onFailure { error ->
                     uiState.update {
                         it.copy(
-                            tab = targetTab,
-                            isLoading = false,
-                            error = error.message ?: "No se pudieron cargar las alertas",
+                            historyIsLoading = false,
+                            error = error.message ?: "No se pudo cargar el histórico",
                         )
                     }
                 }
@@ -121,12 +134,24 @@ class AlertsViewModel(
     }
 
     /**
-     * If the deep-link target alert isn't included in the freshly fetched list (e.g. it's
-     * older than the 100-row window), prepend it so the UI can still expand it.
+     * If the user arrived from a notification tap, decide which tab to show and (for the
+     * Active tab) pre-expand the target alert. For deep links into resolved alerts we just
+     * land on History — auto-finding the right transition row is left to the user, since
+     * the same alert may have several rows.
      */
-    private fun ensureContains(list: List<Alert>, target: Alert?): List<Alert> {
-        if (target == null) return list
-        if (list.any { it.id == target.id }) return list
-        return listOf(target) + list
+    private suspend fun handleDeepLinkOnStart() {
+        val pendingId = pendingSelection.consume() ?: return
+        val alert = repository.getById(pendingId).getOrNull() ?: return
+        if (alert.isResolved) {
+            selectTab(AlertsTab.HISTORY)
+        } else {
+            uiState.update {
+                it.copy(tab = AlertsTab.ACTIVE, expandedActiveId = alert.id)
+            }
+        }
+    }
+
+    private companion object {
+        const val HISTORY_PAGE_SIZE = 50
     }
 }

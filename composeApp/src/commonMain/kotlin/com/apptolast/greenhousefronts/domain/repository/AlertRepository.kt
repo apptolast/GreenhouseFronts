@@ -1,14 +1,29 @@
 package com.apptolast.greenhousefronts.domain.repository
 
 import com.apptolast.greenhousefronts.domain.model.Alert
+import com.apptolast.greenhousefronts.domain.model.AlertTransition
+import com.apptolast.greenhousefronts.domain.model.PagedResult
+import kotlinx.coroutines.flow.Flow
 
 interface AlertRepository {
-    /** Active alerts (`isResolved=false`), most recent first per backend ordering. */
-    suspend fun getActive(): Result<List<Alert>>
+    /**
+     * Hot stream of currently-active (unresolved) alerts. Sourced from the WebSocket
+     * snapshot — single source of truth, no REST round-trip, no race condition with
+     * server-pushed state changes.
+     */
+    fun observeActiveAlerts(): Flow<List<Alert>>
 
-    /** Full alert feed (active + resolved), ordered by createdAt DESC. Limited to the latest 100. */
-    suspend fun getHistory(): Result<List<Alert>>
+    /**
+     * Tenant-wide history of alert state transitions, paginated. Defaults to the last
+     * 30 days (server-side default for the `from`/`to` query params we don't send).
+     *
+     * Each row is a single state change — the same `alertId` may appear multiple times.
+     */
+    suspend fun getTransitionHistory(
+        page: Int = 0,
+        size: Int = 50,
+    ): Result<PagedResult<AlertTransition>>
 
-    /** Fetch a single alert. Used for deep-links that point to an alert not in the current list. */
+    /** Single-alert lookup. Used by FCM deep links to decide which tab to open. */
     suspend fun getById(alertId: Long): Result<Alert>
 }
