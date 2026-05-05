@@ -85,7 +85,6 @@ Configure these under repo Settings → Secrets and variables → Actions:
 | `ANDROID_KEY_ALIAS` | Alias inside the keystore | plain text |
 | `ANDROID_KEY_PASSWORD` | Key password | plain text |
 | `PLAY_SERVICE_ACCOUNT_JSON_BASE64` | Play Console service account JSON | `base64 -i path/to/play.json \| pbcopy` |
-| `FEEDBACK_RECIPIENTS` | Comma-separated emails for the in-app feedback form | plain text |
 
 The workflow base64-decodes the keystore + JSON into `$RUNNER_TEMP/secrets/`,
 which GitHub wipes after the job ends.
