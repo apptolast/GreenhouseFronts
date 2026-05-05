@@ -2,6 +2,7 @@ package com.apptolast.greenhousefronts.di
 
 import com.apptolast.greenhousefronts.data.local.auth.TokenStorage
 import com.apptolast.greenhousefronts.data.local.auth.TokenStorageImpl
+import com.apptolast.greenhousefronts.data.local.settings.VisualEffectsSettings
 import com.apptolast.greenhousefronts.data.remote.api.AlertApiService
 import com.apptolast.greenhousefronts.data.remote.api.AlertHistoryApiService
 import com.apptolast.greenhousefronts.data.remote.api.AuthApiService
@@ -111,6 +112,11 @@ val dataModule = module {
 
     // WebSocket service for real-time greenhouse status
     singleOf(::GreenhouseStatusWebSocket)
+
+    // Reactive visual-effects preferences (heartbeat toggle). Singleton so
+    // ProfileViewModel writes and CriticalAlertHeartbeat (App-root) reads
+    // share the same in-memory StateFlow on top of multiplatform-settings.
+    singleOf(::VisualEffectsSettings)
 
     // Push notifications: FCM token registration + delivery
     single<PushTokenProvider> { providePushTokenProvider() }

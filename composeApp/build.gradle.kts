@@ -68,7 +68,7 @@ kotlin {
 
             // Firebase Cloud Messaging (BoM aligns versions)
             implementation(project.dependencies.platform(libs.firebase.bom))
-            implementation(libs.firebase.messaging.ktx)
+            implementation(libs.firebase.messaging)
         }
         commonMain.dependencies {
             implementation(compose.runtime)

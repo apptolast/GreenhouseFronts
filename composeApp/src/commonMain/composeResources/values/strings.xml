@@ -223,4 +223,11 @@
     <string name="profile_notif_alerts_desc">Recibe avisos de alertas en tus invernaderos</string>
     <string name="profile_notif_min_severity_title">Severidad mínima</string>
     <string name="profile_notif_min_severity_desc">Solo recibirás notificaciones de alertas con esta severidad o superior</string>
+
+    <!-- ========================================================================== -->
+    <!-- Profile Screen - Visual Effects -->
+    <!-- ========================================================================== -->
+    <string name="profile_section_visual_effects">Efectos visuales</string>
+    <string name="profile_visual_heartbeat_title">Latido en alertas críticas</string>
+    <string name="profile_visual_heartbeat_desc">Muestra un borde pulsante en la pantalla cuando hay alertas críticas sin resolver</string>
 </resources>

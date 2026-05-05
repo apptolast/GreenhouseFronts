@@ -3,6 +3,7 @@ package com.apptolast.greenhousefronts.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.apptolast.greenhousefronts.data.local.notification.AlertNotificationSettings
+import com.apptolast.greenhousefronts.data.local.settings.VisualEffectsSettings
 import com.apptolast.greenhousefronts.data.remote.push.PushTokenRegistrar
 import com.apptolast.greenhousefronts.domain.model.AlertSeverity
 import com.apptolast.greenhousefronts.domain.model.UserProfile
@@ -22,6 +23,7 @@ data class ProfileUiState(
     val isLoggingOut: Boolean = false,
     val alertsEnabled: Boolean = true,
     val minSeverity: AlertSeverity = AlertSeverity.INFO,
+    val heartbeatEnabled: Boolean = true,
 )
 
 sealed interface ProfileEvent {
@@ -39,6 +41,7 @@ class ProfileViewModel(
     private val userRepository: UserRepository,
     private val authRepository: AuthRepository,
     private val pushTokenRegistrar: PushTokenRegistrar,
+    private val visualEffectsSettings: VisualEffectsSettings,
 ) : ViewModel() {
 
     private val alertSettings = AlertNotificationSettings()
@@ -50,6 +53,7 @@ class ProfileViewModel(
                 minSeverity = AlertSeverity.entries.firstOrNull {
                     it.level.toInt() == alertSettings.minSeverityLevel
                 } ?: AlertSeverity.INFO,
+                heartbeatEnabled = visualEffectsSettings.heartbeatEnabled.value,
             ),
         )
 
@@ -58,6 +62,13 @@ class ProfileViewModel(
 
     init {
         loadProfile()
+        // Mirror the persisted heartbeat flag into UiState so the screen reflects
+        // changes that originate elsewhere too (e.g., a future deep-link toggle).
+        viewModelScope.launch {
+            visualEffectsSettings.heartbeatEnabled.collect { enabled ->
+                uiState.update { it.copy(heartbeatEnabled = enabled) }
+            }
+        }
     }
 
     fun loadProfile() {
@@ -86,6 +97,12 @@ class ProfileViewModel(
     fun setMinSeverity(severity: AlertSeverity) {
         alertSettings.minSeverityLevel = severity.level.toInt()
         uiState.update { it.copy(minSeverity = severity) }
+    }
+
+    fun setHeartbeatEnabled(enabled: Boolean) {
+        // Single write-through: VisualEffectsSettings persists and emits on its
+        // StateFlow; the collector above pulls the new value into uiState.
+        visualEffectsSettings.setHeartbeatEnabled(enabled)
     }
 
     fun logout() {

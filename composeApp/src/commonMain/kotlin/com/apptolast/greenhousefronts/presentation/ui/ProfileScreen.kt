@@ -71,6 +71,9 @@ import greenhousefronts.composeapp.generated.resources.profile_notif_alerts_titl
 import greenhousefronts.composeapp.generated.resources.profile_notif_min_severity_desc
 import greenhousefronts.composeapp.generated.resources.profile_notif_min_severity_title
 import greenhousefronts.composeapp.generated.resources.profile_section_notifications
+import greenhousefronts.composeapp.generated.resources.profile_section_visual_effects
+import greenhousefronts.composeapp.generated.resources.profile_visual_heartbeat_desc
+import greenhousefronts.composeapp.generated.resources.profile_visual_heartbeat_title
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -95,6 +98,7 @@ fun ProfileScreen(
         onRetry = viewModel::loadProfile,
         onAlertsEnabledChange = viewModel::setAlertsEnabled,
         onMinSeverityChange = viewModel::setMinSeverity,
+        onHeartbeatEnabledChange = viewModel::setHeartbeatEnabled,
     )
 }
 
@@ -105,6 +109,7 @@ private fun ProfileContent(
     onRetry: () -> Unit,
     onAlertsEnabledChange: (Boolean) -> Unit,
     onMinSeverityChange: (AlertSeverity) -> Unit,
+    onHeartbeatEnabledChange: (Boolean) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         LoadingBar(isLoading = uiState.isLoading)
@@ -257,28 +262,83 @@ private fun ProfileContent(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(modifier = Modifier.height(12.dp))
+                        // Three visual states per chip:
+                        //   · Picked   → severity == minSeverity              (active fill + ✓ + bold)
+                        //   · Covered  → severity.level > minSeverity.level   (muted fill, no ✓)
+                        //   · Excluded → severity.level < minSeverity.level   (outline)
+                        // All chips remain single-choice click targets: tapping any chip
+                        // calls onMinSeverityChange(severity) — same contract the FCM
+                        // service consumes via AlertNotificationSettings.
+                        val coveredContainer = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
+                        val coveredContent = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f)
                         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                             AlertSeverity.entries.forEachIndexed { index, severity ->
+                                val isPicked = severity == uiState.minSeverity
+                                val isCovered = severity.level > uiState.minSeverity.level
+                                val itemColors = if (isCovered) {
+                                    SegmentedButtonDefaults.colors(
+                                        inactiveContainerColor = coveredContainer,
+                                        inactiveContentColor = coveredContent,
+                                    )
+                                } else {
+                                    SegmentedButtonDefaults.colors()
+                                }
                                 SegmentedButton(
-                                    selected = severity == uiState.minSeverity,
+                                    selected = isPicked,
                                     onClick = { onMinSeverityChange(severity) },
                                     shape = SegmentedButtonDefaults.itemShape(
                                         index = index,
                                         count = AlertSeverity.entries.size,
                                     ),
+                                    colors = itemColors,
                                     enabled = uiState.alertsEnabled,
                                 ) {
-                                    Text(severity.display)
+                                    Text(
+                                        text = severity.display,
+                                        fontWeight = if (isPicked) FontWeight.SemiBold else FontWeight.Normal,
+                                    )
                                 }
                             }
                         }
                     }
                 }
 
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Visual effects card — currently only the heartbeat toggle.
+                // Persisted via VisualEffectsSettings; CriticalAlertHeartbeat at the
+                // App root collects the same StateFlow so the change is instant.
+                ProfileSectionCard(title = stringResource(Res.string.profile_section_visual_effects)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(Res.string.profile_visual_heartbeat_title),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Text(
+                                text = stringResource(Res.string.profile_visual_heartbeat_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Switch(
+                            checked = uiState.heartbeatEnabled,
+                            onCheckedChange = onHeartbeatEnabledChange,
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // Logout button
-                val logoutRed = Color(0xFFFF1744)
+                // Logout button — uses the vivid error red defined in the theme so it
+                // stays in lockstep with other destructive/critical UI (active-alerts
+                // banner, alert chips, etc.).
+                val logoutRed = MaterialTheme.colorScheme.error
                 OutlinedButton(
                     onClick = onLogout,
                     modifier = Modifier
@@ -462,6 +522,7 @@ private fun PreviewProfileContent() {
             onRetry = {},
             onAlertsEnabledChange = {},
             onMinSeverityChange = {},
+            onHeartbeatEnabledChange = {},
         )
     }
 }
@@ -494,6 +555,73 @@ private fun PreviewProfileContentAlertsDisabled() {
             onRetry = {},
             onAlertsEnabledChange = {},
             onMinSeverityChange = {},
+            onHeartbeatEnabledChange = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewProfileContentMinSeverityError() {
+    GreenhouseTheme(darkTheme = true) {
+        ProfileContent(
+            uiState = ProfileUiState(
+                isLoading = false,
+                alertsEnabled = true,
+                minSeverity = AlertSeverity.ERROR,
+                profile = UserProfile(
+                    id = 3L,
+                    code = "USR-00003",
+                    username = "Marta Ruiz",
+                    email = "marta@invernaderos.com",
+                    role = "OPERATOR",
+                    isActive = true,
+                    lastLogin = null,
+                    createdAt = null,
+                    companyName = null,
+                    companyPhone = null,
+                    province = null,
+                    country = null,
+                ),
+            ),
+            onLogout = {},
+            onRetry = {},
+            onAlertsEnabledChange = {},
+            onMinSeverityChange = {},
+            onHeartbeatEnabledChange = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewProfileContentMinSeverityCritical() {
+    GreenhouseTheme(darkTheme = true) {
+        ProfileContent(
+            uiState = ProfileUiState(
+                isLoading = false,
+                alertsEnabled = true,
+                minSeverity = AlertSeverity.CRITICAL,
+                profile = UserProfile(
+                    id = 4L,
+                    code = "USR-00004",
+                    username = "Pablo Hidalgo",
+                    email = "pablo@invernaderos.com",
+                    role = "ADMIN",
+                    isActive = true,
+                    lastLogin = null,
+                    createdAt = null,
+                    companyName = null,
+                    companyPhone = null,
+                    province = null,
+                    country = null,
+                ),
+            ),
+            onLogout = {},
+            onRetry = {},
+            onAlertsEnabledChange = {},
+            onMinSeverityChange = {},
+            onHeartbeatEnabledChange = {},
         )
     }
 }
@@ -508,6 +636,7 @@ private fun PreviewProfileLoading() {
             onRetry = {},
             onAlertsEnabledChange = {},
             onMinSeverityChange = {},
+            onHeartbeatEnabledChange = {},
         )
     }
 }

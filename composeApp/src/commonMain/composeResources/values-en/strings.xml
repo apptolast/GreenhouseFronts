@@ -181,4 +181,11 @@
     <string name="profile_notif_alerts_desc">Receive alert notifications from your greenhouses</string>
     <string name="profile_notif_min_severity_title">Minimum severity</string>
     <string name="profile_notif_min_severity_desc">You will only receive alert notifications with this severity or higher</string>
+
+    <!-- ========================================================================== -->
+    <!-- Profile Screen - Visual Effects -->
+    <!-- ========================================================================== -->
+    <string name="profile_section_visual_effects">Visual effects</string>
+    <string name="profile_visual_heartbeat_title">Heartbeat on critical alerts</string>
+    <string name="profile_visual_heartbeat_desc">Show a pulsing border around the screen while there are unresolved critical alerts</string>
 </resources>

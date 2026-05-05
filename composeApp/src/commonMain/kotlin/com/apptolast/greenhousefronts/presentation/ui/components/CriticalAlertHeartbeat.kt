@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.apptolast.greenhousefronts.data.local.settings.VisualEffectsSettings
 import com.apptolast.greenhousefronts.data.remote.websocket.GreenhouseStatusWebSocket
 import kotlinx.coroutines.delay
 import org.koin.compose.koinInject
@@ -41,6 +42,10 @@ private val BorderThicknessMax = 10.dp
  */
 @Composable
 fun CriticalAlertHeartbeat(modifier: Modifier = Modifier) {
+    val visualEffects: VisualEffectsSettings = koinInject()
+    val heartbeatEnabled by visualEffects.heartbeatEnabled.collectAsState()
+    if (!heartbeatEnabled) return
+
     val webSocket: GreenhouseStatusWebSocket = koinInject()
     val status by webSocket.statusFlow().collectAsState(initial = null)
 

@@ -15,6 +15,7 @@ import com.apptolast.greenhousefronts.data.local.notification.AlertNotificationS
 import com.apptolast.greenhousefronts.domain.model.AlertSeverity
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import androidx.core.graphics.toColorInt
 
 /**
  * Receives Firebase Cloud Messaging events on Android.
@@ -123,7 +124,7 @@ class GreenhouseFcmService : FirebaseMessagingService() {
         const val EXTRA_ALERT_ID = "alertId"
 
         // Mirror of metadata.alert_severities on the backend (V31 seed).
-        private val DEFAULT_NOTIFICATION_COLOR = Color.parseColor("#00E676")
+        private val DEFAULT_NOTIFICATION_COLOR = "#00E676".toColorInt()
 
         fun ensureChannel(context: Context) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -144,13 +145,13 @@ class GreenhouseFcmService : FirebaseMessagingService() {
         private fun Long.toNotificationId(): Int = (this and 0x7FFFFFFFL).toInt()
 
         private fun String.tryParseColor(): Int? =
-            runCatching { Color.parseColor(this) }.getOrNull()
+            runCatching { this.toColorInt() }.getOrNull()
 
         private fun localSeverityColor(name: String): Int? = when (name.uppercase()) {
-            "INFO" -> Color.parseColor("#0066FF")
-            "WARNING" -> Color.parseColor("#FFA500")
-            "ERROR" -> Color.parseColor("#FF7722")
-            "CRITICAL" -> Color.parseColor("#FF0000")
+            "INFO" -> "#0066FF".toColorInt()
+            "WARNING" -> "#FFA500".toColorInt()
+            "ERROR" -> "#FF7722".toColorInt()
+            "CRITICAL" -> "#FF0000".toColorInt()
             else -> null
         }
     }

@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.apptolast.greenhousefronts.domain.model.Greenhouse
+import com.apptolast.greenhousefronts.domain.repository.AlertRepository
 import com.apptolast.greenhousefronts.presentation.navigation.BottomNavSelectionBus
 import com.apptolast.greenhousefronts.presentation.ui.components.BottomNavBar
 import com.apptolast.greenhousefronts.presentation.ui.components.BottomNavTab
@@ -65,6 +66,12 @@ fun MainScreen(
 ) {
     var selectedTab by remember { mutableStateOf(BottomNavTab.GREENHOUSES) }
     val greenhouseUiState by greenhouseListViewModel.uiState.collectAsState()
+
+    // Live count of unresolved alerts across all greenhouses, sourced from the
+    // shared WebSocket flow via AlertRepository.observeActiveAlerts(). Drives the
+    // red bubble on the Alerts bottom-nav icon.
+    val alertRepository: AlertRepository = koinInject()
+    val activeAlerts by alertRepository.observeActiveAlerts().collectAsState(initial = emptyList())
 
     // Allow external triggers (e.g. the deep-link handler in App.kt) to switch tabs.
     // Backed by a StateFlow so a tab selection emitted while the user was still on Login
@@ -115,6 +122,7 @@ fun MainScreen(
             BottomNavBar(
                 selectedTab = selectedTab,
                 onTabSelected = { selectedTab = it },
+                alertsBadgeCount = activeAlerts.size,
             )
         },
         containerColor = MaterialTheme.colorScheme.background,

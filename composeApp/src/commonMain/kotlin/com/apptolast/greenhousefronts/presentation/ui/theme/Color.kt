@@ -48,9 +48,11 @@ private val OnSurfaceVariantDark = Color(0xFFB0B0B0)    // Medium gray for secon
 private val OutlineDark = Color(0xFF2D5D4F)             // Medium green for borders
 private val OutlineVariantDark = Color(0xFF1E3A34)      // Darker green for subtle borders
 
-// Error colors (Material 3 defaults for dark theme)
-private val ErrorDark = Color(0xFFF2B8B5)
-private val OnErrorDark = Color(0xFF601410)
+// Error colors — bright vivid red so alert states (active-alerts banner, alert
+// counts, error messages) and the destructive logout action all share the same
+// attention-grabbing accent instead of the muted M3 dark-theme default.
+private val ErrorDark = Color(0xFFFF1744)
+private val OnErrorDark = Color(0xFFFFFFFF)
 private val ErrorContainerDark = Color(0xFF8C1D18)
 private val OnErrorContainerDark = Color(0xFFF9DEDC)
 
