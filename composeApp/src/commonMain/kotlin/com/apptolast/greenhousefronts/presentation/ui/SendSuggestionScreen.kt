@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -234,9 +235,16 @@ private fun SendSuggestionContent(
 
             Spacer(Modifier.height(24.dp))
 
+            // While `isSending` we keep the button visually enabled (so the
+            // primary background and the spinner stay clearly visible) — the
+            // ViewModel's `send()` short-circuits internally on a duplicate
+            // tap because `canSend` already excludes the in-flight case.
+            // When `canSend` is false because of validation (title too short,
+            // empty description), `isSending` is also false → the button
+            // correctly renders disabled/greyed.
             Button(
                 onClick = onSend,
-                enabled = uiState.canSend,
+                enabled = uiState.canSend || uiState.isSending,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
@@ -248,11 +256,10 @@ private fun SendSuggestionContent(
             ) {
                 if (uiState.isSending) {
                     CircularProgressIndicator(
-                        modifier = Modifier.height(20.dp),
+                        modifier = Modifier.size(20.dp),
                         color = MaterialTheme.colorScheme.onPrimary,
                         strokeWidth = 2.dp,
                     )
-                    Spacer(Modifier.height(0.dp))
                     Text(
                         text = stringResource(Res.string.suggestion_sending),
                         modifier = Modifier.padding(start = 12.dp),
