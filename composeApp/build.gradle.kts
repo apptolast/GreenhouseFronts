@@ -17,7 +17,6 @@ plugins {
     alias(libs.plugins.composeHotReload)
     alias(libs.plugins.kotlinx.serialization)
     alias(libs.plugins.google.services)
-    alias(libs.plugins.buildkonfig)
 }
 
 kotlin {
@@ -192,21 +191,6 @@ android {
 
 dependencies {
     debugImplementation(compose.uiTooling)
-}
-
-// BuildKonfig — exposes secrets read from local.properties to commonMain code.
-// `feedback.recipients` is a comma-separated list of emails the in-app suggestion
-// form launches a mailto: to. Falls back to a hard-coded list so the app still
-// works on a clean checkout without the entry in local.properties.
-buildkonfig {
-    packageName = "com.apptolast.greenhousefronts"
-    objectName = "BuildKonfig"
-
-    defaultConfigs {
-        val recipients = localProperties.getProperty("feedback.recipients")
-            ?: "admin@apptolast.com,hgarcia.alberto@gmail.com,senchiviarco@gmail.com,pablohurtadohg@gmail.com"
-        buildConfigField(com.codingfeline.buildkonfig.compiler.FieldSpec.Type.STRING, "FEEDBACK_RECIPIENTS", recipients)
-    }
 }
 
 compose.desktop {

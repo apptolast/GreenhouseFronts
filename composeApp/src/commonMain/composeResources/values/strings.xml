@@ -249,8 +249,8 @@
     <string name="suggestion_description_label">Descripción</string>
     <string name="suggestion_description_placeholder">Cuéntanos los detalles: qué ocurre, cómo reproducirlo, qué te gustaría que cambiase…</string>
     <string name="suggestion_send_button">Enviar</string>
-    <string name="suggestion_sending">Abriendo correo…</string>
-    <string name="suggestion_no_mail_client">No se ha encontrado ninguna app de correo configurada en este dispositivo.</string>
+    <string name="suggestion_sending">Enviando…</string>
+    <string name="suggestion_send_success">Sugerencia enviada — ¡gracias por ayudarnos a mejorar Kropia!</string>
     <string name="suggestion_exit_dialog_title">¿Descartar lo que has escrito?</string>
     <string name="suggestion_exit_dialog_body">Si sales ahora perderás el título y la descripción que estás redactando. ¿Seguro que quieres salir?</string>
     <string name="suggestion_exit_dialog_confirm">Descartar</string>

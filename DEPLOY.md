@@ -124,7 +124,6 @@ Repo → Settings → Secrets and variables → Actions → New repository secre
 | `ANDROID_KEY_ALIAS` | `local.properties:signing.keyAlias` | plain text |
 | `ANDROID_KEY_PASSWORD` | `local.properties:signing.keyPassword` | plain text |
 | `PLAY_SERVICE_ACCOUNT_JSON_BASE64` | Service account JSON downloaded from Google Cloud | `base64 -i path/to/play.json \| pbcopy` |
-| `FEEDBACK_RECIPIENTS` | The list configured in `local.properties` | comma-separated emails |
 
 The workflow base64-decodes the keystore + JSON into `$RUNNER_TEMP/secrets/`,
 which GitHub wipes after each job.
@@ -160,8 +159,14 @@ You **never** touch `versionCode`/`versionName` manually any more.
 When the feature is in a state your QA team can install on a real device:
 
 ```bash
+cd composeApp
 bundle exec fastlane android internal
 ```
+
+> **Important**: always run fastlane from `composeApp/`. Bundler walks up to
+> find the root `Gemfile`, but fastlane does NOT walk up to find the
+> `fastlane/` folder — it looks only in cwd. The CI workflow handles this
+> via `working-directory: composeApp` on the fastlane step.
 
 This builds the current branch with `versionCode = next_from_play` and a
 clearly-marked `versionName` (`<default>-internal-<code>`), then uploads it

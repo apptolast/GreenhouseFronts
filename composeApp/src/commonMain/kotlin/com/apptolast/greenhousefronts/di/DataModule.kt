@@ -12,6 +12,7 @@ import com.apptolast.greenhousefronts.data.remote.api.GreenhouseApiService
 import com.apptolast.greenhousefronts.data.remote.api.PushTokenApiService
 import com.apptolast.greenhousefronts.data.remote.api.SensorApiService
 import com.apptolast.greenhousefronts.data.remote.api.SettingsApiService
+import com.apptolast.greenhousefronts.data.remote.api.SuggestionApiService
 import com.apptolast.greenhousefronts.data.remote.api.UserApiService
 import com.apptolast.greenhousefronts.data.remote.createAuthenticatedHttpClient
 import com.apptolast.greenhousefronts.data.remote.createUnauthenticatedHttpClient
@@ -24,11 +25,13 @@ import com.apptolast.greenhousefronts.data.remote.websocket.GreenhouseStatusWebS
 import com.apptolast.greenhousefronts.data.repository.AlertRepositoryImpl
 import com.apptolast.greenhousefronts.data.repository.AuthRepositoryImpl
 import com.apptolast.greenhousefronts.data.repository.GreenhouseRepositoryImpl
+import com.apptolast.greenhousefronts.data.repository.SuggestionRepositoryImpl
 import com.apptolast.greenhousefronts.data.repository.UserRepositoryImpl
 import com.apptolast.greenhousefronts.domain.repository.AlertRepository
 import com.apptolast.greenhousefronts.domain.repository.AuthRepository
 import com.apptolast.greenhousefronts.domain.repository.GreenhouseRepository
 import com.apptolast.greenhousefronts.domain.repository.SessionInvalidator
+import com.apptolast.greenhousefronts.domain.repository.SuggestionRepository
 import com.apptolast.greenhousefronts.domain.repository.UserRepository
 import com.apptolast.greenhousefronts.presentation.navigation.BottomNavSelectionBus
 import com.apptolast.greenhousefronts.presentation.navigation.PendingAlertSelectionBus
@@ -101,6 +104,11 @@ val dataModule = module {
 
     // User API Service - uses authenticated client
     single { UserApiService(get(AUTHENTICATED_CLIENT)) }
+
+    // Suggestion API Service + repository - in-app feedback form (POST /suggestions).
+    // Backend creates a GitHub issue and emails the recipients managed by its env vars.
+    single { SuggestionApiService(get(AUTHENTICATED_CLIENT)) }
+    singleOf(::SuggestionRepositoryImpl) bind SuggestionRepository::class
 
     // Sensor API Service - uses authenticated client
     single { SensorApiService(get(AUTHENTICATED_CLIENT)) }

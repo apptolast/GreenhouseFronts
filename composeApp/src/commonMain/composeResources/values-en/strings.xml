@@ -207,8 +207,8 @@
     <string name="suggestion_description_label">Description</string>
     <string name="suggestion_description_placeholder">Tell us the details: what happens, how to reproduce it, what you would like to change…</string>
     <string name="suggestion_send_button">Send</string>
-    <string name="suggestion_sending">Opening mail…</string>
-    <string name="suggestion_no_mail_client">No mail app is configured on this device.</string>
+    <string name="suggestion_sending">Sending…</string>
+    <string name="suggestion_send_success">Suggestion sent — thank you for helping us improve Kropia!</string>
     <string name="suggestion_exit_dialog_title">Discard what you wrote?</string>
     <string name="suggestion_exit_dialog_body">If you leave now you will lose the title and description you are writing. Are you sure?</string>
     <string name="suggestion_exit_dialog_confirm">Discard</string>
