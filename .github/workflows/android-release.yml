@@ -14,6 +14,7 @@
 #   ANDROID_KEY_ALIAS                 key alias inside the keystore
 #   ANDROID_KEY_PASSWORD              key password
 #   PLAY_SERVICE_ACCOUNT_JSON_BASE64  base64 of the Play Console service account JSON
+#   GOOGLE_SERVICES_JSON_BASE64       base64 of the Firebase google-services.json
 
 name: Android Release
 
@@ -77,6 +78,15 @@ jobs:
           mkdir -p "$RUNNER_TEMP/secrets"
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/secrets/keystore.jks"
           echo "${{ secrets.PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}" | base64 -d > "$RUNNER_TEMP/secrets/play.json"
+
+      - name: Decode google-services.json
+        # Firebase config consumed by the `com.google.gms.google-services`
+        # Gradle plugin during processReleaseGoogleServices. Lives at
+        # composeApp/google-services.json (the canonical Firebase location)
+        # and is gitignored, so we decode it from a base64-encoded GitHub
+        # Secret on every run. Without this the Gradle release build fails
+        # before producing the AAB.
+        run: echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 -d > composeApp/google-services.json
 
       - name: Render local.properties
         # The Gradle build reads signing config from local.properties. We
