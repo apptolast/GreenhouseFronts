@@ -56,8 +56,7 @@ import com.apptolast.greenhousefronts.presentation.viewmodel.ChartPeriod
 import com.apptolast.greenhousefronts.presentation.viewmodel.DeviceDetailUiState
 import com.apptolast.greenhousefronts.presentation.viewmodel.DeviceDetailViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.DeviceStats
-import com.apptolast.greenhousefronts.util.isFalseLike
-import com.apptolast.greenhousefronts.util.isTrueLike
+import com.apptolast.greenhousefronts.util.formatDeviceValue
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -167,7 +166,7 @@ private fun DeviceDetailBody(
                 horizontalArrangement = Arrangement.Center,
             ) {
                 Text(
-                    text = formatDeviceValue(device.currentValue, device.unitSymbol, uiState.isBooleanDevice),
+                    text = formatDeviceValue(device.currentValue, device.dataType),
                     style = MaterialTheme.typography.displaySmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground,
@@ -606,16 +605,6 @@ private fun Double.formatStat(unit: String): String {
     } else {
         "$rounded$unit"
     }
-}
-
-private fun formatDeviceValue(value: String?, unitSymbol: String?, isBooleanDevice: Boolean = false): String {
-    if (value == null) return "--"
-    if (value.isTrueLike()) return "ON"
-    if (value.isFalseLike()) return "OFF"
-    val numValue = value.toDoubleOrNull()
-    if (numValue != null && numValue >= 10000) return "${(numValue / 1000).toInt()}K"
-    if (numValue != null && numValue == numValue.toLong().toDouble()) return numValue.toLong().toString()
-    return value
 }
 
 @Preview

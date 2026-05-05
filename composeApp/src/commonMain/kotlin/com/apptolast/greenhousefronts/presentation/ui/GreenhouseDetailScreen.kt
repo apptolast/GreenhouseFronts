@@ -77,7 +77,7 @@ import com.apptolast.greenhousefronts.presentation.ui.components.LoadingBar
 import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseDetailUiState
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseDetailViewModel
-import com.apptolast.greenhousefronts.util.isFalseLike
+import com.apptolast.greenhousefronts.util.formatDeviceValue
 import com.apptolast.greenhousefronts.util.isTrueLike
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -466,7 +466,7 @@ private fun DeviceCard(
         else -> Color(0xFF4CAF50)
     }
 
-    val displayValue = formatDeviceValue(device.currentValue, device.unitSymbol)
+    val displayValue = formatDeviceValue(device.currentValue, device.dataType)
 
     // Flash the card background briefly whenever the displayed value changes.
     // We drive the colour with a single Animatable so we can use an asymmetric profile:
@@ -561,24 +561,6 @@ private fun DeviceCard(
             }
         }
     }
-}
-
-private fun formatDeviceValue(value: String?, unitSymbol: String?): String {
-    if (value == null) return "--"
-    // Format boolean values — accept legacy "1"/"0" defensively in case the
-    // API has not yet been Phase-6-normalised on a given environment.
-    if (value.isTrueLike()) return "ON"
-    if (value.isFalseLike()) return "OFF"
-    // Format large numbers (e.g., 45000 lux → 45K)
-    val numValue = value.toDoubleOrNull()
-    if (numValue != null && numValue >= 10000) {
-        return "${(numValue / 1000).toInt()}K"
-    }
-    // Format decimals: remove unnecessary trailing zeros
-    if (numValue != null && numValue == numValue.toLong().toDouble()) {
-        return numValue.toLong().toString()
-    }
-    return value
 }
 
 private fun deviceTypeEmoji(typeName: String): String {
