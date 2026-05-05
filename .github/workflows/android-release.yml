@@ -95,6 +95,11 @@ jobs:
           EOF
 
       - name: Run fastlane release_from_tag
+        # fastlane only looks for `fastlane/` in cwd (it does NOT walk parent
+        # dirs the way Bundler does), so we must cd into the composeApp module
+        # where this project's Fastfile lives. Bundler still finds the root
+        # Gemfile by walking up — that part is fine.
+        working-directory: composeApp
         env:
           # fastlane's Appfile reads SUPPLY_JSON_KEY for Play Console auth.
           SUPPLY_JSON_KEY: ${{ runner.temp }}/secrets/play.json

@@ -37,9 +37,13 @@ cp composeApp/fastlane/.env.example composeApp/fastlane/.env
 
 ## Local lanes
 
-Run from the repo root (Bundler discovers `Gemfile` walking up):
+Run from `composeApp/`. fastlane only looks for the `fastlane/` folder in
+cwd (it does not walk parent dirs the way Bundler does), so you must cd
+into the module that owns the lanes. Bundler still finds the root `Gemfile`
+walking up.
 
 ```bash
+cd composeApp
 bundle exec fastlane android version          # print local defaults
 bundle exec fastlane android validate_play    # sanity-check Play credentials
 bundle exec fastlane android build            # signed release AAB, no upload

@@ -7,7 +7,10 @@
 #   • Both values are injected into Gradle as `-PappVersionCode=N
 #     -PappVersionName=X`, so build.gradle.kts is never modified by CI.
 #
-# Lanes:
+# Lanes (run from `composeApp/`; fastlane does not walk up looking for the
+# `fastlane/` folder, so cwd matters even though Bundler walks up for the
+# root Gemfile):
+#   cd composeApp
 #   bundle exec fastlane android version          # show current local defaults
 #   bundle exec fastlane android validate_play    # sanity-check Play credentials
 #   bundle exec fastlane android build            # build a signed AAB locally
