@@ -470,7 +470,7 @@ private fun DeviceCard(
 
     // Flash the card background briefly whenever the displayed value changes.
     // We drive the colour with a single Animatable so we can use an asymmetric profile:
-    // a fast rise (≈120 ms) followed by a slow decay (≈700 ms). This is perceived as ONE
+    // a fast rise (≈120 ms) followed by a slow decay (≈900 ms). This is perceived as ONE
     // pulse — a symmetric tween on both directions feels like two separate events
     // (background going green, then going back). We also skip the very first composition
     // so the cards don't all flash on screen entry.
@@ -486,7 +486,7 @@ private fun DeviceCard(
         cardColor.snapTo(highlightColor)
         cardColor.animateTo(
             targetValue = surfaceColor,
-            animationSpec = tween(durationMillis = 700, easing = FastOutSlowInEasing),
+            animationSpec = tween(durationMillis = 900, easing = FastOutSlowInEasing),
         )
     }
 
