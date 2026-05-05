@@ -159,8 +159,14 @@ You **never** touch `versionCode`/`versionName` manually any more.
 When the feature is in a state your QA team can install on a real device:
 
 ```bash
+cd composeApp
 bundle exec fastlane android internal
 ```
+
+> **Important**: always run fastlane from `composeApp/`. Bundler walks up to
+> find the root `Gemfile`, but fastlane does NOT walk up to find the
+> `fastlane/` folder — it looks only in cwd. The CI workflow handles this
+> via `working-directory: composeApp` on the fastlane step.
 
 This builds the current branch with `versionCode = next_from_play` and a
 clearly-marked `versionName` (`<default>-internal-<code>`), then uploads it
