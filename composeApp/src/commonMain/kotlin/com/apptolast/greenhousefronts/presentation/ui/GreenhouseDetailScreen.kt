@@ -1,5 +1,14 @@
 package com.apptolast.greenhousefronts.presentation.ui
 
+import androidx.compose.animation.Animatable
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -459,24 +468,41 @@ private fun DeviceCard(
 
     val displayValue = formatDeviceValue(device.currentValue, device.unitSymbol)
 
+    // Flash the card background briefly whenever the displayed value changes.
+    // We drive the colour with a single Animatable so we can use an asymmetric profile:
+    // a fast rise (≈120 ms) followed by a slow decay (≈700 ms). This is perceived as ONE
+    // pulse — a symmetric tween on both directions feels like two separate events
+    // (background going green, then going back). We also skip the very first composition
+    // so the cards don't all flash on screen entry.
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+    val cardColor = remember { Animatable(surfaceColor) }
+    var hasComposed by remember { mutableStateOf(false) }
+    LaunchedEffect(displayValue) {
+        if (!hasComposed) {
+            hasComposed = true
+            return@LaunchedEffect
+        }
+        cardColor.snapTo(highlightColor)
+        cardColor.animateTo(
+            targetValue = surfaceColor,
+            animationSpec = tween(durationMillis = 700, easing = FastOutSlowInEasing),
+        )
+    }
+
     Card(
         onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-        ),
+        colors = CardDefaults.cardColors(containerColor = cardColor.value),
     ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-        ) {
+        Column(modifier = Modifier.padding(14.dp)) {
             // Top row: icon area + status dot
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top,
             ) {
-                // Device type icon placeholder
                 Text(
                     text = deviceTypeEmoji(device.typeName),
                     fontSize = 22.sp,
@@ -500,17 +526,30 @@ private fun DeviceCard(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Value + unit inline
+            // Value + unit — value slides in from below on each change.
             Row(
                 verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Text(
-                    text = displayValue,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
+                AnimatedContent(
+                    targetState = displayValue,
+                    transitionSpec = {
+                        (slideInVertically(
+                            animationSpec = tween(300, easing = FastOutSlowInEasing),
+                        ) { it / 2 } + fadeIn(tween(250))) togetherWith
+                                (slideOutVertically(
+                                    animationSpec = tween(200, easing = FastOutSlowInEasing),
+                                ) { -it / 2 } + fadeOut(tween(150)))
+                    },
+                    label = "deviceValue",
+                ) { animatedValue ->
+                    Text(
+                        text = animatedValue,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
                 device.unitSymbol?.let { unit ->
                     Text(
                         text = unit,
