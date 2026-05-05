@@ -27,6 +27,7 @@ import com.apptolast.greenhousefronts.presentation.navigation.BottomNavSelection
 import com.apptolast.greenhousefronts.presentation.navigation.ConfigureWebNavigation
 import com.apptolast.greenhousefronts.presentation.navigation.PendingAlertSelectionBus
 import com.apptolast.greenhousefronts.presentation.ui.components.BottomNavTab
+import com.apptolast.greenhousefronts.presentation.ui.components.CriticalAlertHeartbeat
 import com.apptolast.greenhousefronts.presentation.navigation.ForgotPasswordRoute
 import com.apptolast.greenhousefronts.presentation.navigation.GreenhouseDetailRoute
 import com.apptolast.greenhousefronts.presentation.navigation.GreenhousesRoute
@@ -297,6 +298,10 @@ fun App() {
                     .windowInsetsPadding(WindowInsets.navigationBars)
                     .padding(16.dp),
             )
+
+            // Top-most layer: pulsing red border whenever any greenhouse has an unresolved
+            // CRITICAL alert. Self-gates on the shared WebSocket flow.
+            CriticalAlertHeartbeat()
         }
     }
 }
