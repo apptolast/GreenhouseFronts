@@ -11,6 +11,8 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.apptolast.greenhousefronts.MainActivity
 import com.apptolast.greenhousefronts.R
+import com.apptolast.greenhousefronts.data.local.notification.AlertNotificationSettings
+import com.apptolast.greenhousefronts.domain.model.AlertSeverity
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
@@ -40,6 +42,24 @@ class GreenhouseFcmService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
         Log.i(TAG, "Message received: data=${message.data}, notification=${message.notification?.title}")
+
+        val alertSettings = AlertNotificationSettings()
+        if (!alertSettings.alertsEnabled) {
+            Log.i(TAG, "Alert notifications disabled — skipping display")
+            return
+        }
+
+        val incomingSeverity = AlertSeverity.fromName(message.data["severity"])
+        if (incomingSeverity != null) {
+            val minLevel = AlertSeverity.entries.firstOrNull {
+                it.level.toInt() == alertSettings.minSeverityLevel
+            } ?: AlertSeverity.INFO
+            if (incomingSeverity.level < minLevel.level) {
+                Log.i(TAG, "Severity ${incomingSeverity.name} below minimum ${minLevel.name} — skipping display")
+                return
+            }
+        }
+
         ensureChannel(this)
 
         val data = message.data
@@ -78,7 +98,8 @@ class GreenhouseFcmService : FirebaseMessagingService() {
             ?: DEFAULT_NOTIFICATION_COLOR
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            //.setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.mipmap.ic_launcher_foreground)
             .setColor(accentColor)
             .setColorized(true)
             .setContentTitle(title)
@@ -89,7 +110,7 @@ class GreenhouseFcmService : FirebaseMessagingService() {
             .setContentIntent(pendingIntent)
             .build()
 
-        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         nm.notify(notificationId, notification)
     }
 
@@ -106,7 +127,7 @@ class GreenhouseFcmService : FirebaseMessagingService() {
 
         fun ensureChannel(context: Context) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val nm = context.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
             if (nm.getNotificationChannel(CHANNEL_ID) != null) return
             val channel = NotificationChannel(
                 CHANNEL_ID,

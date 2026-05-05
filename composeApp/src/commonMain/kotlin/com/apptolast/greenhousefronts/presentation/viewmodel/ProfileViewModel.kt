@@ -2,7 +2,9 @@ package com.apptolast.greenhousefronts.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.apptolast.greenhousefronts.data.local.notification.AlertNotificationSettings
 import com.apptolast.greenhousefronts.data.remote.push.PushTokenRegistrar
+import com.apptolast.greenhousefronts.domain.model.AlertSeverity
 import com.apptolast.greenhousefronts.domain.model.UserProfile
 import com.apptolast.greenhousefronts.domain.repository.AuthRepository
 import com.apptolast.greenhousefronts.domain.repository.UserRepository
@@ -13,19 +15,15 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/**
- * UI state for the profile screen.
- */
 data class ProfileUiState(
     val isLoading: Boolean = true,
     val profile: UserProfile? = null,
     val error: String? = null,
     val isLoggingOut: Boolean = false,
+    val alertsEnabled: Boolean = true,
+    val minSeverity: AlertSeverity = AlertSeverity.INFO,
 )
 
-/**
- * One-time events for navigation.
- */
 sealed interface ProfileEvent {
     data object LogoutSuccess : ProfileEvent
 }
@@ -33,11 +31,9 @@ sealed interface ProfileEvent {
 /**
  * ViewModel for the profile screen.
  *
- * @param userRepository Repository for user profile data
- * @param authRepository Repository for auth operations (logout)
- * @param pushTokenRegistrar Used to drop the FCM token from the backend BEFORE the JWT
- *   is wiped — same contract as `AuthViewModel.logout()`. Without this the backend
- *   would keep pushing notifications to a "ghost" device until the next login.
+ * Owns the two local alert-notification preferences (alertsEnabled + minSeverity) that are
+ * now displayed inline on this screen. Persists them via [AlertNotificationSettings] so
+ * they survive process death and are readable by the Android FCM service and iOS delegate.
  */
 class ProfileViewModel(
     private val userRepository: UserRepository,
@@ -45,8 +41,17 @@ class ProfileViewModel(
     private val pushTokenRegistrar: PushTokenRegistrar,
 ) : ViewModel() {
 
+    private val alertSettings = AlertNotificationSettings()
+
     val uiState: StateFlow<ProfileUiState>
-        field = MutableStateFlow(ProfileUiState())
+        field = MutableStateFlow(
+            ProfileUiState(
+                alertsEnabled = alertSettings.alertsEnabled,
+                minSeverity = AlertSeverity.entries.firstOrNull {
+                    it.level.toInt() == alertSettings.minSeverityLevel
+                } ?: AlertSeverity.INFO,
+            ),
+        )
 
     private val _events = Channel<ProfileEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
@@ -58,7 +63,6 @@ class ProfileViewModel(
     fun loadProfile() {
         viewModelScope.launch {
             uiState.update { it.copy(isLoading = true, error = null) }
-
             userRepository.getCurrentUserProfile()
                 .onSuccess { profile ->
                     uiState.update { it.copy(isLoading = false, profile = profile) }
@@ -74,14 +78,22 @@ class ProfileViewModel(
         }
     }
 
+    fun setAlertsEnabled(enabled: Boolean) {
+        alertSettings.alertsEnabled = enabled
+        uiState.update { it.copy(alertsEnabled = enabled) }
+    }
+
+    fun setMinSeverity(severity: AlertSeverity) {
+        alertSettings.minSeverityLevel = severity.level.toInt()
+        uiState.update { it.copy(minSeverity = severity) }
+    }
+
     fun logout() {
         if (uiState.value.isLoggingOut) return
-
         viewModelScope.launch {
             uiState.update { it.copy(isLoggingOut = true) }
             // Drop the FCM token from the backend BEFORE the JWT is wiped, otherwise
-            // the DELETE call would fail authentication. Same order as in
-            // `AuthViewModel.logout()`.
+            // the DELETE call would fail authentication.
             pushTokenRegistrar.unregisterCurrentToken()
             authRepository.logout()
             _events.send(ProfileEvent.LogoutSuccess)

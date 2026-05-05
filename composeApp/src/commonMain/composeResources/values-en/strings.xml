@@ -3,7 +3,7 @@
     <!-- ========================================================================== -->
     <!-- App General -->
     <!-- ========================================================================== -->
-    <string name="app_name">My Greenhouse</string>
+    <string name="app_name">Kropia</string>
     <string name="empty_state">No data available</string>
 
     <!-- ========================================================================== -->
@@ -172,4 +172,13 @@
 
     <!-- Sensor Type with Unit -->
     <string name="sensor_type_with_unit">%1$s (%2$s)</string>
+
+    <!-- ========================================================================== -->
+    <!-- Profile Screen - Notification Settings -->
+    <!-- ========================================================================== -->
+    <string name="profile_section_notifications">Notifications</string>
+    <string name="profile_notif_alerts_title">Alerts</string>
+    <string name="profile_notif_alerts_desc">Receive alert notifications from your greenhouses</string>
+    <string name="profile_notif_min_severity_title">Minimum severity</string>
+    <string name="profile_notif_min_severity_desc">You will only receive alert notifications with this severity or higher</string>
 </resources>

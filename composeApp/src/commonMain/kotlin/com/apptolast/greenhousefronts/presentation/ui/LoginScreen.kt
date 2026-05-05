@@ -361,25 +361,25 @@ private fun LoginScreenContent(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // Sign Up Link
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = stringResource(Res.string.login_signup_prompt),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    TextButton(onClick = onNavigateToRegister, enabled = !uiState.isLoading) {
-                        Text(
-                            text = stringResource(Res.string.login_signup_link),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
+//                Row(
+//                    horizontalArrangement = Arrangement.Center,
+//                    verticalAlignment = Alignment.CenterVertically
+//                ) {
+//                    Text(
+//                        text = stringResource(Res.string.login_signup_prompt),
+//                        style = MaterialTheme.typography.bodySmall,
+//                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+//                    )
+//                    Spacer(modifier = Modifier.width(4.dp))
+//                    TextButton(onClick = onNavigateToRegister, enabled = !uiState.isLoading) {
+//                        Text(
+//                            text = stringResource(Res.string.login_signup_link),
+//                            style = MaterialTheme.typography.bodySmall,
+//                            color = MaterialTheme.colorScheme.primary,
+//                            fontWeight = FontWeight.Bold
+//                        )
+//                    }
+//                }
 
                 //Spacer(modifier = Modifier.height(14.dp))
             }

@@ -85,3 +85,4 @@ data class DeviceDetailRoute(
     val deviceCode: String,
     val greenhouseId: Long,
 )
+

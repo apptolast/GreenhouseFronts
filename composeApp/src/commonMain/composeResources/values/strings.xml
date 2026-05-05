@@ -3,7 +3,7 @@
     <!-- ========================================================================== -->
     <!-- App General -->
     <!-- ========================================================================== -->
-    <string name="app_name">Mi Invernadero</string>
+    <string name="app_name">Kropia</string>
     <string name="empty_state">No hay datos disponibles</string>
 
     <!-- ========================================================================== -->
@@ -214,4 +214,13 @@
 
     <!-- Sensor Type with Unit -->
     <string name="sensor_type_with_unit">%1$s (%2$s)</string>
+
+    <!-- ========================================================================== -->
+    <!-- Profile Screen - Notification Settings -->
+    <!-- ========================================================================== -->
+    <string name="profile_section_notifications">Notificaciones</string>
+    <string name="profile_notif_alerts_title">Alertas</string>
+    <string name="profile_notif_alerts_desc">Recibe avisos de alertas en tus invernaderos</string>
+    <string name="profile_notif_min_severity_title">Severidad mínima</string>
+    <string name="profile_notif_min_severity_desc">Solo recibirás notificaciones de alertas con esta severidad o superior</string>
 </resources>
