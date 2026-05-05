@@ -2,6 +2,7 @@ package com.apptolast.greenhousefronts.di
 
 import com.apptolast.greenhousefronts.data.local.auth.TokenStorage
 import com.apptolast.greenhousefronts.data.local.auth.TokenStorageImpl
+import com.apptolast.greenhousefronts.data.feedback.FeedbackDraftStorage
 import com.apptolast.greenhousefronts.data.local.settings.VisualEffectsSettings
 import com.apptolast.greenhousefronts.data.remote.api.AlertApiService
 import com.apptolast.greenhousefronts.data.remote.api.AlertHistoryApiService
@@ -117,6 +118,11 @@ val dataModule = module {
     // ProfileViewModel writes and CriticalAlertHeartbeat (App-root) reads
     // share the same in-memory StateFlow on top of multiplatform-settings.
     singleOf(::VisualEffectsSettings)
+
+    // Feedback/suggestion draft — autosaves the form fields so the user does not
+    // lose them on background or process death. Singleton because the draft
+    // StateFlow is shared between ViewModel and any future readers.
+    singleOf(::FeedbackDraftStorage)
 
     // Push notifications: FCM token registration + delivery
     single<PushTokenProvider> { providePushTokenProvider() }

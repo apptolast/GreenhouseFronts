@@ -11,7 +11,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Feedback
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
@@ -28,6 +32,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,7 +53,9 @@ import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseListViewM
 import com.apptolast.greenhousefronts.presentation.viewmodel.ProfileViewModel
 import greenhousefronts.composeapp.generated.resources.Res
 import greenhousefronts.composeapp.generated.resources.ic_launcher_foreground
+import greenhousefronts.composeapp.generated.resources.suggestion_topbar_action_cd
 import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -63,8 +70,13 @@ fun MainScreen(
     profileViewModel: ProfileViewModel = koinViewModel(),
     onLogoutSuccess: () -> Unit = {},
     onNavigateToGreenhouseDetail: (Long) -> Unit = {},
+    onNavigateToSendSuggestion: () -> Unit = {},
 ) {
-    var selectedTab by remember { mutableStateOf(BottomNavTab.GREENHOUSES) }
+    // rememberSaveable so the selected tab survives both config changes AND a forward
+    // navigation + pop (e.g., Profile → SendSuggestion → back) — plain remember would
+    // reset to GREENHOUSES because the NavHost detaches this destination's composition
+    // while the SendSuggestion screen is on top.
+    var selectedTab by rememberSaveable { mutableStateOf(BottomNavTab.GREENHOUSES) }
     val greenhouseUiState by greenhouseListViewModel.uiState.collectAsState()
 
     // Live count of unresolved alerts across all greenhouses, sourced from the
@@ -111,6 +123,19 @@ fun MainScreen(
                         contentDescription = "Kropia",
                         modifier = Modifier.size(80.dp),
                     )
+                },
+                actions = {
+                    // Feedback action — only relevant from the Profile tab. Hidden on
+                    // other tabs to keep the chrome focused on the current context.
+                    if (selectedTab == BottomNavTab.PROFILE) {
+                        IconButton(onClick = onNavigateToSendSuggestion) {
+                            Icon(
+                                imageVector = Icons.Outlined.Feedback,
+                                contentDescription = stringResource(Res.string.suggestion_topbar_action_cd),
+                                tint = MaterialTheme.colorScheme.onBackground,
+                            )
+                        }
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,

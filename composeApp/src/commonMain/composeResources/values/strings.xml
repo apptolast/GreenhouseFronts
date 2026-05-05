@@ -230,4 +230,29 @@
     <string name="profile_section_visual_effects">Efectos visuales</string>
     <string name="profile_visual_heartbeat_title">Latido en alertas críticas</string>
     <string name="profile_visual_heartbeat_desc">Muestra un borde pulsante en la pantalla cuando hay alertas críticas sin resolver</string>
+
+    <!-- ========================================================================== -->
+    <!-- Send Suggestion Screen -->
+    <!-- ========================================================================== -->
+    <string name="suggestion_topbar_title">Sugerencias y mejoras</string>
+    <string name="suggestion_topbar_action_cd">Enviar sugerencia</string>
+    <string name="suggestion_back_cd">Volver</string>
+    <string name="suggestion_intro_title">Cuéntanos qué podemos mejorar</string>
+    <string name="suggestion_intro_body">¿Has detectado un fallo, echas en falta algo o tienes una idea para que Kropia te sea más útil? Escríbenos: tu mensaje llegará directamente al equipo de desarrollo y nos ayudará a priorizar lo que más importa.</string>
+    <string name="suggestion_category_label">Categoría</string>
+    <string name="suggestion_category_bug">Bug</string>
+    <string name="suggestion_category_suggestion">Sugerencia</string>
+    <string name="suggestion_category_improvement">Mejora</string>
+    <string name="suggestion_category_other">Otro</string>
+    <string name="suggestion_title_label">Título</string>
+    <string name="suggestion_title_placeholder">Resume el problema o la idea en una frase</string>
+    <string name="suggestion_description_label">Descripción</string>
+    <string name="suggestion_description_placeholder">Cuéntanos los detalles: qué ocurre, cómo reproducirlo, qué te gustaría que cambiase…</string>
+    <string name="suggestion_send_button">Enviar</string>
+    <string name="suggestion_sending">Abriendo correo…</string>
+    <string name="suggestion_no_mail_client">No se ha encontrado ninguna app de correo configurada en este dispositivo.</string>
+    <string name="suggestion_exit_dialog_title">¿Descartar lo que has escrito?</string>
+    <string name="suggestion_exit_dialog_body">Si sales ahora perderás el título y la descripción que estás redactando. ¿Seguro que quieres salir?</string>
+    <string name="suggestion_exit_dialog_confirm">Descartar</string>
+    <string name="suggestion_exit_dialog_cancel">Seguir editando</string>
 </resources>

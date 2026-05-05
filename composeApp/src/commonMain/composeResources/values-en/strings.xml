@@ -188,4 +188,29 @@
     <string name="profile_section_visual_effects">Visual effects</string>
     <string name="profile_visual_heartbeat_title">Heartbeat on critical alerts</string>
     <string name="profile_visual_heartbeat_desc">Show a pulsing border around the screen while there are unresolved critical alerts</string>
+
+    <!-- ========================================================================== -->
+    <!-- Send Suggestion Screen -->
+    <!-- ========================================================================== -->
+    <string name="suggestion_topbar_title">Suggestions &amp; improvements</string>
+    <string name="suggestion_topbar_action_cd">Send a suggestion</string>
+    <string name="suggestion_back_cd">Back</string>
+    <string name="suggestion_intro_title">Tell us what we can improve</string>
+    <string name="suggestion_intro_body">Spotted a bug, missing a feature, or have an idea to make Kropia more useful? Send us a note — it goes straight to the development team and helps us prioritise what matters.</string>
+    <string name="suggestion_category_label">Category</string>
+    <string name="suggestion_category_bug">Bug</string>
+    <string name="suggestion_category_suggestion">Suggestion</string>
+    <string name="suggestion_category_improvement">Improvement</string>
+    <string name="suggestion_category_other">Other</string>
+    <string name="suggestion_title_label">Title</string>
+    <string name="suggestion_title_placeholder">Summarise the issue or idea in one sentence</string>
+    <string name="suggestion_description_label">Description</string>
+    <string name="suggestion_description_placeholder">Tell us the details: what happens, how to reproduce it, what you would like to change…</string>
+    <string name="suggestion_send_button">Send</string>
+    <string name="suggestion_sending">Opening mail…</string>
+    <string name="suggestion_no_mail_client">No mail app is configured on this device.</string>
+    <string name="suggestion_exit_dialog_title">Discard what you wrote?</string>
+    <string name="suggestion_exit_dialog_body">If you leave now you will lose the title and description you are writing. Are you sure?</string>
+    <string name="suggestion_exit_dialog_confirm">Discard</string>
+    <string name="suggestion_exit_dialog_cancel">Keep editing</string>
 </resources>

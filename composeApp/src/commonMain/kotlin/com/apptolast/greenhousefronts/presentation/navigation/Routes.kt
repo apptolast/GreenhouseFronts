@@ -86,3 +86,11 @@ data class DeviceDetailRoute(
     val greenhouseId: Long,
 )
 
+/**
+ * Represents the in-app suggestion/feedback screen route. Reachable from the action
+ * icon in the Profile tab of [GreenhousesRoute]. Owns its own draft autosave so the
+ * user can navigate away (or be killed by the OS) and come back without losing input.
+ */
+@Serializable
+object SendSuggestionRoute
+

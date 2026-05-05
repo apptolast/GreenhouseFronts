@@ -36,12 +36,14 @@ import com.apptolast.greenhousefronts.presentation.navigation.IrrigationConfigRo
 import com.apptolast.greenhousefronts.presentation.navigation.LoginRoute
 import com.apptolast.greenhousefronts.presentation.navigation.RegisterRoute
 import com.apptolast.greenhousefronts.presentation.navigation.ResetPasswordRoute
+import com.apptolast.greenhousefronts.presentation.navigation.SendSuggestionRoute
 import com.apptolast.greenhousefronts.presentation.navigation.SplashRoute
 import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
 import com.apptolast.greenhousefronts.presentation.viewmodel.AuthViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.DeviceDetailViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseDetailViewModel
 import com.apptolast.greenhousefronts.presentation.viewmodel.IrrigationConfigViewModel
+import com.apptolast.greenhousefronts.presentation.viewmodel.SendSuggestionViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -239,6 +241,18 @@ fun App() {
                         onNavigateToGreenhouseDetail = { greenhouseId ->
                             navController.navigate(GreenhouseDetailRoute(greenhouseId))
                         },
+                        onNavigateToSendSuggestion = {
+                            navController.navigate(SendSuggestionRoute)
+                        },
+                    )
+                }
+
+                // In-app suggestion / feedback form (mailto:-based)
+                composable<SendSuggestionRoute> {
+                    val viewModel: SendSuggestionViewModel = koinViewModel()
+                    SendSuggestionScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { navController.popBackStack() },
                     )
                 }
 
