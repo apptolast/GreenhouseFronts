@@ -1,6 +1,7 @@
 package com.apptolast.greenhousefronts.data.remote
 
 import com.apptolast.greenhousefronts.data.local.auth.TokenStorage
+import com.apptolast.greenhousefronts.domain.repository.SessionInvalidator
 import com.apptolast.greenhousefronts.util.Environment
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.auth.Auth
@@ -18,76 +19,51 @@ import kotlinx.serialization.json.Json
 import kotlin.time.DurationUnit
 import kotlin.time.toDuration
 
-/**
- * Factory function to create an UNAUTHENTICATED HttpClient instance.
- * Used for login/register endpoints that don't require Bearer tokens.
- *
- * @param jsonConfig JSON serialization configuration
- * @return Configured HttpClient without Auth plugin
- */
+/** HttpClient without bearer auth — for `/auth/login`, `/register`, `/refresh`, etc. */
 fun createUnauthenticatedHttpClient(jsonConfig: Json) = HttpClient {
-    install(ContentNegotiation) {
-        json(jsonConfig)
-    }
-
+    install(ContentNegotiation) { json(jsonConfig) }
     install(Logging) {
         logger = Logger.SIMPLE
         level = LogLevel.ALL
     }
-
     expectSuccess = true
 }
 
 /**
- * Factory function to create an AUTHENTICATED HttpClient instance.
- * Automatically injects Bearer token from TokenStorage into requests.
- * Used for protected API endpoints.
- *
- * @param jsonConfig JSON serialization configuration
- * @param tokenStorage Token storage for retrieving the current access token
- * @return Configured HttpClient with Auth plugin and Bearer token injection
+ * HttpClient that attaches the stored access token and silently refreshes on 401 via
+ * [SessionInvalidator.tryRefreshOrInvalidate]. On terminal refresh failure the repo
+ * invalidates the session and Ktor surfaces the 401 to the caller.
  */
 fun createAuthenticatedHttpClient(
     jsonConfig: Json,
-    tokenStorage: TokenStorage
+    tokenStorage: TokenStorage,
+    sessionInvalidator: SessionInvalidator,
 ) = HttpClient {
-    install(ContentNegotiation) {
-        json(jsonConfig)
-    }
-
+    install(ContentNegotiation) { json(jsonConfig) }
     install(Logging) {
         logger = Logger.SIMPLE
         level = LogLevel.ALL
     }
-
     install(WebSockets) {
         pingInterval = 20.toDuration(DurationUnit.SECONDS)
         contentConverter = null
     }
-
     install(Auth) {
         bearer {
             loadTokens {
-                val token = tokenStorage.getToken()
-                if (token != null) {
-                    BearerTokens(token, "")
-                } else {
-                    null
-                }
+                tokenStorage.getToken()?.let { BearerTokens(it, "") }
             }
-
-            // Send auth headers without waiting for 401
-            sendWithoutRequest { request ->
-                request.url.host.contains("apptolast.com")
+            // Invoked by Ktor on any 401. Returning null surfaces the 401; returning fresh
+            // BearerTokens triggers a transparent retry. Ktor serialises this callback per
+            // client; cross-client coalescing (WS path) is handled by AuthRepositoryImpl.
+            refreshTokens {
+                sessionInvalidator.tryRefreshOrInvalidate()?.let { BearerTokens(it, "") }
             }
+            sendWithoutRequest { request -> request.url.host.contains("apptolast.com") }
         }
     }
-
     expectSuccess = true
 }
 
-/**
- * Base URL accessor for environment-based API endpoints
- */
 val baseUrl: String
     get() = Environment.current.baseUrl

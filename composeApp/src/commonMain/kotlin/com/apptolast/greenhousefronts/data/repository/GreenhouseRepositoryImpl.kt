@@ -7,8 +7,17 @@ import com.apptolast.greenhousefronts.domain.model.Greenhouse
 import com.apptolast.greenhousefronts.domain.repository.GreenhouseRepository
 
 /**
- * Implementation of GreenhouseRepository.
- * Aggregates greenhouse, sector, and alert data from multiple API calls.
+ * Implementation of [GreenhouseRepository].
+ *
+ * Read path: only [getGreenhouses] for the list screen aggregates greenhouses + sectors +
+ * unresolved-alert counts via three REST calls. The detail screen does NOT use REST for
+ * reads — it reflects the WebSocket snapshot directly. Avoiding the extra REST round-trip
+ * on detail entry removes a long-standing race between REST and the STOMP push that both
+ * raced to populate the same `uiState`.
+ *
+ * Write path: [setGreenhouseActive] only fires the PUT. The backend then broadcasts a
+ * `GREENHOUSE_CRUD` event over STOMP, so the active subscribers (detail screen) see the
+ * new state without a second REST hit.
  *
  * @param apiService API service for greenhouse endpoints
  * @param tokenStorage Token storage to retrieve tenantId
@@ -53,55 +62,20 @@ class GreenhouseRepositoryImpl(
         }
     }
 
-    override suspend fun getGreenhouseDetail(greenhouseId: Long): Result<Greenhouse> {
-        val tenantId = tokenStorage.getTenantId()
-            ?: return Result.failure(Exception("No se encontró el ID del tenant"))
-
-        return try {
-            val greenhouses = apiService.getGreenhouses(tenantId)
-            val dto = greenhouses.find { it.id == greenhouseId }
-                ?: return Result.failure(Exception("Invernadero no encontrado"))
-
-            val sectors = runCatching { apiService.getSectors(tenantId) }.getOrDefault(emptyList())
-            val alerts = runCatching { apiService.getUnresolvedAlerts(tenantId) }.getOrDefault(emptyList())
-
-            val greenhouseSectors = sectors.filter { it.greenhouseId == greenhouseId }
-            val greenhouseSectorIds = greenhouseSectors.map { it.id }.toSet()
-            val greenhouseAlerts = alerts.filter { it.sectorId in greenhouseSectorIds }
-
-            Result.success(
-                Greenhouse(
-                    id = dto.id,
-                    code = dto.code,
-                    name = dto.name,
-                    isActive = dto.isActive,
-                    areaM2 = dto.areaM2,
-                    sectorCount = greenhouseSectors.size,
-                    alertCount = greenhouseAlerts.size,
-                    sectorNames = greenhouseSectors.mapNotNull { it.name }.sorted(),
-                ),
-            )
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
     override suspend fun setGreenhouseActive(
         greenhouseId: Long,
         isActive: Boolean,
-    ): Result<Greenhouse> {
+    ): Result<Unit> {
         val tenantId = tokenStorage.getTenantId()
             ?: return Result.failure(Exception("No se encontró el ID del tenant"))
 
         return try {
-            val response = apiService.updateGreenhouse(
+            apiService.updateGreenhouse(
                 tenantId = tenantId,
                 greenhouseId = greenhouseId,
                 request = GreenhouseUpdateRequest(isActive = isActive),
             )
-
-            // Re-fetch full detail to get sector/alert counts
-            getGreenhouseDetail(response.id)
+            Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }

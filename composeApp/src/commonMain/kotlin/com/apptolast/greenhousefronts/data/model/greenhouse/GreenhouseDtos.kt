@@ -39,19 +39,34 @@ data class SectorResponse(
 )
 
 /**
- * Response from GET /api/v1/alerts/unresolved/tenant/{tenantId}
- * Only fields needed for counting per greenhouse.
- */
-/**
- * Response from GET /api/v1/alerts/unresolved/tenant/{tenantId}
- * Only fields needed for counting per greenhouse.
+ * Response from `GET /api/v1/alerts*` endpoints (full listing, by id, unresolved by tenant…).
+ *
+ * Mirrors `apptolast/InvernaderosAPI` `features/alert/dto/response/AlertResponse.kt`. All
+ * fields except the IDs and timestamps are nullable to tolerate partial responses from older
+ * backend builds and to keep the existing `getUnresolvedAlerts` call site (which only uses
+ * `id`, `sectorId`, `clientName`, `isResolved`) working unchanged.
  */
 @Serializable
 data class AlertResponse(
     val id: Long,
+    val code: String = "",
+    val tenantId: Long? = null,
     val sectorId: Long,
+    val sectorCode: String? = null,
+    val alertTypeId: Short? = null,
+    val alertTypeName: String? = null,
+    val severityId: Short? = null,
+    val severityName: String? = null,
+    val severityLevel: Short? = null,
+    val message: String? = null,
+    val description: String? = null,
     val clientName: String? = null,
     val isResolved: Boolean = false,
+    val resolvedAt: String? = null,
+    val resolvedByUserId: Long? = null,
+    val resolvedByUserName: String? = null,
+    val createdAt: String = "",
+    val updatedAt: String = "",
 )
 
 /**

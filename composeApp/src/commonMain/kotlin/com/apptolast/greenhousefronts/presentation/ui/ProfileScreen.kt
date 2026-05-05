@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -36,6 +37,10 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -46,10 +51,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key.Companion.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.apptolast.greenhousefronts.domain.model.AlertSeverity
 import com.apptolast.greenhousefronts.domain.model.UserProfile
 import com.apptolast.greenhousefronts.getPlatform
 import com.apptolast.greenhousefronts.presentation.ui.components.LoadingBar
@@ -57,12 +64,19 @@ import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
 import com.apptolast.greenhousefronts.presentation.viewmodel.ProfileEvent
 import com.apptolast.greenhousefronts.presentation.viewmodel.ProfileUiState
 import com.apptolast.greenhousefronts.presentation.viewmodel.ProfileViewModel
+import greenhousefronts.composeapp.generated.resources.Res
+import greenhousefronts.composeapp.generated.resources.app_name
+import greenhousefronts.composeapp.generated.resources.profile_notif_alerts_desc
+import greenhousefronts.composeapp.generated.resources.profile_notif_alerts_title
+import greenhousefronts.composeapp.generated.resources.profile_notif_min_severity_desc
+import greenhousefronts.composeapp.generated.resources.profile_notif_min_severity_title
+import greenhousefronts.composeapp.generated.resources.profile_section_notifications
+import greenhousefronts.composeapp.generated.resources.profile_section_visual_effects
+import greenhousefronts.composeapp.generated.resources.profile_visual_heartbeat_desc
+import greenhousefronts.composeapp.generated.resources.profile_visual_heartbeat_title
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-/**
- * Profile screen (stateful wrapper).
- * Collects ViewModel state and delegates to stateless content.
- */
 @Composable
 fun ProfileScreen(
     viewModel: ProfileViewModel,
@@ -82,6 +96,9 @@ fun ProfileScreen(
         uiState = uiState,
         onLogout = viewModel::logout,
         onRetry = viewModel::loadProfile,
+        onAlertsEnabledChange = viewModel::setAlertsEnabled,
+        onMinSeverityChange = viewModel::setMinSeverity,
+        onHeartbeatEnabledChange = viewModel::setHeartbeatEnabled,
     )
 }
 
@@ -90,6 +107,9 @@ private fun ProfileContent(
     uiState: ProfileUiState,
     onLogout: () -> Unit,
     onRetry: () -> Unit,
+    onAlertsEnabledChange: (Boolean) -> Unit,
+    onMinSeverityChange: (AlertSeverity) -> Unit,
+    onHeartbeatEnabledChange: (Boolean) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         LoadingBar(isLoading = uiState.isLoading)
@@ -120,44 +140,6 @@ private fun ProfileContent(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    // Avatar
-                    Box(
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp)
-                            .size(80.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primaryContainer),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = profile.username.take(2).uppercase(),
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                    }
-
-                    Column(modifier = Modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-                        // Name
-                        Text(
-                            text = profile.username,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground,
-                        )
-
-                        // Role badge
-                        RoleBadge(role = profile.role)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
 
                 // User info card
                 ProfileSectionCard(title = "Cuenta") {
@@ -235,10 +217,128 @@ private fun ProfileContent(
                     }
                 }
 
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Inline notification preferences: alerts toggle + min severity selector.
+                ProfileSectionCard(title = stringResource(Res.string.profile_section_notifications)) {
+                    // Alerts enabled toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(Res.string.profile_notif_alerts_title),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Text(
+                                text = stringResource(Res.string.profile_notif_alerts_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Switch(
+                            checked = uiState.alertsEnabled,
+                            onCheckedChange = onAlertsEnabledChange,
+                        )
+                    }
+
+                    ProfileDivider()
+
+                    // Minimum severity selector
+                    Column {
+                        Text(
+                            text = stringResource(Res.string.profile_notif_min_severity_title),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(Res.string.profile_notif_min_severity_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        // Three visual states per chip:
+                        //   · Picked   → severity == minSeverity              (active fill + ✓ + bold)
+                        //   · Covered  → severity.level > minSeverity.level   (muted fill, no ✓)
+                        //   · Excluded → severity.level < minSeverity.level   (outline)
+                        // All chips remain single-choice click targets: tapping any chip
+                        // calls onMinSeverityChange(severity) — same contract the FCM
+                        // service consumes via AlertNotificationSettings.
+                        val coveredContainer = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
+                        val coveredContent = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f)
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            AlertSeverity.entries.forEachIndexed { index, severity ->
+                                val isPicked = severity == uiState.minSeverity
+                                val isCovered = severity.level > uiState.minSeverity.level
+                                val itemColors = if (isCovered) {
+                                    SegmentedButtonDefaults.colors(
+                                        inactiveContainerColor = coveredContainer,
+                                        inactiveContentColor = coveredContent,
+                                    )
+                                } else {
+                                    SegmentedButtonDefaults.colors()
+                                }
+                                SegmentedButton(
+                                    selected = isPicked,
+                                    onClick = { onMinSeverityChange(severity) },
+                                    shape = SegmentedButtonDefaults.itemShape(
+                                        index = index,
+                                        count = AlertSeverity.entries.size,
+                                    ),
+                                    colors = itemColors,
+                                    enabled = uiState.alertsEnabled,
+                                ) {
+                                    Text(
+                                        text = severity.display,
+                                        fontWeight = if (isPicked) FontWeight.SemiBold else FontWeight.Normal,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Visual effects card — currently only the heartbeat toggle.
+                // Persisted via VisualEffectsSettings; CriticalAlertHeartbeat at the
+                // App root collects the same StateFlow so the change is instant.
+                ProfileSectionCard(title = stringResource(Res.string.profile_section_visual_effects)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(Res.string.profile_visual_heartbeat_title),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Text(
+                                text = stringResource(Res.string.profile_visual_heartbeat_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Switch(
+                            checked = uiState.heartbeatEnabled,
+                            onCheckedChange = onHeartbeatEnabledChange,
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // Logout button
-                val logoutRed = Color(0xFFFF1744)
+                // Logout button — uses the vivid error red defined in the theme so it
+                // stays in lockstep with other destructive/critical UI (active-alerts
+                // banner, alert chips, etc.).
+                val logoutRed = MaterialTheme.colorScheme.error
                 OutlinedButton(
                     onClick = onLogout,
                     modifier = Modifier
@@ -277,7 +377,7 @@ private fun ProfileContent(
 
                 // App version
                 Text(
-                    text = "GreenhouseFronts v${getPlatform().versionName}",
+                    text = "${stringResource(Res.string.app_name)} v${getPlatform().versionName}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                     textAlign = TextAlign.Center,
@@ -391,7 +491,6 @@ private fun formatRole(role: String): String {
 }
 
 private fun formatTimestamp(iso: String): String {
-    // Extract date part from ISO-8601 timestamp
     return iso.substringBefore("T").ifBlank { iso }
 }
 
@@ -402,6 +501,8 @@ private fun PreviewProfileContent() {
         ProfileContent(
             uiState = ProfileUiState(
                 isLoading = false,
+                alertsEnabled = true,
+                minSeverity = AlertSeverity.INFO,
                 profile = UserProfile(
                     id = 1L,
                     code = "USR-00001",
@@ -419,6 +520,108 @@ private fun PreviewProfileContent() {
             ),
             onLogout = {},
             onRetry = {},
+            onAlertsEnabledChange = {},
+            onMinSeverityChange = {},
+            onHeartbeatEnabledChange = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewProfileContentAlertsDisabled() {
+    GreenhouseTheme(darkTheme = true) {
+        ProfileContent(
+            uiState = ProfileUiState(
+                isLoading = false,
+                alertsEnabled = false,
+                minSeverity = AlertSeverity.WARNING,
+                profile = UserProfile(
+                    id = 2L,
+                    code = null,
+                    username = "Ana López",
+                    email = "ana@invernaderos.com",
+                    role = "OPERATOR",
+                    isActive = true,
+                    lastLogin = null,
+                    createdAt = null,
+                    companyName = null,
+                    companyPhone = null,
+                    province = null,
+                    country = null,
+                ),
+            ),
+            onLogout = {},
+            onRetry = {},
+            onAlertsEnabledChange = {},
+            onMinSeverityChange = {},
+            onHeartbeatEnabledChange = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewProfileContentMinSeverityError() {
+    GreenhouseTheme(darkTheme = true) {
+        ProfileContent(
+            uiState = ProfileUiState(
+                isLoading = false,
+                alertsEnabled = true,
+                minSeverity = AlertSeverity.ERROR,
+                profile = UserProfile(
+                    id = 3L,
+                    code = "USR-00003",
+                    username = "Marta Ruiz",
+                    email = "marta@invernaderos.com",
+                    role = "OPERATOR",
+                    isActive = true,
+                    lastLogin = null,
+                    createdAt = null,
+                    companyName = null,
+                    companyPhone = null,
+                    province = null,
+                    country = null,
+                ),
+            ),
+            onLogout = {},
+            onRetry = {},
+            onAlertsEnabledChange = {},
+            onMinSeverityChange = {},
+            onHeartbeatEnabledChange = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewProfileContentMinSeverityCritical() {
+    GreenhouseTheme(darkTheme = true) {
+        ProfileContent(
+            uiState = ProfileUiState(
+                isLoading = false,
+                alertsEnabled = true,
+                minSeverity = AlertSeverity.CRITICAL,
+                profile = UserProfile(
+                    id = 4L,
+                    code = "USR-00004",
+                    username = "Pablo Hidalgo",
+                    email = "pablo@invernaderos.com",
+                    role = "ADMIN",
+                    isActive = true,
+                    lastLogin = null,
+                    createdAt = null,
+                    companyName = null,
+                    companyPhone = null,
+                    province = null,
+                    country = null,
+                ),
+            ),
+            onLogout = {},
+            onRetry = {},
+            onAlertsEnabledChange = {},
+            onMinSeverityChange = {},
+            onHeartbeatEnabledChange = {},
         )
     }
 }
@@ -431,6 +634,9 @@ private fun PreviewProfileLoading() {
             uiState = ProfileUiState(isLoading = true),
             onLogout = {},
             onRetry = {},
+            onAlertsEnabledChange = {},
+            onMinSeverityChange = {},
+            onHeartbeatEnabledChange = {},
         )
     }
 }

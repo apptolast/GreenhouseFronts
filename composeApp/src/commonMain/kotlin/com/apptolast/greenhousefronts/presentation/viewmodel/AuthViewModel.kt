@@ -3,6 +3,8 @@ package com.apptolast.greenhousefronts.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.apptolast.greenhousefronts.data.model.auth.RegisterRequest
+import com.apptolast.greenhousefronts.data.remote.push.PushTokenRegistrar
+import com.apptolast.greenhousefronts.domain.model.AuthState
 import com.apptolast.greenhousefronts.domain.repository.AuthRepository
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -64,7 +66,8 @@ sealed interface AuthEvent {
  * @param authRepository Repository for auth operations
  */
 class AuthViewModel(
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val pushTokenRegistrar: PushTokenRegistrar,
 ) : ViewModel() {
 
     val uiState: StateFlow<AuthUiState>
@@ -76,6 +79,19 @@ class AuthViewModel(
 
     // Mutex to prevent concurrent auth operations
     private val authMutex = Mutex()
+
+    init {
+        // Pre-fill the email when the user lands on Login because their session expired —
+        // not on cold-start (INITIAL) or manual logout, both of which want a clean form.
+        viewModelScope.launch {
+            val state = authRepository.authState.value
+            if (state is AuthState.Unauthenticated && state.reason == AuthState.Reason.EXPIRED) {
+                authRepository.getUsername()?.takeIf { it.isNotBlank() }?.let { email ->
+                    uiState.update { it.copy(email = email) }
+                }
+            }
+        }
+    }
 
     // ========== Login Field Updates ==========
 
@@ -181,6 +197,8 @@ class AuthViewModel(
                 )
                     .onSuccess {
                         uiState.update { it.copy(isLoading = false) }
+                        // FCM registration is handled by PushTokenRegistrar's reactive
+                        // collector on AuthRepository.authState — no explicit call needed.
                         _events.send(AuthEvent.LoginSuccess)
                     }
                     .onFailure { error ->
@@ -232,6 +250,8 @@ class AuthViewModel(
                 authRepository.register(request)
                     .onSuccess {
                         uiState.update { it.copy(isLoading = false) }
+                        // FCM registration is handled by PushTokenRegistrar's reactive
+                        // collector on AuthRepository.authState — no explicit call needed.
                         _events.send(AuthEvent.RegisterSuccess)
                     }
                     .onFailure { error ->
@@ -341,6 +361,9 @@ class AuthViewModel(
      */
     fun logout() {
         viewModelScope.launch {
+            // Drop the FCM token from the backend BEFORE the JWT is wiped, otherwise
+            // the DELETE call would fail authentication.
+            pushTokenRegistrar.unregisterCurrentToken()
             authRepository.logout()
             // Reset state
             uiState.update { AuthUiState() }
@@ -352,45 +375,6 @@ class AuthViewModel(
      */
     fun clearError() {
         uiState.update { it.copy(error = null) }
-    }
-
-    /**
-     * Checks if user is currently logged in.
-     */
-    fun isLoggedIn(): Boolean {
-        return authRepository.isLoggedIn()
-    }
-
-    /**
-     * Clears login form fields.
-     */
-    fun clearLoginForm() {
-        uiState.update {
-            it.copy(
-                email = "",
-                password = "",
-                isPasswordVisible = false
-            )
-        }
-    }
-
-    /**
-     * Clears register form fields.
-     */
-    fun clearRegisterForm() {
-        uiState.update {
-            it.copy(
-                companyName = "",
-                taxId = "",
-                firstName = "",
-                lastName = "",
-                registerEmail = "",
-                registerPassword = "",
-                isRegisterPasswordVisible = false,
-                phone = "",
-                address = ""
-            )
-        }
     }
 
     fun clearForgotPasswordForm() {

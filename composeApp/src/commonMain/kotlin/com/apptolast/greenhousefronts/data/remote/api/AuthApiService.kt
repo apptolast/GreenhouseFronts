@@ -3,6 +3,7 @@ package com.apptolast.greenhousefronts.data.remote.api
 import com.apptolast.greenhousefronts.data.model.auth.ForgotPasswordRequest
 import com.apptolast.greenhousefronts.data.model.auth.JwtResponse
 import com.apptolast.greenhousefronts.data.model.auth.LoginRequest
+import com.apptolast.greenhousefronts.data.model.auth.RefreshRequest
 import com.apptolast.greenhousefronts.data.model.auth.RegisterRequest
 import com.apptolast.greenhousefronts.data.model.auth.ResetPasswordRequest
 import com.apptolast.greenhousefronts.data.remote.baseUrl
@@ -14,56 +15,23 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 
 /**
- * API service for authentication operations.
- * Handles login and registration endpoints.
- *
- * Note: This service uses the unauthenticated HttpClient since
- * auth endpoints don't require Bearer tokens.
- *
- * @param httpClient Injected HTTP client (should be unauthenticated client)
+ * Auth endpoints. MUST be wired with the UNAUTHENTICATED HttpClient — `/refresh` would
+ * otherwise recurse through the bearer plugin's 401 handler.
  */
-class AuthApiService(
-    private val httpClient: HttpClient
-) {
+class AuthApiService(private val httpClient: HttpClient) {
 
-    /**
-     * Authenticates a user with email and password.
-     * POST /api/auth/login
-     *
-     * @param request Login credentials
-     * @return JWT response containing access token and user info
-     * @throws ClientRequestException 401 if credentials are invalid
-     */
-    suspend fun login(request: LoginRequest): JwtResponse {
-        return httpClient.post("$baseUrl/auth/login") {
+    suspend fun login(request: LoginRequest): JwtResponse =
+        httpClient.post("$baseUrl/auth/login") {
             contentType(ContentType.Application.Json)
             setBody(request)
         }.body()
-    }
 
-    /**
-     * Registers a new tenant and admin user.
-     * POST /api/auth/register
-     *
-     * Auto-logs in the user after successful registration.
-     *
-     * @param request Registration data including company and user info
-     * @return JWT response containing access token and user info
-     * @throws ClientRequestException 400 if validation fails or email is already in use
-     */
-    suspend fun register(request: RegisterRequest): JwtResponse {
-        return httpClient.post("$baseUrl/auth/register") {
+    suspend fun register(request: RegisterRequest): JwtResponse =
+        httpClient.post("$baseUrl/auth/register") {
             contentType(ContentType.Application.Json)
             setBody(request)
         }.body()
-    }
 
-    /**
-     * Requests a password reset email.
-     * POST /api/auth/forgot-password
-     *
-     * @param request Request containing the user's email
-     */
     suspend fun forgotPassword(request: ForgotPasswordRequest) {
         httpClient.post("$baseUrl/auth/forgot-password") {
             contentType(ContentType.Application.Json)
@@ -71,12 +39,6 @@ class AuthApiService(
         }
     }
 
-    /**
-     * Resets the user's password using a valid token.
-     * POST /api/auth/reset-password
-     *
-     * @param request Request containing the token and new password
-     */
     suspend fun resetPassword(request: ResetPasswordRequest) {
         httpClient.post("$baseUrl/auth/reset-password") {
             contentType(ContentType.Application.Json)
@@ -84,11 +46,22 @@ class AuthApiService(
         }
     }
 
-    /**
-     * Logs out the current user.
-     * POST /api/auth/logout
-     */
     suspend fun logout() {
         httpClient.post("$baseUrl/auth/logout")
     }
+
+    /**
+     * Rotates the refresh token. Identifies the user by the opaque token in the body —
+     * no `Authorization` header. Returns a new access + refresh pair; the caller MUST
+     * replace the stored refresh or reuse-detection will revoke the family on the next call.
+     *
+     * Failure modes (Ktor `expectSuccess = true` raises these):
+     *  - `ClientRequestException` 400 (malformed) or 401 (invalid/expired/revoked/reused).
+     *  - `ServerResponseException` 503 if `REFRESH_TOKEN_ENABLED=false` on the backend.
+     */
+    suspend fun refresh(request: RefreshRequest): JwtResponse =
+        httpClient.post("$baseUrl/auth/refresh") {
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }.body()
 }

@@ -94,8 +94,13 @@ class IrrigationConfigViewModel(
             webSocket.statusFlow()
                 .catch { e ->
                     println("$TAG WebSocket flow error: ${e::class.simpleName}: ${e.message}")
+                    // Don't surface the raw exception — show a user-friendly message and
+                    // let the WebSocket's own retryWhen reconnect in the background.
                     uiState.update {
-                        it.copy(isLoading = false, error = "${e::class.simpleName}: ${e.message}")
+                        it.copy(
+                            isLoading = false,
+                            error = "No se pudo conectar al servidor en tiempo real. Reintentando…",
+                        )
                     }
                 }
                 .collect { status ->
@@ -104,7 +109,17 @@ class IrrigationConfigViewModel(
                         .find { it.id == greenhouseId }
 
                     if (greenhouse == null) {
-                        uiState.update { it.copy(isLoading = false, error = "Invernadero no encontrado") }
+                        // While the first snapshot is in flight we may receive a frame for
+                        // a different greenhouse (replay = 1 from the previous detail). Only
+                        // surface an error once we've already loaded data and lost it.
+                        if (configLoaded) {
+                            uiState.update {
+                                it.copy(
+                                    isLoading = false,
+                                    error = "Este invernadero ya no está disponible para tu cuenta.",
+                                )
+                            }
+                        }
                         return@collect
                     }
 

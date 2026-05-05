@@ -16,6 +16,8 @@ plugins {
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
     alias(libs.plugins.kotlinx.serialization)
+    alias(libs.plugins.google.services)
+    alias(libs.plugins.buildkonfig)
 }
 
 kotlin {
@@ -64,6 +66,10 @@ kotlin {
 
             // Chart Library - Vico (native platforms)
             implementation(libs.vico.multiplatform.m3)
+
+            // Firebase Cloud Messaging (BoM aligns versions)
+            implementation(project.dependencies.platform(libs.firebase.bom))
+            implementation(libs.firebase.messaging)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -144,8 +150,14 @@ android {
         applicationId = "com.apptolast.greenhousefronts"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 3
-        versionName = "0.1.2"
+        // Tag-driven release versioning: fastlane injects -PappVersionCode and
+        // -PappVersionName at build time from the Git tag + the highest code
+        // already on Play. The defaults below are only used for local debug
+        // builds (debug AABs/APKs run from Android Studio); release builds via
+        // fastlane always override them, so this number does NOT need to be
+        // bumped per release any more.
+        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 3
+        versionName = (project.findProperty("appVersionName") as String?) ?: "0.2.0-dev"
     }
     buildFeatures {
         buildConfig = true
@@ -180,6 +192,21 @@ android {
 
 dependencies {
     debugImplementation(compose.uiTooling)
+}
+
+// BuildKonfig — exposes secrets read from local.properties to commonMain code.
+// `feedback.recipients` is a comma-separated list of emails the in-app suggestion
+// form launches a mailto: to. Falls back to a hard-coded list so the app still
+// works on a clean checkout without the entry in local.properties.
+buildkonfig {
+    packageName = "com.apptolast.greenhousefronts"
+    objectName = "BuildKonfig"
+
+    defaultConfigs {
+        val recipients = localProperties.getProperty("feedback.recipients")
+            ?: "admin@apptolast.com,hgarcia.alberto@gmail.com,senchiviarco@gmail.com,pablohurtadohg@gmail.com"
+        buildConfigField(com.codingfeline.buildkonfig.compiler.FieldSpec.Type.STRING, "FEEDBACK_RECIPIENTS", recipients)
+    }
 }
 
 compose.desktop {

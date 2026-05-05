@@ -2,80 +2,42 @@ package com.apptolast.greenhousefronts.domain.repository
 
 import com.apptolast.greenhousefronts.data.model.auth.JwtResponse
 import com.apptolast.greenhousefronts.data.model.auth.RegisterRequest
+import com.apptolast.greenhousefronts.domain.model.AuthState
+import com.apptolast.greenhousefronts.domain.model.SessionEvent
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 
 /**
- * Repository interface for authentication operations.
- * Defines the contract for login, registration, and session management.
+ * Single source of truth for the user's session. Also exposed as [SessionInvalidator] in
+ * DI so the Ktor `bearer { refreshTokens { … } }` block can reach refresh / invalidate
+ * without depending on the full repo (cycle-breaking — see `DataModule.kt`).
  */
-interface AuthRepository {
+interface AuthRepository : SessionInvalidator {
+
+    /** Loading until [bootstrap] runs, then Authenticated / Unauthenticated. */
+    val authState: StateFlow<AuthState>
 
     /**
-     * Authenticates a user with email and password.
-     * On success, stores the JWT token securely.
-     *
-     * @param email User's email address
-     * @param password User's password
-     * @return Result containing JWT response on success, or AuthError on failure
+     * One-shot session-change messages for the global Snackbar. Buffered (replay = 1) so a
+     * subscriber that arrives a few frames late still picks the event up.
      */
+    val sessionEvents: SharedFlow<SessionEvent>
+
+    /**
+     * Resolves the cached session and settles [authState]. Called once by the splash;
+     * idempotent — further calls are cheap no-ops.
+     */
+    suspend fun bootstrap()
+
     suspend fun login(email: String, password: String): Result<JwtResponse>
-
-    /**
-     * Registers a new tenant and admin user.
-     * On success, stores the JWT token securely (auto-login).
-     *
-     * @param request Registration data including company and user information
-     * @return Result containing JWT response on success, or AuthError on failure
-     */
     suspend fun register(request: RegisterRequest): Result<JwtResponse>
-
-    /**
-     * Requests a password reset email.
-     *
-     * @param email The email address to send the reset token to
-     * @return Result success if the request was sent successfully (or if the user doesn't exist, for security)
-     */
     suspend fun forgotPassword(email: String): Result<Unit>
-
-    /**
-     * Resets the password using a token.
-     *
-     * @param token The reset token received via email
-     * @param password The new password
-     * @return Result success if password was reset
-     */
     suspend fun resetPassword(token: String, password: String): Result<Unit>
 
-    /**
-     * Logs out the current user by clearing stored credentials.
-     */
+    /** Calls `/auth/logout` (best-effort), clears local state, emits MANUAL_LOGOUT. */
     suspend fun logout()
 
-    /**
-     * Checks if a user is currently logged in.
-     * Note: Only checks for token presence, not validity.
-     *
-     * @return true if a token exists in storage
-     */
-    fun isLoggedIn(): Boolean
-
-    /**
-     * Retrieves the stored access token.
-     *
-     * @return The JWT token or null if not authenticated
-     */
     suspend fun getToken(): String?
-
-    /**
-     * Retrieves the stored username.
-     *
-     * @return The username or null if not authenticated
-     */
     suspend fun getUsername(): String?
-
-    /**
-     * Retrieves the stored display name for greeting UI.
-     *
-     * @return The display name or null
-     */
     suspend fun getDisplayName(): String?
 }

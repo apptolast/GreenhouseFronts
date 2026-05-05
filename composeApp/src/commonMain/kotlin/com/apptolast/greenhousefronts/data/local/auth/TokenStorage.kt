@@ -1,85 +1,50 @@
 package com.apptolast.greenhousefronts.data.local.auth
 
 /**
- * Interface for JWT token storage.
- * Uses multiplatform-settings library with default platform implementations:
- * - Android: SharedPreferences
- * - iOS: NSUserDefaults
- * - Desktop: Java Preferences
- * - Web: localStorage
+ * Persisted auth data for the current user. Backed by multiplatform-settings: SharedPreferences
+ * on Android, NSUserDefaults on iOS, java.util.prefs on JVM, localStorage on web.
  */
 interface TokenStorage {
 
-    /**
-     * Saves the JWT access token.
-     * @param token The JWT token string to store
-     */
     suspend fun saveToken(token: String)
-
-    /**
-     * Retrieves the stored access token.
-     * @return The stored token or null if not authenticated
-     */
     suspend fun getToken(): String?
 
-    /**
-     * Saves the authenticated username for display purposes.
-     * @param username The username/email of the authenticated user
-     */
     suspend fun saveUsername(username: String)
-
-    /**
-     * Retrieves the stored username.
-     * @return The stored username or null
-     */
     suspend fun getUsername(): String?
 
-    /**
-     * Clears all stored authentication data.
-     * Should be called during logout.
-     */
-    suspend fun clearAll()
-
-    /**
-     * Saves the tenant ID extracted from the JWT token.
-     * @param tenantId The tenant's numeric ID
-     */
     suspend fun saveTenantId(tenantId: Long)
-
-    /**
-     * Retrieves the stored tenant ID.
-     * @return The tenant ID or null
-     */
     suspend fun getTenantId(): Long?
 
-    /**
-     * Saves the user display name for greeting UI.
-     * @param displayName The user's first name or display name
-     */
     suspend fun saveDisplayName(displayName: String)
-
-    /**
-     * Retrieves the stored display name.
-     * @return The display name or null
-     */
     suspend fun getDisplayName(): String?
 
     /**
-     * Checks if a valid token is currently stored.
-     * Note: Does not validate token expiration, only presence.
-     * @return true if a token exists
+     * Opaque refresh token. Rotates on every successful `/auth/refresh` — overwrite the
+     * previous value or the backend's reuse-detection will revoke the whole family.
      */
-    fun hasToken(): Boolean
+    suspend fun saveRefreshToken(token: String)
+    suspend fun getRefreshToken(): String?
+
+    /** Removes only the refresh token + expiry; use [clearAll] for full logout. */
+    suspend fun clearRefreshToken()
+
+    /**
+     * Refresh-token expiry (Unix epoch seconds), computed as `now + refreshExpiresIn`.
+     * Read at cold boot to skip a doomed refresh attempt.
+     */
+    suspend fun saveRefreshExpiry(epochSec: Long)
+    suspend fun getRefreshExpiry(): Long?
+
+    /** Wipes everything — call on logout or on a terminal session-invalidation event. */
+    suspend fun clearAll()
 }
 
-/**
- * Storage keys for authentication data.
- * Using a prefix to avoid key collisions.
- */
 internal object TokenStorageKeys {
     private const val PREFIX = "greenhouse_auth_"
     const val ACCESS_TOKEN = "${PREFIX}access_token"
     const val USERNAME = "${PREFIX}username"
     const val TENANT_ID = "${PREFIX}tenant_id"
     const val DISPLAY_NAME = "${PREFIX}display_name"
+    const val REFRESH_TOKEN = "${PREFIX}refresh_token"
+    const val REFRESH_EXP = "${PREFIX}refresh_exp"
 }

@@ -1,157 +1,163 @@
 package com.apptolast.greenhousefronts.data.remote.websocket
 
-import com.apptolast.greenhousefronts.data.local.auth.TokenStorage
+import com.apptolast.greenhousefronts.domain.model.AuthState
+import com.apptolast.greenhousefronts.domain.repository.AuthRepository
 import com.apptolast.greenhousefronts.util.Environment
+import com.apptolast.greenhousefronts.util.JwtDecoder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.coroutineScope
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 import kotlinx.serialization.json.Json
 import org.hildan.krossbow.stomp.StompClient
 import org.hildan.krossbow.stomp.StompSession
+import org.hildan.krossbow.stomp.config.HeartBeat
 import org.hildan.krossbow.stomp.sendEmptyMsg
 import org.hildan.krossbow.stomp.subscribeText
 import org.hildan.krossbow.websocket.ktor.KtorWebSocketClient
 
 /**
- * STOMP WebSocket client for greenhouse status.
+ * Thrown when the cached JWT's `exp` is past before we even open the socket. The
+ * `retryWhen` block catches this and attempts `/auth/refresh`; on success the upstream
+ * resubscribes with the rotated bearer, on failure the repo has already invalidated.
+ */
+private class TokenExpiredException : RuntimeException("WS bearer expired")
+
+/**
+ * Shared STOMP client for the greenhouse status stream.
  *
- * Maintains a single shared STOMP connection for all subscribers.
- * Multiple screens (GreenhouseDetail, IrrigationConfig, etc.) share the same
- * connection instead of each creating their own, which would cause conflicts
- * on the server's `/user/queue/status/response` channel.
+ * Wire model: the backend pushes a fresh `GreenhouseStatusResponse` to
+ * `/user/queue/status/response` on every tenant state change (sensor flush, alert,
+ * CRUD). The CONNECT frame carries `Authorization: Bearer <jwt>` so the backend's
+ * `StompJwtAuthInterceptor` resolves the principal and targets broadcasts at us.
  *
- * - [requestStatus]: Single request-response (for one-shot loads)
- * - [statusFlow]: Shared persistent connection with periodic polling (for real-time screens)
+ * Lifecycle:
+ *  - Gated on [AuthRepository.authState] — only Authenticated emissions open a session.
+ *  - `distinctUntilChangedBy { it.token }` ⇒ token rotation reopens the connection.
+ *  - Pre-check: expired JWT throws [TokenExpiredException] (no point connecting with a
+ *    bearer the backend would silently downgrade to anonymous).
+ *  - Shared via `shareIn`; the connection lives [STOP_TIMEOUT_MS] past the last subscriber.
+ *  - Any other error → reconnect after [RECONNECT_DELAY_MS].
+ *
+ * SUBSCRIBE→SEND ordering is enforced by the suspending `subscribeText` (returns only
+ * after the SUBSCRIBE frame is on the wire); `sendEmptyMsg` then ships on the same TCP
+ * connection so Spring's SimpleBroker processes them FIFO. We don't use STOMP RECEIPT
+ * frames — SimpleBroker doesn't implement them.
  */
 class GreenhouseStatusWebSocket(
-    private val tokenStorage: TokenStorage,
+    private val authRepository: AuthRepository,
     private val json: Json,
 ) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    /**
-     * Shared flow backed by a single STOMP connection.
-     * - Starts connection when the first subscriber appears
-     * - Disconnects [STOP_TIMEOUT_MS] after the last subscriber cancels
-     * - Automatically reconnects on errors with [RECONNECT_DELAY_MS] delay
-     * - replay=1 so new subscribers immediately get the latest status
-     */
+    // Cached as singletons — each connect() builds a fresh StompSession but reuses the
+    // underlying Ktor HttpClient instead of reallocating one per reconnect.
+    private val wsClient by lazy { KtorWebSocketClient() }
+    private val stompClient by lazy {
+        // 10 s/10 s STOMP heartbeat keeps NAT entries alive on mobile carriers (which
+        // drop idle TCP after 30–60 s). Krossbow surfaces missed beats as exceptions →
+        // retryWhen reconnects normally. No autoReceipt: SimpleBroker doesn't send them.
+        StompClient(wsClient) {
+            heartBeat = HeartBeat(minSendPeriod = 10.seconds, expectedPeriod = 10.seconds)
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     private val sharedStatusFlow: SharedFlow<GreenhouseStatusResponse> by lazy {
-        createPollFlow()
+        authRepository.authState
+            .filterIsInstance<AuthState.Authenticated>()
+            // Reconnect on token change; ignore expiresAtEpochSec-only diffs.
+            .distinctUntilChangedBy { it.token }
+            .flatMapLatest { state -> createSessionFlow(state.token) }
             .retryWhen { cause, attempt ->
-                println("$TAG Connection error (attempt $attempt), reconnecting in ${RECONNECT_DELAY_MS}ms: ${cause::class.simpleName}: ${cause.message}")
-                delay(RECONNECT_DELAY_MS)
-                true
+                if (cause is TokenExpiredException) {
+                    // tryRefreshOrInvalidate mutates AuthState itself: on success the new
+                    // Authenticated emission re-enters this pipeline with the rotated
+                    // token; on failure the session is already invalidated.
+                    val refreshed = authRepository.tryRefreshOrInvalidate()
+                    if (refreshed != null) {
+                        println("$TAG token refreshed — reopening WS")
+                        true
+                    } else {
+                        println("$TAG refresh failed — session invalidated, no retry")
+                        false
+                    }
+                } else {
+                    println("$TAG error (attempt $attempt), reconnect in ${RECONNECT_DELAY_MS}ms: ${cause::class.simpleName}: ${cause.message}")
+                    delay(RECONNECT_DELAY_MS)
+                    true
+                }
             }
             .shareIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), replay = 1)
     }
 
-//    /**
-//     * Single request-response. Connects, gets one response, disconnects.
-//     */
-//    suspend fun requestStatus(): GreenhouseStatusResponse {
-//        val session = connect()
-//
-//        return try {
-//            // Channel to bridge the subscription flow to a single receive
-//            val responseChannel = Channel<String>(1)
-//
-//            coroutineScope {
-//                // Collect subscription in a separate coroutine
-//                val collectJob = launch {
-//                    session.subscribeText(SUBSCRIBE_DESTINATION).collect { msg ->
-//                        responseChannel.send(msg)
-//                    }
-//                }
-//
-//                session.sendEmptyMsg(SEND_DESTINATION)
-//                val messageText = responseChannel.receive()
-//                collectJob.cancel()
-//                json.decodeFromString<GreenhouseStatusResponse>(messageText)
-//            }
-//        } finally {
-//            session.disconnect()
-//        }
-//    }
-
-    /**
-     * Returns a shared Flow that emits GreenhouseStatusResponse periodically.
-     * All callers share the same underlying STOMP connection.
-     * The connection is opened on first subscriber and closed when no subscribers remain.
-     */
+    /** Hot stream of status snapshots. All collectors share one STOMP session. */
     fun statusFlow(): Flow<GreenhouseStatusResponse> = sharedStatusFlow
 
     /**
-     * Creates the raw polling flow that manages the STOMP connection.
-     * This is the upstream for [sharedStatusFlow] — only one instance runs at a time.
+     * Owns one STOMP session for the lifetime of the flow. Order matters:
+     *  1. SUBSCRIBE (`subscribeText` suspends until the frame is on the wire).
+     *  2. Pump incoming frames via channelFlow.send (back-pressure propagates upstream).
+     *  3. SEND the initial request to materialise the first snapshot — broadcasts arrive
+     *     unsolicited after that.
      */
-    private fun createPollFlow(): Flow<GreenhouseStatusResponse> = flow {
-        println("$TAG statusFlow: connecting...")
-        val session = connect()
+    private fun createSessionFlow(token: String): Flow<GreenhouseStatusResponse> = channelFlow {
+        if (JwtDecoder.isTokenExpired(token)) throw TokenExpiredException()
+
+        println("$TAG connecting…")
+        val session = connect(token)
+        var receiveCount = 0
+        var lastReceiveMark: TimeSource.Monotonic.ValueTimeMark? = null
 
         try {
-            // Channel to receive parsed responses from the subscription coroutine
-            val responseChannel = Channel<GreenhouseStatusResponse>(Channel.CONFLATED)
+            val subscription = session.subscribeText(SUBSCRIBE_DESTINATION)
+            println("$TAG SUBSCRIBED → $SUBSCRIBE_DESTINATION")
 
             coroutineScope {
-                // Coroutine that collects all messages from the subscription
-                val collectJob = launch {
-                    session.subscribeText(SUBSCRIBE_DESTINATION).collect { msg ->
+                launch {
+                    subscription.collect { msg ->
                         val parsed = json.decodeFromString<GreenhouseStatusResponse>(msg)
-                        responseChannel.send(parsed)
+                        val now = TimeSource.Monotonic.markNow()
+                        val deltaMs = lastReceiveMark?.let { (now - it).inWholeMilliseconds } ?: -1L
+                        lastReceiveMark = now
+                        receiveCount++
+                        // If receiveCount stays at 1 forever, the JWT in CONNECT was rejected
+                        // and the STOMP principal is anonymous — broadcasts won't be targeted.
+                        println("$TAG RECV #$receiveCount Δ${deltaMs}ms ${msg.length}B " + parsed.summarize())
+                        send(parsed)
                     }
                 }
-
-                // Polling loop: send request, wait for response, emit
-                try {
-                    while (true) {
-                        session.sendEmptyMsg(SEND_DESTINATION)
-                        val response = responseChannel.receive()
-                        emit(response)
-                        if (POLL_INTERVAL_MS > 0) delay(POLL_INTERVAL_MS)
-                    }
-                } finally {
-                    collectJob.cancel()
-                }
+                session.sendEmptyMsg(SEND_DESTINATION)
+                println("$TAG SENT initial → $SEND_DESTINATION")
             }
         } catch (e: Exception) {
-            println("$TAG statusFlow error: ${e::class.simpleName}: ${e.message}")
+            println("$TAG error: ${e::class.simpleName}: ${e.message}")
             throw e
         } finally {
-            println("$TAG statusFlow: disconnecting...")
-            try {
-                session.disconnect()
-            } catch (_: Exception) {
-            }
-            println("$TAG statusFlow: disconnected")
+            println("$TAG disconnecting (receives=$receiveCount)")
+            runCatching { session.disconnect() }
         }
     }
 
-    private suspend fun connect(): StompSession {
-        val token = tokenStorage.getToken()
+    private suspend fun connect(token: String): StompSession {
         val wsUrl = Environment.current.wsUrl
-
-        val wsClient = KtorWebSocketClient()
-        val stompClient = StompClient(wsClient)
-
-        val headers = buildMap {
-            if (token != null) {
-                put("Authorization", "Bearer $token")
-            }
-        }
-
-        println("$TAG Connecting to $wsUrl...")
+        val headers = mapOf("Authorization" to "Bearer $token")
+        println("$TAG connect $wsUrl bearerLen=${token.length}")
         return stompClient.connect(wsUrl, customStompConnectHeaders = headers).also {
             println("$TAG STOMP CONNECTED")
         }
@@ -161,8 +167,33 @@ class GreenhouseStatusWebSocket(
         private const val TAG = "[WS-GREENHOUSE]"
         private const val SUBSCRIBE_DESTINATION = "/user/queue/status/response"
         private const val SEND_DESTINATION = "/app/status/request"
-        private const val POLL_INTERVAL_MS = 0L
+
+        /** Keeps the connection alive briefly between screens that share this flow. */
         private const val STOP_TIMEOUT_MS = 5_000L
+
+        /** Cooldown before retrying after a connection error — avoids retry storms. */
         private const val RECONNECT_DELAY_MS = 3_000L
     }
+}
+
+/** Mirrors the backend `WsBroadcaster` log format so traces can be correlated by eye. */
+private fun GreenhouseStatusResponse.summarize(): String {
+    var greenhouses = 0
+    var sectors = 0
+    var devices = 0
+    var settings = 0
+    var alerts = 0
+    tenants.forEach { t ->
+        greenhouses += t.greenhouses.size
+        t.greenhouses.forEach { g ->
+            sectors += g.sectors.size
+            g.sectors.forEach { s ->
+                devices += s.devices.size
+                settings += s.settings.size
+                alerts += s.alerts.size
+            }
+        }
+    }
+    return "tenants=${tenants.size} greenhouses=$greenhouses sectors=$sectors " +
+            "devices=$devices settings=$settings alerts=$alerts"
 }

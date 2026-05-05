@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".GreenhouseApplication"
@@ -39,5 +40,19 @@
             </intent-filter>
 
         </activity>
+
+        <!-- Firebase Cloud Messaging service: receives push notifications and token rotations -->
+        <service
+            android:name=".data.remote.push.GreenhouseFcmService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Default channel used by FCM when the message has no channel hint -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="alerts_default" />
     </application>
 </manifest>

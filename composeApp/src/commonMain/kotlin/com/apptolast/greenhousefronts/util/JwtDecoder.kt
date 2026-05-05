@@ -1,5 +1,7 @@
 package com.apptolast.greenhousefronts.util
 
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
@@ -10,7 +12,7 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 
 /**
  * Utility to decode JWT token payloads and extract claims.
- * Used to retrieve tenantId and user info from the access token.
+ * Used to retrieve tenantId, user info and expiration from the access token.
  */
 @OptIn(ExperimentalEncodingApi::class)
 object JwtDecoder {
@@ -35,6 +37,27 @@ object JwtDecoder {
         } catch (_: Exception) {
             null
         }
+    }
+
+    /**
+     * Returns the JWT `exp` claim (RFC 7519) as Unix epoch seconds, or null if absent /
+     * malformed. Reuses [extractLongClaim] so any non-numeric encoding falls through to null.
+     */
+    fun extractExpiration(token: String): Long? = extractLongClaim(token, "exp")
+
+    /**
+     * True if the token has no `exp` claim (defensive: treat missing expiry as expired) or
+     * if `exp <= now + skewSeconds`. The skew protects against tokens that expire mid-request
+     * — by treating them as already expired we avoid firing a request that the server will
+     * 401 milliseconds later.
+     *
+     * @param skewSeconds positive grace window before the actual expiry, default 30 s.
+     */
+    @OptIn(ExperimentalTime::class)
+    fun isTokenExpired(token: String, skewSeconds: Long = 30): Boolean {
+        val exp = extractExpiration(token) ?: return true
+        val nowSec = Clock.System.now().epochSeconds
+        return exp <= nowSec + skewSeconds
     }
 
     private fun decodePayload(token: String): String? {

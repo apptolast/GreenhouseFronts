@@ -10,10 +10,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
@@ -38,16 +43,24 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
 import com.apptolast.greenhousefronts.presentation.viewmodel.AuthEvent
 import com.apptolast.greenhousefronts.presentation.viewmodel.AuthUiState
@@ -130,6 +143,28 @@ private fun LoginScreenContent(
     onNavigateToRegister: () -> Unit = {},
     onNavigateToForgotPassword: () -> Unit = {},
 ) {
+    val passwordFocusRequester = remember { FocusRequester() }
+    val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+    val scrollJob = remember { mutableStateOf<Job?>(null) }
+    val onFieldFocused: () -> Unit = {
+        scrollJob.value?.cancel()
+        scrollJob.value = coroutineScope.launch {
+            // Wait for BasicTextField's internal bringIntoView and the IME
+            // animation to settle so scrollState.maxValue reflects the
+            // viewport reduced by imePadding before we scroll to the end.
+            delay(300)
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
+
+    val canSubmit = !uiState.isLoading && uiState.email.isNotBlank() && uiState.password.isNotBlank()
+    val submit: () -> Unit = {
+        if (canSubmit) {
+            onLoginClick()
+        }
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
@@ -150,6 +185,8 @@ private fun LoginScreenContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
+                    .imePadding()
+                    .verticalScroll(scrollState)
                     .padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Top
@@ -203,10 +240,21 @@ private fun LoginScreenContent(
                             tint = MaterialTheme.colorScheme.primary
                         )
                     },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onFocusEvent { focusState ->
+                            if (focusState.isFocused) onFieldFocused()
+                        },
                     singleLine = true,
                     enabled = !uiState.isLoading,
                     shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Email,
+                        imeAction = ImeAction.Next,
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = { passwordFocusRequester.requestFocus() },
+                    ),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
                         unfocusedBorderColor = MaterialTheme.colorScheme.outline,
@@ -243,10 +291,22 @@ private fun LoginScreenContent(
                         }
                     },
                     visualTransformation = if (uiState.isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(passwordFocusRequester)
+                        .onFocusEvent { focusState ->
+                            if (focusState.isFocused) onFieldFocused()
+                        },
                     singleLine = true,
                     enabled = !uiState.isLoading,
                     shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Go,
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onGo = { submit() },
+                    ),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
                         unfocusedBorderColor = MaterialTheme.colorScheme.outline,
@@ -271,9 +331,11 @@ private fun LoginScreenContent(
 
                 // Login Button
                 Button(
-                    onClick = onLoginClick,
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    enabled = !uiState.isLoading && uiState.email.isNotBlank() && uiState.password.isNotBlank(),
+                    onClick = submit,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    enabled = canSubmit,
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
@@ -299,31 +361,33 @@ private fun LoginScreenContent(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // Sign Up Link
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = stringResource(Res.string.login_signup_prompt),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    TextButton(onClick = onNavigateToRegister, enabled = !uiState.isLoading) {
-                        Text(
-                            text = stringResource(Res.string.login_signup_link),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
+//                Row(
+//                    horizontalArrangement = Arrangement.Center,
+//                    verticalAlignment = Alignment.CenterVertically
+//                ) {
+//                    Text(
+//                        text = stringResource(Res.string.login_signup_prompt),
+//                        style = MaterialTheme.typography.bodySmall,
+//                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+//                    )
+//                    Spacer(modifier = Modifier.width(4.dp))
+//                    TextButton(onClick = onNavigateToRegister, enabled = !uiState.isLoading) {
+//                        Text(
+//                            text = stringResource(Res.string.login_signup_link),
+//                            style = MaterialTheme.typography.bodySmall,
+//                            color = MaterialTheme.colorScheme.primary,
+//                            fontWeight = FontWeight.Bold
+//                        )
+//                    }
+//                }
+
+                //Spacer(modifier = Modifier.height(14.dp))
             }
         }
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun LoginScreenContentPreview() {
     val uiState = AuthUiState(
