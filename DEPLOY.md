@@ -124,7 +124,6 @@ Repo → Settings → Secrets and variables → Actions → New repository secre
 | `ANDROID_KEY_ALIAS` | `local.properties:signing.keyAlias` | plain text |
 | `ANDROID_KEY_PASSWORD` | `local.properties:signing.keyPassword` | plain text |
 | `PLAY_SERVICE_ACCOUNT_JSON_BASE64` | Service account JSON downloaded from Google Cloud | `base64 -i path/to/play.json \| pbcopy` |
-| `FEEDBACK_RECIPIENTS` | The list configured in `local.properties` | comma-separated emails |
 
 The workflow base64-decodes the keystore + JSON into `$RUNNER_TEMP/secrets/`,
 which GitHub wipes after each job.
