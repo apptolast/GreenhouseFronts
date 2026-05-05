@@ -150,8 +150,14 @@ android {
         applicationId = "com.apptolast.greenhousefronts"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 4
-        versionName = "0.2.0"
+        // Tag-driven release versioning: fastlane injects -PappVersionCode and
+        // -PappVersionName at build time from the Git tag + the highest code
+        // already on Play. The defaults below are only used for local debug
+        // builds (debug AABs/APKs run from Android Studio); release builds via
+        // fastlane always override them, so this number does NOT need to be
+        // bumped per release any more.
+        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 3
+        versionName = (project.findProperty("appVersionName") as String?) ?: "0.2.0-dev"
     }
     buildFeatures {
         buildConfig = true

@@ -576,6 +576,19 @@ fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
 
+# Per-platform fastlane setups (KMP). Patterns mirror the recommended layout:
+# composeApp/fastlane/ for Android, iosApp/fastlane/ for iOS.
+**/fastlane/report.xml
+**/fastlane/Preview.html
+**/fastlane/screenshots/**/*.png
+**/fastlane/test_output
+**/fastlane/README.md
+# Local secrets — keep paths/keys out of git. .env.example IS tracked.
+**/fastlane/.env
+**/fastlane/.env.local
+**/fastlane/.env.*
+!**/fastlane/.env.example
+
 # Code Injection
 # After new code Injection tools there's a generated folder /iOSInjectionProject
 # https://github.com/johnno1962/injectionforxcode
