@@ -2,12 +2,12 @@ package com.apptolast.greenhousefronts.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.apptolast.greenhousefronts.BuildKonfig
 import com.apptolast.greenhousefronts.data.feedback.FeedbackCategory
 import com.apptolast.greenhousefronts.data.feedback.FeedbackDraft
 import com.apptolast.greenhousefronts.data.feedback.FeedbackDraftStorage
-import com.apptolast.greenhousefronts.data.feedback.MailLauncher
+import com.apptolast.greenhousefronts.data.model.suggestion.CreateSuggestionRequest
 import com.apptolast.greenhousefronts.domain.repository.AuthRepository
+import com.apptolast.greenhousefronts.domain.repository.SuggestionRepository
 import com.apptolast.greenhousefronts.domain.repository.UserRepository
 import com.apptolast.greenhousefronts.getPlatform
 import kotlinx.coroutines.channels.Channel
@@ -16,45 +16,52 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
 
 data class SendSuggestionUiState(
     val draft: FeedbackDraft = FeedbackDraft(),
     val isSending: Boolean = false,
     val isLoadingProfile: Boolean = true,
-    val displayName: String = "",
-    val username: String = "",
     val email: String = "",
     val showExitConfirm: Boolean = false,
 ) {
+    /**
+     * Backend enforces title 3..200 chars and description 1..5000. Mirror the
+     * lower bounds client-side so the user doesn't submit only to be told no.
+     */
     val canSend: Boolean
-        get() = draft.title.isNotBlank() && draft.description.isNotBlank() && !isSending
+        get() = draft.title.length >= MIN_TITLE_LENGTH &&
+            draft.description.isNotBlank() &&
+            email.isNotBlank() &&
+            !isSending
+
+    companion object {
+        const val MIN_TITLE_LENGTH = 3
+    }
 }
 
 sealed interface SendSuggestionEvent {
     data object SentSuccessfully : SendSuggestionEvent
-    data object NoMailClientAvailable : SendSuggestionEvent
+    data class SendFailed(val message: String) : SendSuggestionEvent
     data object NavigateBack : SendSuggestionEvent
 }
 
 /**
  * Drives the in-app suggestion/feedback form.
  *
- * - Loads the persisted draft from [FeedbackDraftStorage] so the user picks up where
+ * - Persists the draft via [FeedbackDraftStorage] so the user picks up where
  *   they left off after a process death or backgrounded session.
- * - Mirrors the user profile (display name, email, …) into UI state, used both to
- *   build the email subject and to attach a "Información técnica" footer to the body
- *   so the receiving inbox can triage without playing 20 questions.
- * - Send opens the OS mail composer with a pre-filled `mailto:` URI; on success we
- *   clear the draft and emit [SendSuggestionEvent.SentSuccessfully] so the screen
- *   can pop the back stack. If no mail handler is registered we surface
- *   [SendSuggestionEvent.NoMailClientAvailable] so the UI can show a snackbar instead
- *   of silently looking broken.
+ * - Mirrors the user's email into UI state so we can attach it to the request
+ *   payload (the backend uses it as both attribution and a CC recipient).
+ * - On submit, calls [SuggestionRepository.create]. The backend creates a
+ *   GitHub issue and emails the configured recipients server-side. On
+ *   success we clear the draft and emit [SendSuggestionEvent.SentSuccessfully]
+ *   so the screen can show a success snackbar and pop the back stack. On
+ *   failure we surface the (already-translated) repository error message
+ *   through [SendSuggestionEvent.SendFailed].
  */
 class SendSuggestionViewModel(
     private val draftStorage: FeedbackDraftStorage,
-    private val mailLauncher: MailLauncher,
+    private val suggestionRepository: SuggestionRepository,
     private val authRepository: AuthRepository,
     private val userRepository: UserRepository,
 ) : ViewModel() {
@@ -78,23 +85,16 @@ class SendSuggestionViewModel(
 
     private fun loadProfile() {
         viewModelScope.launch {
-            // displayName is best-effort from the cached token; falls back to the
-            // username if the backend never returned one. Both go into the email
-            // subject and the technical-context footer.
-            val cachedDisplayName = authRepository.getDisplayName().orEmpty()
-            val cachedUsername = authRepository.getUsername().orEmpty()
-            uiState.update {
-                it.copy(displayName = cachedDisplayName, username = cachedUsername)
-            }
+            // The cached username (from TokenStorage) is usually an email or a
+            // login name — used as a fallback while the profile fetch is in
+            // flight. The fresh profile then overrides it with the canonical
+            // email returned by the backend.
+            val cached = authRepository.getUsername().orEmpty()
+            uiState.update { it.copy(email = cached) }
             userRepository.getCurrentUserProfile()
                 .onSuccess { profile ->
                     uiState.update {
-                        it.copy(
-                            isLoadingProfile = false,
-                            displayName = profile.username.ifBlank { cachedDisplayName },
-                            username = cachedUsername.ifBlank { profile.email },
-                            email = profile.email,
-                        )
+                        it.copy(isLoadingProfile = false, email = profile.email)
                     }
                 }
                 .onFailure {
@@ -143,47 +143,36 @@ class SendSuggestionViewModel(
         if (!state.canSend) return
         uiState.update { it.copy(isSending = true) }
 
-        val recipients = BuildKonfig.FEEDBACK_RECIPIENTS
-            .split(",")
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-
-        val signer = state.displayName.ifBlank { state.username.ifBlank { "Usuario" } }
-        val subject = "Kropia - ${state.draft.category.display} de $signer"
-        val body = buildEmailBody(state)
-
-        val launched = mailLauncher.launch(recipients, subject, body)
-        if (launched) {
-            // Wipe the draft only after the mail client was successfully invoked. If
-            // the user cancels the compose UI later, they still have to re-type — this
-            // is the trade-off of mailto: vs a backend endpoint.
-            draftStorage.clear()
-            viewModelScope.launch { _events.send(SendSuggestionEvent.SentSuccessfully) }
-        } else {
-            uiState.update { it.copy(isSending = false) }
-            viewModelScope.launch { _events.send(SendSuggestionEvent.NoMailClientAvailable) }
+        viewModelScope.launch {
+            val request = state.toRequest()
+            suggestionRepository.create(request)
+                .onSuccess {
+                    draftStorage.clear()
+                    _events.send(SendSuggestionEvent.SentSuccessfully)
+                }
+                .onFailure { error ->
+                    uiState.update { it.copy(isSending = false) }
+                    _events.send(
+                        SendSuggestionEvent.SendFailed(
+                            error.message ?: "No se pudo enviar tu sugerencia.",
+                        ),
+                    )
+                }
         }
     }
 
-    @OptIn(ExperimentalTime::class)
-    private fun buildEmailBody(state: SendSuggestionUiState): String {
-        val draft = state.draft
-        return buildString {
-            appendLine("Categoría: ${draft.category.display}")
-            appendLine()
-            appendLine("Título:")
-            appendLine(draft.title)
-            appendLine()
-            appendLine("Descripción:")
-            appendLine(draft.description)
-            appendLine()
-            appendLine("---")
-            appendLine("Información técnica (añadida automáticamente)")
-            appendLine("App: Kropia v${getPlatform().versionName}")
-            appendLine("Plataforma: ${getPlatform().name}")
-            if (state.username.isNotBlank()) appendLine("Usuario: ${state.username}")
-            if (state.email.isNotBlank()) appendLine("Email: ${state.email}")
-            appendLine("Fecha: ${Clock.System.now()}")
-        }
-    }
+    /**
+     * Build the API payload from the current UI state plus host-platform
+     * metadata. Kept inline because the mapping is one-shot — no other lane
+     * needs it.
+     */
+    private fun SendSuggestionUiState.toRequest(): CreateSuggestionRequest =
+        CreateSuggestionRequest(
+            category = draft.category.display,
+            title = draft.title.trim(),
+            description = draft.description.trim(),
+            appVersion = getPlatform().versionName,
+            platform = getPlatform().name,
+            userEmail = email,
+        )
 }

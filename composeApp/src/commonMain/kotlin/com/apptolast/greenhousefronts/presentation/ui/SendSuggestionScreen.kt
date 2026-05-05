@@ -43,7 +43,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -69,8 +72,8 @@ import greenhousefronts.composeapp.generated.resources.suggestion_exit_dialog_co
 import greenhousefronts.composeapp.generated.resources.suggestion_exit_dialog_title
 import greenhousefronts.composeapp.generated.resources.suggestion_intro_body
 import greenhousefronts.composeapp.generated.resources.suggestion_intro_title
-import greenhousefronts.composeapp.generated.resources.suggestion_no_mail_client
 import greenhousefronts.composeapp.generated.resources.suggestion_send_button
+import greenhousefronts.composeapp.generated.resources.suggestion_send_success
 import greenhousefronts.composeapp.generated.resources.suggestion_sending
 import greenhousefronts.composeapp.generated.resources.suggestion_title_label
 import greenhousefronts.composeapp.generated.resources.suggestion_title_placeholder
@@ -85,16 +88,30 @@ fun SendSuggestionScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    val noMailMessage = stringResource(Res.string.suggestion_no_mail_client)
+    val successMessage = stringResource(Res.string.suggestion_send_success)
+    // Used to fire-and-forget the success snackbar in parallel with the
+    // auto-navigate-back delay. `showSnackbar` is a suspend fn that returns
+    // when the snackbar dismisses (~4s default), so calling it sequentially
+    // would block the navigate-back for 4s — too long.
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
-                SendSuggestionEvent.NavigateBack,
-                SendSuggestionEvent.SentSuccessfully -> onNavigateBack()
+                SendSuggestionEvent.NavigateBack -> onNavigateBack()
 
-                SendSuggestionEvent.NoMailClientAvailable -> {
-                    snackbarHostState.showSnackbar(noMailMessage)
+                SendSuggestionEvent.SentSuccessfully -> {
+                    scope.launch { snackbarHostState.showSnackbar(successMessage) }
+                    delay(1500)
+                    onNavigateBack()
+                }
+
+                is SendSuggestionEvent.SendFailed -> {
+                    // Repository already produced a translated, user-friendly
+                    // string — pipe it straight to the snackbar. Block the
+                    // collect loop here so a quick repeated tap on Enviar
+                    // doesn't queue multiple identical snackbars.
+                    snackbarHostState.showSnackbar(event.message)
                 }
             }
         }
@@ -345,8 +362,6 @@ private fun PreviewSendSuggestionEmpty() {
         SendSuggestionContent(
             uiState = SendSuggestionUiState(
                 isLoadingProfile = false,
-                displayName = "Pablo Hidalgo",
-                username = "pablohurtado",
                 email = "pablo@invernaderos.com",
             ),
             snackbarHostState = remember { SnackbarHostState() },
@@ -373,8 +388,6 @@ private fun PreviewSendSuggestionFilled() {
                     description = "Cuando dejo la app en segundo plano más de 5 minutos y vuelvo, la curva de temperatura se queda congelada hasta que hago pull-to-refresh manualmente.",
                 ),
                 isLoadingProfile = false,
-                displayName = "Pablo Hidalgo",
-                username = "pablohurtado",
                 email = "pablo@invernaderos.com",
             ),
             snackbarHostState = remember { SnackbarHostState() },
