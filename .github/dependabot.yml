@@ -1,0 +1,61 @@
+# Configuration for Dependabot version updates
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  # GitHub Actions - Check for updates to GitHub Actions used in workflows
+  # Note: This is configured proactively for future workflows. No workflows exist yet.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+
+  # Gradle - Manage Gradle dependencies using version catalogs
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "gradle"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    # Group related updates together to reduce PR noise
+    groups:
+      kotlin:
+        patterns:
+          - "org.jetbrains.kotlin:*"
+          - "org.jetbrains.kotlinx:*"
+        update-types:
+          - "minor"
+          - "patch"
+      androidx:
+        patterns:
+          - "androidx.*"
+          - "org.jetbrains.androidx.*"
+        update-types:
+          - "minor"
+          - "patch"
+      ktor:
+        patterns:
+          - "io.ktor*"
+        update-types:
+          - "minor"
+          - "patch"
+      compose:
+        patterns:
+          - "org.jetbrains.compose*"
+          - "androidx.compose*"
+          - "*:*compose*"
+        update-types:
+          - "minor"
+          - "patch"

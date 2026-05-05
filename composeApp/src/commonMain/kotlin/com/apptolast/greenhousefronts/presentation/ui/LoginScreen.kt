@@ -1,0 +1,437 @@
+package com.apptolast.greenhousefronts.presentation.ui
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusEvent
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
+import com.apptolast.greenhousefronts.presentation.viewmodel.AuthEvent
+import com.apptolast.greenhousefronts.presentation.viewmodel.AuthUiState
+import com.apptolast.greenhousefronts.presentation.viewmodel.AuthViewModel
+import greenhousefronts.composeapp.generated.resources.Res
+import greenhousefronts.composeapp.generated.resources.cd_password_hide
+import greenhousefronts.composeapp.generated.resources.cd_password_icon
+import greenhousefronts.composeapp.generated.resources.cd_password_show
+import greenhousefronts.composeapp.generated.resources.cd_user_icon
+import greenhousefronts.composeapp.generated.resources.ic_launcher_foreground
+import greenhousefronts.composeapp.generated.resources.login_button
+import greenhousefronts.composeapp.generated.resources.login_forgot_password
+import greenhousefronts.composeapp.generated.resources.login_password_label
+import greenhousefronts.composeapp.generated.resources.login_password_placeholder
+import greenhousefronts.composeapp.generated.resources.login_signup_link
+import greenhousefronts.composeapp.generated.resources.login_signup_prompt
+import greenhousefronts.composeapp.generated.resources.login_subtitle
+import greenhousefronts.composeapp.generated.resources.login_username_label
+import greenhousefronts.composeapp.generated.resources.login_username_placeholder
+import greenhousefronts.composeapp.generated.resources.login_welcome_title
+import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
+
+/**
+ * Login screen (Stateful).
+ * It observes the ViewModel's state and handles authentication events.
+ */
+@Composable
+fun LoginScreen(
+    viewModel: AuthViewModel,
+    onLoginSuccess: () -> Unit = {},
+    onNavigateToRegister: () -> Unit = {},
+    onNavigateToForgotPassword: () -> Unit = {}
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var hasNavigated by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { event ->
+            if (event is AuthEvent.LoginSuccess && !hasNavigated) {
+                hasNavigated = true
+                onLoginSuccess()
+            }
+        }
+    }
+
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearError()
+        }
+    }
+
+    LoginScreenContent(
+        uiState = uiState,
+        snackbarHostState = snackbarHostState,
+        onEmailChange = viewModel::updateEmail,
+        onPasswordChange = viewModel::updatePassword,
+        onLoginClick = viewModel::login,
+        onTogglePasswordVisibility = viewModel::togglePasswordVisibility,
+        onNavigateToRegister = onNavigateToRegister,
+        onNavigateToForgotPassword = onNavigateToForgotPassword
+    )
+}
+
+/**
+ * Content for the login screen (Stateless).
+ * Displays the UI and delegates user actions to the callers.
+ */
+@Composable
+private fun LoginScreenContent(
+    uiState: AuthUiState,
+    snackbarHostState: SnackbarHostState,
+    onEmailChange: (String) -> Unit = {},
+    onPasswordChange: (String) -> Unit = {},
+    onLoginClick: () -> Unit = {},
+    onTogglePasswordVisibility: () -> Unit = {},
+    onNavigateToRegister: () -> Unit = {},
+    onNavigateToForgotPassword: () -> Unit = {},
+) {
+    val passwordFocusRequester = remember { FocusRequester() }
+    val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+    val scrollJob = remember { mutableStateOf<Job?>(null) }
+    val onFieldFocused: () -> Unit = {
+        scrollJob.value?.cancel()
+        scrollJob.value = coroutineScope.launch {
+            // Wait for BasicTextField's internal bringIntoView and the IME
+            // animation to settle so scrollState.maxValue reflects the
+            // viewport reduced by imePadding before we scroll to the end.
+            delay(300)
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
+
+    val canSubmit = !uiState.isLoading && uiState.email.isNotBlank() && uiState.password.isNotBlank()
+    val submit: () -> Unit = {
+        if (canSubmit) {
+            onLoginClick()
+        }
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.background,
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        )
+                    )
+                )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
+                    .imePadding()
+                    .verticalScroll(scrollState)
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Top
+            ) {
+                // Logo and Title
+                Image(
+                    painter = painterResource(Res.drawable.ic_launcher_foreground),
+                    contentDescription = "Kropia",
+                    modifier = Modifier.size(200.dp),
+                )
+                Spacer(modifier = Modifier.width(0.dp))
+                Text(
+                    text = "Kropia",
+                    style = MaterialTheme.typography.displaySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp
+                )
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // Welcome Text
+                Text(
+                    text = stringResource(Res.string.login_welcome_title),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = stringResource(Res.string.login_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // Input Fields
+                OutlinedTextField(
+                    value = uiState.email,
+                    onValueChange = onEmailChange,
+                    label = { Text(stringResource(Res.string.login_username_label)) },
+                    placeholder = {
+                        Text(
+                            stringResource(Res.string.login_username_placeholder),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Person,
+                            contentDescription = stringResource(Res.string.cd_user_icon),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onFocusEvent { focusState ->
+                            if (focusState.isFocused) onFieldFocused()
+                        },
+                    singleLine = true,
+                    enabled = !uiState.isLoading,
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Email,
+                        imeAction = ImeAction.Next,
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = { passwordFocusRequester.requestFocus() },
+                    ),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedLabelColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = uiState.password,
+                    onValueChange = onPasswordChange,
+                    label = { Text(stringResource(Res.string.login_password_label)) },
+                    placeholder = {
+                        Text(
+                            stringResource(Res.string.login_password_placeholder),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Lock,
+                            contentDescription = stringResource(Res.string.cd_password_icon),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    trailingIcon = {
+                        IconButton(onClick = onTogglePasswordVisibility) {
+                            Icon(
+                                imageVector = if (uiState.isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = if (uiState.isPasswordVisible) stringResource(
+                                    Res.string.cd_password_hide
+                                ) else stringResource(Res.string.cd_password_show),
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                    },
+                    visualTransformation = if (uiState.isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(passwordFocusRequester)
+                        .onFocusEvent { focusState ->
+                            if (focusState.isFocused) onFieldFocused()
+                        },
+                    singleLine = true,
+                    enabled = !uiState.isLoading,
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Go,
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onGo = { submit() },
+                    ),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedLabelColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Forgot Password
+                TextButton(
+                    onClick = onNavigateToForgotPassword,
+                    modifier = Modifier.align(Alignment.End),
+                    enabled = !uiState.isLoading
+                ) {
+                    Text(
+                        text = stringResource(Res.string.login_forgot_password),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Login Button
+                Button(
+                    onClick = submit,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    enabled = canSubmit,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        disabledContainerColor = MaterialTheme.colorScheme.outline,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                ) {
+                    if (uiState.isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            text = stringResource(Res.string.login_button),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Sign Up Link
+//                Row(
+//                    horizontalArrangement = Arrangement.Center,
+//                    verticalAlignment = Alignment.CenterVertically
+//                ) {
+//                    Text(
+//                        text = stringResource(Res.string.login_signup_prompt),
+//                        style = MaterialTheme.typography.bodySmall,
+//                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+//                    )
+//                    Spacer(modifier = Modifier.width(4.dp))
+//                    TextButton(onClick = onNavigateToRegister, enabled = !uiState.isLoading) {
+//                        Text(
+//                            text = stringResource(Res.string.login_signup_link),
+//                            style = MaterialTheme.typography.bodySmall,
+//                            color = MaterialTheme.colorScheme.primary,
+//                            fontWeight = FontWeight.Bold
+//                        )
+//                    }
+//                }
+
+                //Spacer(modifier = Modifier.height(14.dp))
+            }
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun LoginScreenContentPreview() {
+    val uiState = AuthUiState(
+        email = "user@example.com",
+        password = "password"
+    )
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    GreenhouseTheme {
+        LoginScreenContent(
+            uiState = uiState,
+            snackbarHostState = snackbarHostState,
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun LoginScreenContentLoadingPreview() {
+    val uiState = AuthUiState(
+        email = "user@example.com",
+        password = "password",
+        isLoading = true
+    )
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    GreenhouseTheme {
+        LoginScreenContent(
+            uiState = uiState,
+            snackbarHostState = snackbarHostState,
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun LoginScreenContentEmptyPreview() {
+    val uiState = AuthUiState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    GreenhouseTheme {
+        LoginScreenContent(
+            uiState = uiState,
+            snackbarHostState = snackbarHostState,
+        )
+    }
+}

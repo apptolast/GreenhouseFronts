@@ -1,6 +1,13 @@
+import java.util.Properties
+import org.apache.log4j.MDC.put
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) load(file.inputStream())
+}
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -8,6 +15,9 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
+    alias(libs.plugins.kotlinx.serialization)
+    alias(libs.plugins.google.services)
+    alias(libs.plugins.buildkonfig)
 }
 
 kotlin {
@@ -16,7 +26,7 @@ kotlin {
             jvmTarget.set(JvmTarget.JVM_11)
         }
     }
-    
+
     listOf(
         iosArm64(),
         iosSimulatorArm64()
@@ -26,41 +36,108 @@ kotlin {
             isStatic = true
         }
     }
-    
+
     jvm()
-    
+
     js {
         browser()
         binaries.executable()
     }
-    
+
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
         browser()
         binaries.executable()
     }
-    
+
     sourceSets {
+
+        configureEach {
+            languageSettings.enableLanguageFeature("ExplicitBackingFields")
+        }
+
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
+            implementation(libs.ktor.client.okhttp)
+
+            // Koin Android
+            implementation(libs.koin.android)
+
+            // Chart Library - Vico (native platforms)
+            implementation(libs.vico.multiplatform.m3)
+
+            // Firebase Cloud Messaging (BoM aligns versions)
+            implementation(project.dependencies.platform(libs.firebase.bom))
+            implementation(libs.firebase.messaging)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material3)
+            implementation(compose.materialIconsExtended)
             implementation(compose.ui)
             implementation(compose.components.resources)
             implementation(compose.components.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+            implementation(libs.androidx.navigation.compose)
+
+            // Ktor Client
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
+            implementation(libs.ktor.client.logging)
+            implementation(libs.ktor.client.websockets)
+            implementation(libs.ktor.client.auth)
+
+            // Multiplatform Settings for token storage
+            implementation(libs.multiplatform.settings)
+            implementation(libs.multiplatform.settings.no.arg)
+            implementation(libs.multiplatform.settings.coroutines)
+
+            // Krossbow STOMP WebSocket
+            implementation(libs.krossbow.stomp.core)
+            implementation(libs.krossbow.websocket.ktor)
+            implementation(libs.krossbow.stomp.kxserialization.json)
+
+            // Kotlinx Libraries
+            implementation(libs.kotlinx.datetime)
+
+            // Koin for Dependency Injection
+            implementation(project.dependencies.platform(libs.koin.bom))
+            implementation(libs.koin.core)
+            implementation(libs.koin.compose)
+            implementation(libs.koin.compose.viewmodel)
+            implementation(libs.koin.compose.viewmodel.navigation)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+
+            // Koin Test
+            implementation(libs.koin.test)
+        }
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
+
+            // Chart Library - Vico (native platforms)
+            implementation(libs.vico.multiplatform.m3)
         }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
+            implementation(libs.ktor.client.cio)
+
+            // Chart Library - Vico (native platforms)
+            implementation(libs.vico.multiplatform.m3)
+        }
+        jsMain.dependencies {
+            // Chart Library - AAY-chart (web platforms)
+            implementation(libs.aay.chart)
+        }
+        wasmJsMain.dependencies {
+            // Chart Library - AAY-chart (web platforms)
+            implementation(libs.aay.chart)
         }
     }
 }
@@ -73,17 +150,38 @@ android {
         applicationId = "com.apptolast.greenhousefronts"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "1.0"
+        // Tag-driven release versioning: fastlane injects -PappVersionCode and
+        // -PappVersionName at build time from the Git tag + the highest code
+        // already on Play. The defaults below are only used for local debug
+        // builds (debug AABs/APKs run from Android Studio); release builds via
+        // fastlane always override them, so this number does NOT need to be
+        // bumped per release any more.
+        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 3
+        versionName = (project.findProperty("appVersionName") as String?) ?: "0.2.0-dev"
+    }
+    buildFeatures {
+        buildConfig = true
     }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+    signingConfigs {
+        create("release") {
+            val storeFilePath = localProperties.getProperty("signing.storeFile")
+            if (storeFilePath != null) {
+                storeFile = file(storeFilePath)
+                storePassword = localProperties.getProperty("signing.storePassword")
+                keyAlias = localProperties.getProperty("signing.keyAlias")
+                keyPassword = localProperties.getProperty("signing.keyPassword")
+            }
+        }
+    }
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
@@ -96,6 +194,21 @@ dependencies {
     debugImplementation(compose.uiTooling)
 }
 
+// BuildKonfig — exposes secrets read from local.properties to commonMain code.
+// `feedback.recipients` is a comma-separated list of emails the in-app suggestion
+// form launches a mailto: to. Falls back to a hard-coded list so the app still
+// works on a clean checkout without the entry in local.properties.
+buildkonfig {
+    packageName = "com.apptolast.greenhousefronts"
+    objectName = "BuildKonfig"
+
+    defaultConfigs {
+        val recipients = localProperties.getProperty("feedback.recipients")
+            ?: "admin@apptolast.com,hgarcia.alberto@gmail.com,senchiviarco@gmail.com,pablohurtadohg@gmail.com"
+        buildConfigField(com.codingfeline.buildkonfig.compiler.FieldSpec.Type.STRING, "FEEDBACK_RECIPIENTS", recipients)
+    }
+}
+
 compose.desktop {
     application {
         mainClass = "com.apptolast.greenhousefronts.MainKt"
@@ -104,6 +217,25 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "com.apptolast.greenhousefronts"
             packageVersion = "1.0.0"
+
+            macOS {
+                bundleID =
+                    "com.apptolast.greenhousefronts.GreenhouseFronts" // Identificador único de tu app
+
+                // ESTA ES LA PARTE CLAVE
+                // Aquí registramos el esquema de URL 'http'.
+                infoPlist {
+                    put("CFBundleURLTypes", buildList {
+                        add(
+                            mapOf(
+                                "CFBundleTypeRole" to "Editor",
+                                "CFBundleURLSchemes" to buildList {
+                                    add("http")
+                                }
+                            ))
+                    })
+                }
+            }
         }
     }
 }

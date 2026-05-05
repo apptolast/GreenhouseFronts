@@ -1,0 +1,355 @@
+package com.apptolast.greenhousefronts.presentation.ui
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Feedback
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.apptolast.greenhousefronts.domain.model.Greenhouse
+import com.apptolast.greenhousefronts.domain.repository.AlertRepository
+import com.apptolast.greenhousefronts.presentation.navigation.BottomNavSelectionBus
+import com.apptolast.greenhousefronts.presentation.ui.components.BottomNavBar
+import com.apptolast.greenhousefronts.presentation.ui.components.BottomNavTab
+import com.apptolast.greenhousefronts.presentation.ui.components.GreenhouseCard
+import com.apptolast.greenhousefronts.presentation.ui.components.LoadingBar
+import com.apptolast.greenhousefronts.presentation.ui.theme.GreenhouseTheme
+import com.apptolast.greenhousefronts.presentation.viewmodel.AlertsViewModel
+import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseListUiState
+import com.apptolast.greenhousefronts.presentation.viewmodel.GreenhouseListViewModel
+import com.apptolast.greenhousefronts.presentation.viewmodel.ProfileViewModel
+import greenhousefronts.composeapp.generated.resources.Res
+import greenhousefronts.composeapp.generated.resources.ic_launcher_foreground
+import greenhousefronts.composeapp.generated.resources.suggestion_topbar_action_cd
+import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
+import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
+
+/**
+ * Main screen after authentication.
+ * Contains a Scaffold with bottom navigation and tab content switching.
+ */
+@Composable
+fun MainScreen(
+    greenhouseListViewModel: GreenhouseListViewModel = koinViewModel(),
+    profileViewModel: ProfileViewModel = koinViewModel(),
+    onLogoutSuccess: () -> Unit = {},
+    onNavigateToGreenhouseDetail: (Long) -> Unit = {},
+    onNavigateToSendSuggestion: () -> Unit = {},
+) {
+    // rememberSaveable so the selected tab survives both config changes AND a forward
+    // navigation + pop (e.g., Profile → SendSuggestion → back) — plain remember would
+    // reset to GREENHOUSES because the NavHost detaches this destination's composition
+    // while the SendSuggestion screen is on top.
+    var selectedTab by rememberSaveable { mutableStateOf(BottomNavTab.GREENHOUSES) }
+    val greenhouseUiState by greenhouseListViewModel.uiState.collectAsState()
+
+    // Live count of unresolved alerts across all greenhouses, sourced from the
+    // shared WebSocket flow via AlertRepository.observeActiveAlerts(). Drives the
+    // red bubble on the Alerts bottom-nav icon.
+    val alertRepository: AlertRepository = koinInject()
+    val activeAlerts by alertRepository.observeActiveAlerts().collectAsState(initial = emptyList())
+
+    // Allow external triggers (e.g. the deep-link handler in App.kt) to switch tabs.
+    // Backed by a StateFlow so a tab selection emitted while the user was still on Login
+    // is replayed once MainScreen subscribes for the first time.
+    val bottomNavBus: BottomNavSelectionBus = koinInject()
+    val pendingTab by bottomNavBus.pending.collectAsState()
+    LaunchedEffect(pendingTab) {
+        pendingTab?.let { tab ->
+            selectedTab = tab
+            bottomNavBus.consume()
+        }
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text(
+                            text = "Kropia",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        if (greenhouseUiState.displayName.isNotBlank()) {
+                            Text(
+                                text = "Hola, ${greenhouseUiState.displayName}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                },
+                navigationIcon = {
+                    Image(
+                        painter = painterResource(Res.drawable.ic_launcher_foreground),
+                        contentDescription = "Kropia",
+                        modifier = Modifier.size(80.dp),
+                    )
+                },
+                actions = {
+                    // Feedback action — only relevant from the Profile tab. Hidden on
+                    // other tabs to keep the chrome focused on the current context.
+                    if (selectedTab == BottomNavTab.PROFILE) {
+                        IconButton(onClick = onNavigateToSendSuggestion) {
+                            Icon(
+                                imageVector = Icons.Outlined.Feedback,
+                                contentDescription = stringResource(Res.string.suggestion_topbar_action_cd),
+                                tint = MaterialTheme.colorScheme.onBackground,
+                            )
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                ),
+            )
+        },
+        bottomBar = {
+            BottomNavBar(
+                selectedTab = selectedTab,
+                onTabSelected = { selectedTab = it },
+                alertsBadgeCount = activeAlerts.size,
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background,
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues),
+        ) {
+            when (selectedTab) {
+                BottomNavTab.GREENHOUSES -> {
+                    LifecycleResumeEffect(Unit) {
+                        greenhouseListViewModel.loadGreenhouses()
+                        onPauseOrDispose { }
+                    }
+                    GreenhouseListContent(
+                        uiState = greenhouseUiState,
+                        onRetry = greenhouseListViewModel::loadGreenhouses,
+                        onRefresh = greenhouseListViewModel::refresh,
+                        onGreenhouseClick = { onNavigateToGreenhouseDetail(it.id) },
+                    )
+                }
+
+                BottomNavTab.ALERTS -> {
+                    val alertsViewModel: AlertsViewModel = koinViewModel()
+                    AlertsScreen(viewModel = alertsViewModel)
+                }
+
+                BottomNavTab.PROFILE -> {
+                    ProfileScreen(
+                        viewModel = profileViewModel,
+                        onLogoutSuccess = onLogoutSuccess,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GreenhouseListContent(
+    uiState: GreenhouseListUiState,
+    onRetry: () -> Unit,
+    onRefresh: () -> Unit = {},
+    onGreenhouseClick: (Greenhouse) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        LoadingBar(isLoading = uiState.isLoading)
+
+        Box(modifier = Modifier.weight(1f)) {
+            val pullState = rememberPullToRefreshState()
+
+            PullToRefreshBox(
+                isRefreshing = uiState.isRefreshing,
+                onRefresh = onRefresh,
+                state = pullState,
+                modifier = Modifier.fillMaxSize(),
+                indicator = {
+                    PullToRefreshDefaults.Indicator(
+                        state = pullState,
+                        isRefreshing = uiState.isRefreshing,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                },
+            ) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    // Section title
+                    item {
+                        Text(
+                            text = "Mis Invernaderos",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+                    }
+
+                    // Greenhouse cards
+                    if (uiState.greenhouses.isEmpty() && !uiState.isLoading && !uiState.isRefreshing) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 32.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = "No hay invernaderos registrados",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    } else {
+                        items(
+                            count = uiState.greenhouses.size,
+                            key = { uiState.greenhouses[it].id },
+                        ) { index ->
+                            GreenhouseCard(
+                                greenhouse = uiState.greenhouses[index],
+                                onClick = { onGreenhouseClick(uiState.greenhouses[index]) },
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Error snackbar
+            uiState.error?.let { error ->
+                Snackbar(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(16.dp),
+                    action = {
+                        TextButton(onClick = onRetry) {
+                            Text("Reintentar", color = MaterialTheme.colorScheme.primary)
+                        }
+                    },
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                ) {
+                    Text(error)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaceholderTab(title: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewGreenhouseListContent() {
+    GreenhouseTheme(darkTheme = true) {
+        Scaffold(
+            bottomBar = {
+                BottomNavBar(
+                    selectedTab = BottomNavTab.GREENHOUSES,
+                    onTabSelected = {},
+                )
+            },
+            containerColor = MaterialTheme.colorScheme.background,
+        ) { padding ->
+            Box(Modifier.padding(padding)) {
+                GreenhouseListContent(
+                    uiState = GreenhouseListUiState(
+                        isLoading = false,
+                        displayName = "Carlos",
+                        greenhouses = listOf(
+                            Greenhouse(1L, "GRH-00001", "Invernadero Norte", true, 2500.0, 4, 2),
+                            Greenhouse(2L, "GRH-00002", "Invernadero Sur", true, 1800.0, 3, 1),
+                            Greenhouse(3L, "GRH-00003", "Invernadero Este", false, 3200.0, 5, 0),
+                        ),
+                    ),
+                    onRetry = {},
+                    onGreenhouseClick = {},
+                )
+            }
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewGreenhouseListLoading() {
+    GreenhouseTheme(darkTheme = true) {
+        GreenhouseListContent(
+            uiState = GreenhouseListUiState(isLoading = true),
+            onRetry = {},
+            onGreenhouseClick = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewGreenhouseListEmpty() {
+    GreenhouseTheme(darkTheme = true) {
+        GreenhouseListContent(
+            uiState = GreenhouseListUiState(isLoading = false, displayName = "Carlos"),
+            onRetry = {},
+            onGreenhouseClick = {},
+        )
+    }
+}
