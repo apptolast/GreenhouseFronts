@@ -52,11 +52,17 @@ object JwtDecoder {
      * 401 milliseconds later.
      *
      * @param skewSeconds positive grace window before the actual expiry, default 30 s.
+     * @param clock injected for testability; defaults to [Clock.System]. Tests use a
+     *   `TestClock` to advance time deterministically.
      */
     @OptIn(ExperimentalTime::class)
-    fun isTokenExpired(token: String, skewSeconds: Long = 30): Boolean {
+    fun isTokenExpired(
+        token: String,
+        skewSeconds: Long = 30,
+        clock: Clock = Clock.System,
+    ): Boolean {
         val exp = extractExpiration(token) ?: return true
-        val nowSec = Clock.System.now().epochSeconds
+        val nowSec = clock.now().epochSeconds
         return exp <= nowSec + skewSeconds
     }
 

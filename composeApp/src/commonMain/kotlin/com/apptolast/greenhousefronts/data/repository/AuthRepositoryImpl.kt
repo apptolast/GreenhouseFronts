@@ -40,6 +40,7 @@ import kotlinx.coroutines.sync.withLock
 class AuthRepositoryImpl(
     private val authApiService: AuthApiService,
     private val tokenStorage: TokenStorage,
+    private val clock: Clock = Clock.System,
 ) : AuthRepository {
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
@@ -56,40 +57,60 @@ class AuthRepositoryImpl(
     // sessionMutex from inside the refresh path, so nested locking would deadlock.
     private val refreshMutex = Mutex()
 
+    // Monotonic counter incremented inside refreshMutex every time a real /auth/refresh
+    // succeeds. Lets concurrent callers tell the difference between "another caller already
+    // refreshed for us while we waited on the mutex" (legitimate coalescing) and "we just
+    // got handed a token that the server is already rejecting" (need to refresh again).
+    private var refreshCounter: Long = 0L
+
     override suspend fun bootstrap() {
         // Early-return outside the mutex so nested calls below can't deadlock.
         if (_authState.value !is AuthState.Loading) return
 
         val token = tokenStorage.getToken()
         if (token.isNullOrBlank()) {
+            println("[AUTH] bootstrap | hasAccess=false -> Unauthenticated(INITIAL)")
             settleUnauthenticated(AuthState.Reason.INITIAL, emitEvent = false)
             return
         }
 
-        if (!JwtDecoder.isTokenExpired(token)) {
-            sessionMutex.withLock {
-                if (_authState.value !is AuthState.Loading) return
-                _authState.value = AuthState.Authenticated(token, JwtDecoder.extractExpiration(token))
+        val exp = JwtDecoder.extractExpiration(token)
+        val nowSec = clock.now().epochSeconds
+        val secondsToExpiry = exp?.let { it - nowSec } ?: -1L
+        println(
+            "[AUTH] bootstrap | hasAccess=true accessExpIn=${secondsToExpiry}s " +
+                    "tokenPrefix=${tokenPrefix(token)}",
+        )
+
+        // Force a refresh whenever the access token is already expired OR within the
+        // near-expiry window — avoids emitting Authenticated with a token that the backend
+        // will reject moments later (race between local skew and server-side validation).
+        if (secondsToExpiry < NEAR_EXPIRY_SECONDS) {
+            if (refreshTokenLooksUsable()) {
+                println("[AUTH] bootstrap | access within near-expiry window — refreshing")
+                // tryRefreshOrInvalidate transitions authState itself (Authenticated or
+                // Unauthenticated), so no follow-up work is needed regardless of the result.
+                tryRefreshOrInvalidate()
+                return
             }
+            println("[AUTH] bootstrap | refresh not usable -> Unauthenticated(EXPIRED)")
+            settleUnauthenticated(AuthState.Reason.EXPIRED, emitEvent = true)
             return
         }
 
-        // Access expired but the refresh window may still be open — try it before forcing Login.
-        if (refreshTokenLooksUsable()) {
-            // tryRefreshOrInvalidate transitions authState itself (Authenticated or
-            // Unauthenticated), so no follow-up work is needed regardless of the result.
-            tryRefreshOrInvalidate()
-            return
+        // Healthy token (> NEAR_EXPIRY_SECONDS to the actual exp): emit Authenticated.
+        sessionMutex.withLock {
+            if (_authState.value !is AuthState.Loading) return
+            println("[AUTH] state -> Authenticated(prefix=${tokenPrefix(token)}, expIn=${secondsToExpiry}s)")
+            _authState.value = AuthState.Authenticated(token, exp)
         }
-
-        settleUnauthenticated(AuthState.Reason.EXPIRED, emitEvent = true)
     }
 
     private suspend fun refreshTokenLooksUsable(): Boolean {
         if (tokenStorage.getRefreshToken().isNullOrBlank()) return false
         val refreshExp = tokenStorage.getRefreshExpiry() ?: return true
         // 30 s leeway mirrors JwtDecoder.isTokenExpired — avoids racing the backend clock.
-        return refreshExp > Clock.System.now().epochSeconds + 30
+        return refreshExp > clock.now().epochSeconds + 30
     }
 
     private suspend fun settleUnauthenticated(reason: AuthState.Reason, emitEvent: Boolean) {
@@ -111,13 +132,16 @@ class AuthRepositoryImpl(
     override suspend fun login(email: String, password: String): Result<JwtResponse> {
         return try {
             val request = LoginRequest(username = email.trim(), password = password)
+            println("[AUTH] login requested | email=$email")
             val response = authApiService.login(request)
 
             persistSuccessfulAuth(response)
             Result.success(response)
         } catch (e: ClientRequestException) {
+            println("[AUTH] login FAILED HTTP ${e.response.status.value}")
             Result.failure(mapClientError(e))
         } catch (e: Exception) {
+            println("[AUTH] login transient failure (${e::class.simpleName}: ${e.message})")
             Result.failure(AuthError.NetworkError(e.message ?: "Error de conexión"))
         }
     }
@@ -162,6 +186,7 @@ class AuthRepositoryImpl(
     }
 
     override suspend fun logout() {
+        println("[AUTH] logout requested")
         try {
             authApiService.logout()
         } catch (_: Exception) {
@@ -169,6 +194,7 @@ class AuthRepositoryImpl(
         }
         sessionMutex.withLock {
             tokenStorage.clearAll()
+            println("[AUTH] state -> Unauthenticated(MANUAL_LOGOUT)")
             _authState.value = AuthState.Unauthenticated(AuthState.Reason.MANUAL_LOGOUT)
         }
     }
@@ -181,40 +207,57 @@ class AuthRepositoryImpl(
 
     // --- SessionInvalidator ---
 
-    override suspend fun tryRefreshOrInvalidate(): String? = refreshMutex.withLock {
-        // Coalesce: if another caller already refreshed inside the mutex, reuse its token.
-        val cachedAccess = tokenStorage.getToken()
-        if (!cachedAccess.isNullOrBlank() && !JwtDecoder.isTokenExpired(cachedAccess)) {
-            return@withLock cachedAccess
-        }
+    override suspend fun tryRefreshOrInvalidate(): String? {
+        // Snapshot the counter BEFORE acquiring the mutex. If it advances while we wait,
+        // another caller already rotated the token for us — reuse it. If it does NOT
+        // advance, we owe the backend an actual refresh, even when storage holds a
+        // non-expired-looking token (which may be the one the caller just got 401'd on).
+        val seenCounter = refreshCounter
+        return refreshMutex.withLock {
+            val advanced = refreshCounter > seenCounter
+            if (advanced) {
+                val cachedAccess = tokenStorage.getToken()
+                if (!cachedAccess.isNullOrBlank() && !JwtDecoder.isTokenExpired(cachedAccess, clock = clock)) {
+                    println("[AUTH] refresh coalesced | reusing cached token (counter advanced)")
+                    return@withLock cachedAccess
+                }
+            }
 
-        val refresh = tokenStorage.getRefreshToken()
-        if (refresh.isNullOrBlank()) {
-            invalidateSession(AuthState.Reason.EXPIRED)
-            return@withLock null
-        }
+            val refresh = tokenStorage.getRefreshToken()
+            if (refresh.isNullOrBlank()) {
+                println("[AUTH] refresh skipped | no refresh token -> Unauthenticated(EXPIRED)")
+                invalidateSession(AuthState.Reason.EXPIRED)
+                return@withLock null
+            }
 
-        try {
-            val response = authApiService.refresh(RefreshRequest(refreshToken = refresh))
-            persistSuccessfulAuth(response)
-            response.token
-        } catch (e: ClientRequestException) {
-            // 4xx is terminal — 401 means revoked/reused (reuse revokes the family),
-            // 400 means malformed. Either way the stored refresh is dead.
-            println("[AUTH] /auth/refresh failed HTTP ${e.response.status.value} — invalidating")
-            tokenStorage.clearRefreshToken()
-            invalidateSession(AuthState.Reason.EXPIRED)
-            null
-        } catch (e: ServerResponseException) {
-            // 5xx incl. 503 kill-switch: keep the refresh (may flip back), invalidate now.
-            println("[AUTH] /auth/refresh HTTP ${e.response.status.value} — invalidating, refresh kept")
-            invalidateSession(AuthState.Reason.EXPIRED)
-            null
-        } catch (e: Exception) {
-            // Transient I/O — keep both tokens, next caller retries. Null surfaces the
-            // original 401 to Ktor as required by the bearer plugin.
-            println("[AUTH] /auth/refresh transient failure (${e::class.simpleName}) — kept for retry")
-            null
+            println("[AUTH] refresh requested | refreshPrefix=${tokenPrefix(refresh)}")
+            try {
+                val response = authApiService.refresh(RefreshRequest(refreshToken = refresh))
+                persistSuccessfulAuth(response)
+                refreshCounter++
+                println(
+                    "[AUTH] refresh OK | newAccessPrefix=${tokenPrefix(response.token)} " +
+                            "newAccessExpIn=${expInSeconds(response.token)}s counter=$refreshCounter",
+                )
+                response.token
+            } catch (e: ClientRequestException) {
+                // 4xx is terminal — 401 means revoked/reused (reuse revokes the family),
+                // 400 means malformed. Either way the stored refresh is dead.
+                println("[AUTH] refresh FAILED HTTP ${e.response.status.value} (4xx) — clearing refresh, invalidating")
+                tokenStorage.clearRefreshToken()
+                invalidateSession(AuthState.Reason.EXPIRED)
+                null
+            } catch (e: ServerResponseException) {
+                // 5xx incl. 503 kill-switch: keep the refresh (may flip back), invalidate now.
+                println("[AUTH] refresh FAILED HTTP ${e.response.status.value} (5xx) — invalidating, refresh kept")
+                invalidateSession(AuthState.Reason.EXPIRED)
+                null
+            } catch (e: Exception) {
+                // Transient I/O — keep both tokens, next caller retries. Null surfaces the
+                // original 401 to Ktor as required by the bearer plugin.
+                println("[AUTH] refresh transient failure (${e::class.simpleName}: ${e.message}) — kept for retry")
+                null
+            }
         }
     }
 
@@ -225,6 +268,7 @@ class AuthRepositoryImpl(
             if (current is AuthState.Unauthenticated && current.reason == reason) return
 
             tokenStorage.clearAll()
+            println("[AUTH] state -> Unauthenticated($reason)")
             _authState.value = AuthState.Unauthenticated(reason)
             val message = when (reason) {
                 AuthState.Reason.EXPIRED -> "Tu sesión ha caducado. Inicia sesión de nuevo."
@@ -251,14 +295,35 @@ class AuthRepositoryImpl(
             response.refreshToken?.takeIf { it.isNotBlank() }?.let { newRefresh ->
                 tokenStorage.saveRefreshToken(newRefresh)
                 response.refreshExpiresIn?.let { ttlSec ->
-                    val expiresAt = Clock.System.now().epochSeconds + ttlSec
+                    val expiresAt = clock.now().epochSeconds + ttlSec
                     tokenStorage.saveRefreshExpiry(expiresAt)
                 }
             }
 
             val exp = JwtDecoder.extractExpiration(response.token)
+            println("[AUTH] state -> Authenticated(prefix=${tokenPrefix(response.token)}, expIn=${expInSeconds(response.token)}s)")
             _authState.value = AuthState.Authenticated(response.token, exp)
         }
+    }
+
+    /** First 8 chars + length, for log correlation across refreshes. Never logs full JWT. */
+    private fun tokenPrefix(token: String): String =
+        "${token.take(8)}..(len=${token.length})"
+
+    /** Seconds until [token]'s `exp` claim per the injected [clock]. Negative if past. */
+    private fun expInSeconds(token: String): Long {
+        val exp = JwtDecoder.extractExpiration(token) ?: return -1L
+        return exp - clock.now().epochSeconds
+    }
+
+    companion object {
+        /**
+         * Refresh proactively if the access token has fewer than this many seconds of life
+         * left when [bootstrap] runs. 5 minutes is generous enough to absorb network latency,
+         * clock drift between client and server, and the bouncing reconnect cycle of the
+         * WebSocket — without forcing a refresh on every cold start.
+         */
+        internal const val NEAR_EXPIRY_SECONDS = 300L
     }
 
     /** Extracts tenantId and display name from the JWT and persists them. */

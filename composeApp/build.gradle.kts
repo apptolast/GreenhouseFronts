@@ -115,6 +115,15 @@ kotlin {
 
             // Koin Test
             implementation(libs.koin.test)
+
+            // Ktor MockEngine for HTTP integration tests (bearer-refresh flow).
+            implementation(libs.ktor.client.mock)
+
+            // runTest, TestScope, virtual-time scheduler.
+            implementation(libs.kotlinx.coroutines.test)
+
+            // Turbine — terse Flow / StateFlow assertions.
+            implementation(libs.turbine)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
@@ -155,8 +164,8 @@ android {
         // builds (debug AABs/APKs run from Android Studio); release builds via
         // fastlane always override them, so this number does NOT need to be
         // bumped per release any more.
-        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 3
-        versionName = (project.findProperty("appVersionName") as String?) ?: "0.2.0-dev"
+        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 4
+        versionName = (project.findProperty("appVersionName") as String?) ?: "0.3.3-dev"
     }
     buildFeatures {
         buildConfig = true

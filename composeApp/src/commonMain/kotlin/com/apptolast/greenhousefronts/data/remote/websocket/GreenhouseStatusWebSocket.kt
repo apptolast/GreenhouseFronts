@@ -20,7 +20,9 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.ExperimentalTime
 import kotlin.time.TimeSource
 import kotlinx.serialization.json.Json
 import org.hildan.krossbow.stomp.StompClient
@@ -29,6 +31,7 @@ import org.hildan.krossbow.stomp.config.HeartBeat
 import org.hildan.krossbow.stomp.sendEmptyMsg
 import org.hildan.krossbow.stomp.subscribeText
 import org.hildan.krossbow.websocket.ktor.KtorWebSocketClient
+import kotlin.concurrent.Volatile
 
 /**
  * Thrown when the cached JWT's `exp` is past before we even open the socket. The
@@ -58,12 +61,20 @@ private class TokenExpiredException : RuntimeException("WS bearer expired")
  * connection so Spring's SimpleBroker processes them FIFO. We don't use STOMP RECEIPT
  * frames — SimpleBroker doesn't implement them.
  */
+@OptIn(ExperimentalTime::class)
 class GreenhouseStatusWebSocket(
     private val authRepository: AuthRepository,
     private val json: Json,
+    private val clock: Clock = Clock.System,
 ) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    // Remembers the bearer we last attempted to open with so retryWhen can detect when a
+    // refresh handed us the same token that just failed — that's a loop and we should
+    // invalidate the session instead of spinning forever.
+    @Volatile
+    private var lastAttemptedToken: String? = null
 
     // Cached as singletons — each connect() builds a fresh StompSession but reuses the
     // underlying Ktor HttpClient instead of reallocating one per reconnect.
@@ -89,13 +100,29 @@ class GreenhouseStatusWebSocket(
                     // tryRefreshOrInvalidate mutates AuthState itself: on success the new
                     // Authenticated emission re-enters this pipeline with the rotated
                     // token; on failure the session is already invalidated.
+                    val previous = lastAttemptedToken
                     val refreshed = authRepository.tryRefreshOrInvalidate()
-                    if (refreshed != null) {
-                        println("$TAG token refreshed — reopening WS")
-                        true
-                    } else {
-                        println("$TAG refresh failed — session invalidated, no retry")
-                        false
+                    when {
+                        refreshed == null -> {
+                            println("$TAG refresh failed — session invalidated, no retry")
+                            false
+                        }
+
+                        refreshed == previous -> {
+                            // The refresh path handed us the SAME token that just failed. This
+                            // means either the server is rejecting an otherwise-fresh JWT
+                            // (signature, kill-switch, principal mismatch) or the coalescing
+                            // logic is misfiring. Either way, retrying with the same bearer
+                            // would loop — break out and force re-login.
+                            println("$TAG refresh returned same bearer that just failed — invalidating session")
+                            authRepository.invalidateSession(AuthState.Reason.EXPIRED)
+                            false
+                        }
+
+                        else -> {
+                            println("$TAG token refreshed — reopening WS")
+                            true
+                        }
                     }
                 } else {
                     println("$TAG error (attempt $attempt), reconnect in ${RECONNECT_DELAY_MS}ms: ${cause::class.simpleName}: ${cause.message}")
@@ -117,9 +144,13 @@ class GreenhouseStatusWebSocket(
      *     unsolicited after that.
      */
     private fun createSessionFlow(token: String): Flow<GreenhouseStatusResponse> = channelFlow {
-        if (JwtDecoder.isTokenExpired(token)) throw TokenExpiredException()
+        lastAttemptedToken = token
+        if (JwtDecoder.isTokenExpired(token, clock = clock)) {
+            println("$TAG bearer expired pre-connect (prefix=${token.take(8)}..) — throwing for refresh")
+            throw TokenExpiredException()
+        }
 
-        println("$TAG connecting…")
+        println("$TAG connecting | bearer=${token.take(8)}..(len=${token.length})")
         val session = connect(token)
         var receiveCount = 0
         var lastReceiveMark: TimeSource.Monotonic.ValueTimeMark? = null

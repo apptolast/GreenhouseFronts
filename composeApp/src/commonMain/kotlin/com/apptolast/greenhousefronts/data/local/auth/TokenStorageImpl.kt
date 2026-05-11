@@ -2,9 +2,9 @@ package com.apptolast.greenhousefronts.data.local.auth
 
 import com.russhwolf.settings.Settings
 
-class TokenStorageImpl : TokenStorage {
-
-    private val settings: Settings = Settings()
+class TokenStorageImpl(
+    private val settings: Settings,
+) : TokenStorage {
 
     override suspend fun saveToken(token: String) {
         settings.putString(TokenStorageKeys.ACCESS_TOKEN, token)
