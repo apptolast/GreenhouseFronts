@@ -17,6 +17,7 @@ plugins {
     alias(libs.plugins.composeHotReload)
     alias(libs.plugins.kotlinx.serialization)
     alias(libs.plugins.google.services)
+    alias(libs.plugins.firebase.crashlytics)
 }
 
 kotlin {
@@ -66,9 +67,13 @@ kotlin {
             // Chart Library - Vico (native platforms)
             implementation(libs.vico.multiplatform.m3)
 
-            // Firebase Cloud Messaging (BoM aligns versions)
+            // Firebase Cloud Messaging + Crashlytics (BoM aligns versions)
             implementation(project.dependencies.platform(libs.firebase.bom))
             implementation(libs.firebase.messaging)
+            implementation(libs.firebase.crashlytics)
+
+            // Kermit → Crashlytics adapter (Android side).
+            implementation(libs.kermit.crashlytics)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -109,6 +114,11 @@ kotlin {
             implementation(libs.koin.compose)
             implementation(libs.koin.compose.viewmodel)
             implementation(libs.koin.compose.viewmodel.navigation)
+
+            // Kermit — multiplatform logger. The Crashlytics adapter is only added on the
+            // Android and iOS source sets (kermit-crashlytics is published only there);
+            // on JVM/Web Kermit falls back to platform console output.
+            implementation(libs.kermit)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -130,6 +140,10 @@ kotlin {
 
             // Chart Library - Vico (native platforms)
             implementation(libs.vico.multiplatform.m3)
+
+            // Kermit → Crashlytics adapter (iOS side). The host iOS app must already
+            // include FirebaseCrashlytics via SPM in Xcode.
+            implementation(libs.kermit.crashlytics)
         }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)

@@ -1,5 +1,6 @@
 package com.apptolast.greenhousefronts.data.remote
 
+import co.touchlab.kermit.Logger as KermitLogger
 import com.apptolast.greenhousefronts.data.local.auth.TokenStorage
 import com.apptolast.greenhousefronts.domain.repository.SessionInvalidator
 import com.apptolast.greenhousefronts.util.Environment
@@ -68,7 +69,7 @@ fun createAuthenticatedHttpClient(
                 // BearerTokens triggers a transparent retry. Ktor serialises this callback per
                 // client; cross-client coalescing (WS path) is handled by AuthRepositoryImpl.
                 refreshTokens {
-                    println("[AUTH] Ktor refreshTokens fired (401 from upstream)")
+                    KermitLogger.withTag("AUTH").i { "Ktor refreshTokens fired (401 from upstream)" }
                     sessionInvalidator.tryRefreshOrInvalidate()?.let { BearerTokens(it, "") }
                 }
                 sendWithoutRequest { request -> request.url.host.contains(sendWithoutRequestHostMatch) }

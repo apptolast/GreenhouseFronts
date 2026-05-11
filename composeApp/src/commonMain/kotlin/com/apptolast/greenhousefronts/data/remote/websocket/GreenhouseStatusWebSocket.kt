@@ -1,5 +1,6 @@
 package com.apptolast.greenhousefronts.data.remote.websocket
 
+import co.touchlab.kermit.Logger
 import com.apptolast.greenhousefronts.domain.model.AuthState
 import com.apptolast.greenhousefronts.domain.repository.AuthRepository
 import com.apptolast.greenhousefronts.util.Environment
@@ -39,6 +40,15 @@ import kotlin.concurrent.Volatile
  * resubscribes with the rotated bearer, on failure the repo has already invalidated.
  */
 private class TokenExpiredException : RuntimeException("WS bearer expired")
+
+/**
+ * Reported as a Crashlytics non-fatal when [tryRefreshOrInvalidate] returns the same bearer
+ * that just failed at the WS layer. Distinct exception type so it surfaces as its own row in
+ * the Crashlytics dashboard, separate from generic STOMP errors.
+ */
+private class SameBearerAfterRefreshException : RuntimeException(
+    "WS refresh hook returned the same bearer that just failed — likely server-side rejection of an otherwise-fresh JWT",
+)
 
 /**
  * Shared STOMP client for the greenhouse status stream.
@@ -104,7 +114,7 @@ class GreenhouseStatusWebSocket(
                     val refreshed = authRepository.tryRefreshOrInvalidate()
                     when {
                         refreshed == null -> {
-                            println("$TAG refresh failed — session invalidated, no retry")
+                            log.w { "refresh failed — session invalidated, no retry" }
                             false
                         }
 
@@ -113,19 +123,22 @@ class GreenhouseStatusWebSocket(
                             // means either the server is rejecting an otherwise-fresh JWT
                             // (signature, kill-switch, principal mismatch) or the coalescing
                             // logic is misfiring. Either way, retrying with the same bearer
-                            // would loop — break out and force re-login.
-                            println("$TAG refresh returned same bearer that just failed — invalidating session")
+                            // would loop — break out and force re-login. Report as a non-fatal
+                            // so Crashlytics surfaces it: this is the diagnostic for the bug.
+                            log.e(SameBearerAfterRefreshException()) {
+                                "refresh returned same bearer that just failed — invalidating session"
+                            }
                             authRepository.invalidateSession(AuthState.Reason.EXPIRED)
                             false
                         }
 
                         else -> {
-                            println("$TAG token refreshed — reopening WS")
+                            log.i { "token refreshed — reopening WS" }
                             true
                         }
                     }
                 } else {
-                    println("$TAG error (attempt $attempt), reconnect in ${RECONNECT_DELAY_MS}ms: ${cause::class.simpleName}: ${cause.message}")
+                    log.w(cause) { "error (attempt $attempt), reconnect in ${RECONNECT_DELAY_MS}ms" }
                     delay(RECONNECT_DELAY_MS)
                     true
                 }
@@ -146,18 +159,18 @@ class GreenhouseStatusWebSocket(
     private fun createSessionFlow(token: String): Flow<GreenhouseStatusResponse> = channelFlow {
         lastAttemptedToken = token
         if (JwtDecoder.isTokenExpired(token, clock = clock)) {
-            println("$TAG bearer expired pre-connect (prefix=${token.take(8)}..) — throwing for refresh")
+            log.i { "bearer expired pre-connect (prefix=${token.take(8)}..) — throwing for refresh" }
             throw TokenExpiredException()
         }
 
-        println("$TAG connecting | bearer=${token.take(8)}..(len=${token.length})")
+        log.i { "connecting | bearer=${token.take(8)}..(len=${token.length})" }
         val session = connect(token)
         var receiveCount = 0
         var lastReceiveMark: TimeSource.Monotonic.ValueTimeMark? = null
 
         try {
             val subscription = session.subscribeText(SUBSCRIBE_DESTINATION)
-            println("$TAG SUBSCRIBED → $SUBSCRIBE_DESTINATION")
+            log.i { "SUBSCRIBED → $SUBSCRIBE_DESTINATION" }
 
             coroutineScope {
                 launch {
@@ -169,18 +182,18 @@ class GreenhouseStatusWebSocket(
                         receiveCount++
                         // If receiveCount stays at 1 forever, the JWT in CONNECT was rejected
                         // and the STOMP principal is anonymous — broadcasts won't be targeted.
-                        println("$TAG RECV #$receiveCount Δ${deltaMs}ms ${msg.length}B " + parsed.summarize())
+                        log.i { "RECV #$receiveCount Δ${deltaMs}ms ${msg.length}B " + parsed.summarize() }
                         send(parsed)
                     }
                 }
                 session.sendEmptyMsg(SEND_DESTINATION)
-                println("$TAG SENT initial → $SEND_DESTINATION")
+                log.i { "SENT initial → $SEND_DESTINATION" }
             }
         } catch (e: Exception) {
-            println("$TAG error: ${e::class.simpleName}: ${e.message}")
+            log.w(e) { "error during STOMP session" }
             throw e
         } finally {
-            println("$TAG disconnecting (receives=$receiveCount)")
+            log.i { "disconnecting (receives=$receiveCount)" }
             runCatching { session.disconnect() }
         }
     }
@@ -188,16 +201,19 @@ class GreenhouseStatusWebSocket(
     private suspend fun connect(token: String): StompSession {
         val wsUrl = Environment.current.wsUrl
         val headers = mapOf("Authorization" to "Bearer $token")
-        println("$TAG connect $wsUrl bearerLen=${token.length}")
+        log.i { "connect $wsUrl bearerLen=${token.length}" }
         return stompClient.connect(wsUrl, customStompConnectHeaders = headers).also {
-            println("$TAG STOMP CONNECTED")
+            log.i { "STOMP CONNECTED" }
         }
     }
 
     companion object {
-        private const val TAG = "[WS-GREENHOUSE]"
         private const val SUBSCRIBE_DESTINATION = "/user/queue/status/response"
         private const val SEND_DESTINATION = "/app/status/request"
+
+        // Tagged Kermit logger — breadcrumbs to Crashlytics on Android/iOS, plain console
+        // elsewhere. Use `log.e(throwable)` for non-fatal report-worthy events.
+        private val log = Logger.withTag("AUTH-WS")
 
         /** Keeps the connection alive briefly between screens that share this flow. */
         private const val STOP_TIMEOUT_MS = 5_000L

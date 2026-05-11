@@ -25,6 +25,8 @@ aay-chart = "1.1.0"
 firebase-bom = "34.13.0"
 google-services = "4.4.4"
 turbine = "1.2.1"
+kermit = "2.0.6"
+firebase-crashlytics-gradle = "3.0.6"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -79,6 +81,12 @@ koin-test = { module = "io.insert-koin:koin-test" }
 # Firebase (Android only — iOS uses SPM in Xcode)
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
 firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
+firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics" }
+
+# Kermit — multiplatform logger. With kermit-crashlytics, INFO+ logs flow as Crashlytics
+# breadcrumbs and ERROR-with-throwable becomes non-fatal exceptions.
+kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
+kermit-crashlytics = { module = "co.touchlab:kermit-crashlytics", version.ref = "kermit" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
@@ -89,3 +97,4 @@ composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "k
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlinx-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 google-services = { id = "com.google.gms.google-services", version.ref = "google-services" }
+firebase-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "firebase-crashlytics-gradle" }
