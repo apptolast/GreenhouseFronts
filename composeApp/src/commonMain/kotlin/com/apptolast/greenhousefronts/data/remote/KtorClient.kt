@@ -7,16 +7,17 @@ import com.apptolast.greenhousefronts.util.Environment
 import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.engine.HttpClientEngine
-import io.ktor.client.plugins.auth.Auth
-import io.ktor.client.plugins.auth.providers.BearerTokens
-import io.ktor.client.plugins.auth.providers.bearer
+import io.ktor.client.plugins.HttpSend
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.plugins.logging.SIMPLE
+import io.ktor.client.plugins.plugin
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.pingInterval
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 import kotlin.time.DurationUnit
@@ -39,9 +40,26 @@ fun createUnauthenticatedHttpClient(
 }
 
 /**
- * HttpClient that attaches the stored access token and silently refreshes on 401 via
- * [SessionInvalidator.tryRefreshOrInvalidate]. On terminal refresh failure the repo
- * invalidates the session and Ktor surfaces the 401 to the caller.
+ * Authenticated HttpClient. **Does NOT use Ktor's `bearer { }` plugin** — that plugin
+ * caches the result of `loadTokens` internally and only re-reads it on a 401 response.
+ * In production we observed two problems with that:
+ *
+ *   1. After `AuthRepositoryImpl.bootstrap()` rotates the token externally (silent refresh
+ *      at cold start), the bearer cache stays glued to the previous token until a 401 is
+ *      observed. The WebSocket path reconnects fine (it reads `state.token` directly), but
+ *      every REST call keeps sending the old bearer.
+ *
+ *   2. The backend (Spring Security) returns **HTTP 403** for expired/invalid JWTs, not
+ *      401. Ktor's bearer plugin only listens for 401, so the silent-refresh hook never
+ *      fires for our backend — meaning the cached stale bearer is never replaced.
+ *
+ * Instead we install [HttpSend] and:
+ *   - On every outgoing request: read `tokenStorage.getToken()` and attach `Authorization:
+ *     Bearer …`. No internal cache, so any rotation in storage is picked up immediately.
+ *   - On 401 OR 403 response: call [SessionInvalidator.tryRefreshOrInvalidate] once; if it
+ *     returns a different bearer, retry the same request with the new one.
+ *   - To avoid loops on legitimate 403s we cap the retry at one attempt per request and
+ *     bail out if the refresh returned the same bearer we just sent.
  */
 fun createAuthenticatedHttpClient(
     jsonConfig: Json,
@@ -60,24 +78,59 @@ fun createAuthenticatedHttpClient(
             pingInterval = 20.toDuration(DurationUnit.SECONDS)
             contentConverter = null
         }
-        install(Auth) {
-            bearer {
-                loadTokens {
-                    tokenStorage.getToken()?.let { BearerTokens(it, "") }
-                }
-                // Invoked by Ktor on any 401. Returning null surfaces the 401; returning fresh
-                // BearerTokens triggers a transparent retry. Ktor serialises this callback per
-                // client; cross-client coalescing (WS path) is handled by AuthRepositoryImpl.
-                refreshTokens {
-                    KermitLogger.withTag("AUTH").i { "Ktor refreshTokens fired (401 from upstream)" }
-                    sessionInvalidator.tryRefreshOrInvalidate()?.let { BearerTokens(it, "") }
-                }
-                sendWithoutRequest { request -> request.url.host.contains(sendWithoutRequestHostMatch) }
-            }
-        }
         expectSuccess = true
     }
-    return if (engine != null) HttpClient(engine, config) else HttpClient(config)
+    val client = if (engine != null) HttpClient(engine, config) else HttpClient(config)
+    val log = KermitLogger.withTag("AUTH-HTTP")
+
+    client.plugin(HttpSend).intercept { request ->
+        val isProtected = request.url.host.contains(sendWithoutRequestHostMatch) &&
+                "auth" !in request.url.pathSegments
+
+        if (isProtected) {
+            tokenStorage.getToken()?.let { bearer ->
+                request.headers.remove(HttpHeaders.Authorization)
+                request.headers.append(HttpHeaders.Authorization, "Bearer $bearer")
+            }
+        }
+
+        var call = execute(request)
+        val status = call.response.status
+
+        // Trigger a refresh on 401 (canonical) OR 403 (this backend's flavour for expired
+        // JWTs). Only attempt once: a second 401/403 after a refreshed bearer means the
+        // refusal is legitimate (permissions, not auth), and looping would burn refresh
+        // tokens.
+        if (isProtected && (status == HttpStatusCode.Unauthorized || status == HttpStatusCode.Forbidden)) {
+            val previousAuth = request.headers[HttpHeaders.Authorization]
+            log.w {
+                "$status from ${request.url.pathSegments.joinToString("/")} — attempting refresh + retry " +
+                        "(prevBearer=${previousAuth?.removePrefix("Bearer ")?.take(8)}..)"
+            }
+            val refreshed = sessionInvalidator.tryRefreshOrInvalidate()
+            val newAuth = refreshed?.let { "Bearer $it" }
+            if (newAuth != null && newAuth != previousAuth) {
+                request.headers.remove(HttpHeaders.Authorization)
+                request.headers.append(HttpHeaders.Authorization, newAuth)
+                log.i {
+                    "retrying ${request.url.pathSegments.joinToString("/")} with refreshed bearer (prefix=${
+                        refreshed.take(
+                            8
+                        )
+                    }..)"
+                }
+                call = execute(request)
+            } else if (refreshed == null) {
+                log.w { "refresh failed; surfacing $status to caller" }
+            } else {
+                log.w { "refresh returned identical bearer; not retrying ${request.url.pathSegments.joinToString("/")}" }
+            }
+        }
+
+        call
+    }
+
+    return client
 }
 
 val baseUrl: String
