@@ -14,6 +14,7 @@
 #   ANDROID_KEY_ALIAS                 key alias inside the keystore
 #   ANDROID_KEY_PASSWORD              key password
 #   PLAY_SERVICE_ACCOUNT_JSON_BASE64  base64 of the Play Console service account JSON
+#   GOOGLE_SERVICES_JSON_BASE64       base64 of the Firebase google-services.json
 
 name: Android Release
 
@@ -32,7 +33,7 @@ concurrency:
   # Serialise releases — two tag pushes back-to-back must not race for the
   # same versionCode on Play. The group is per-tag so unrelated tags run in
   # parallel.
-  group: android-release-${{ github.event.inputs.tag || github.ref_name }}
+  group: android-release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -48,7 +49,7 @@ jobs:
           # On workflow_dispatch the ref defaults to the workflow file's
           # branch — explicitly check out the requested tag instead so the
           # AAB is built from the tagged commit.
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0
 
       - name: Set up JDK 17
@@ -78,6 +79,15 @@ jobs:
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/secrets/keystore.jks"
           echo "${{ secrets.PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}" | base64 -d > "$RUNNER_TEMP/secrets/play.json"
 
+      - name: Decode google-services.json
+        # Firebase config consumed by the `com.google.gms.google-services`
+        # Gradle plugin during processReleaseGoogleServices. Lives at
+        # composeApp/google-services.json (the canonical Firebase location)
+        # and is gitignored, so we decode it from a base64-encoded GitHub
+        # Secret on every run. Without this the Gradle release build fails
+        # before producing the AAB.
+        run: echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 -d > composeApp/google-services.json
+
       - name: Render local.properties
         # The Gradle build reads signing config from local.properties. We
         # rebuild it on each run so secrets never sit on disk longer than
@@ -102,7 +112,7 @@ jobs:
           SUPPLY_JSON_KEY: ${{ runner.temp }}/secrets/play.json
           # On workflow_dispatch the auto-set GITHUB_REF_NAME is the workflow
           # branch, not the tag — override it so the lane parses correctly.
-          GITHUB_REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+          GITHUB_REF_NAME: ${{ inputs.tag || github.ref_name }}
         run: bundle exec fastlane android release_from_tag
 
       - name: Upload AAB as workflow artifact
@@ -111,7 +121,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: composeApp-release-${{ github.event.inputs.tag || github.ref_name }}
+          name: composeApp-release-${{ inputs.tag || github.ref_name }}
           path: composeApp/build/outputs/bundle/release/composeApp-release.aab
           retention-days: 30
           if-no-files-found: warn

@@ -18,35 +18,35 @@ import io.ktor.http.contentType
  * Auth endpoints. MUST be wired with the UNAUTHENTICATED HttpClient — `/refresh` would
  * otherwise recurse through the bearer plugin's 401 handler.
  */
-class AuthApiService(private val httpClient: HttpClient) {
+open class AuthApiService(private val httpClient: HttpClient) {
 
-    suspend fun login(request: LoginRequest): JwtResponse =
+    open suspend fun login(request: LoginRequest): JwtResponse =
         httpClient.post("$baseUrl/auth/login") {
             contentType(ContentType.Application.Json)
             setBody(request)
         }.body()
 
-    suspend fun register(request: RegisterRequest): JwtResponse =
+    open suspend fun register(request: RegisterRequest): JwtResponse =
         httpClient.post("$baseUrl/auth/register") {
             contentType(ContentType.Application.Json)
             setBody(request)
         }.body()
 
-    suspend fun forgotPassword(request: ForgotPasswordRequest) {
+    open suspend fun forgotPassword(request: ForgotPasswordRequest) {
         httpClient.post("$baseUrl/auth/forgot-password") {
             contentType(ContentType.Application.Json)
             setBody(request)
         }
     }
 
-    suspend fun resetPassword(request: ResetPasswordRequest) {
+    open suspend fun resetPassword(request: ResetPasswordRequest) {
         httpClient.post("$baseUrl/auth/reset-password") {
             contentType(ContentType.Application.Json)
             setBody(request)
         }
     }
 
-    suspend fun logout() {
+    open suspend fun logout() {
         httpClient.post("$baseUrl/auth/logout")
     }
 
@@ -59,7 +59,7 @@ class AuthApiService(private val httpClient: HttpClient) {
      *  - `ClientRequestException` 400 (malformed) or 401 (invalid/expired/revoked/reused).
      *  - `ServerResponseException` 503 if `REFRESH_TOKEN_ENABLED=false` on the backend.
      */
-    suspend fun refresh(request: RefreshRequest): JwtResponse =
+    open suspend fun refresh(request: RefreshRequest): JwtResponse =
         httpClient.post("$baseUrl/auth/refresh") {
             contentType(ContentType.Application.Json)
             setBody(request)
