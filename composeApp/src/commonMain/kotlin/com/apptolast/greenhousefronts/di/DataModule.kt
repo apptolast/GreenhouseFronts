@@ -35,6 +35,9 @@ import com.apptolast.greenhousefronts.domain.repository.SuggestionRepository
 import com.apptolast.greenhousefronts.domain.repository.UserRepository
 import com.apptolast.greenhousefronts.presentation.navigation.BottomNavSelectionBus
 import com.apptolast.greenhousefronts.presentation.navigation.PendingAlertSelectionBus
+import com.russhwolf.settings.Settings
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 import kotlinx.serialization.json.Json
 import org.koin.core.module.dsl.singleOf
 import org.koin.core.qualifier.named
@@ -48,6 +51,7 @@ val UNAUTHENTICATED_CLIENT = named("unauthenticated")
 /**
  * Data layer module containing network and repository dependencies
  */
+@OptIn(ExperimentalTime::class)
 val dataModule = module {
 
     // JSON configuration
@@ -64,8 +68,17 @@ val dataModule = module {
         }
     }
 
-    // Token Storage - uses default platform Settings
-    single<TokenStorage> { TokenStorageImpl() }
+    // Wall-clock injection point — substituted by a TestClock in unit tests so JWT-expiry
+    // logic can be exercised deterministically without waiting real seconds.
+    single<Clock> { Clock.System }
+
+    // multiplatform-settings: default (no-arg) Settings picks the right platform backend
+    // (SharedPreferences on Android, NSUserDefaults on iOS, java.util.prefs on JVM,
+    // localStorage on web). Injected so tests can supply MapSettings instead.
+    single<Settings> { Settings() }
+
+    // Token Storage — backed by the Settings instance above.
+    single<TokenStorage> { TokenStorageImpl(settings = get()) }
 
     // Unauthenticated HttpClient (for login/register/forgot/reset/logout)
     single(UNAUTHENTICATED_CLIENT) {
@@ -84,6 +97,7 @@ val dataModule = module {
         AuthRepositoryImpl(
             authApiService = get(),
             tokenStorage = get(),
+            clock = get(),
         )
     }
     single<AuthRepository> { get<AuthRepositoryImpl>() }
