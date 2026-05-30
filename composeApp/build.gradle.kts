@@ -178,8 +178,8 @@ android {
         // builds (debug AABs/APKs run from Android Studio); release builds via
         // fastlane always override them, so this number does NOT need to be
         // bumped per release any more.
-        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 4
-        versionName = (project.findProperty("appVersionName") as String?) ?: "0.3.3-dev"
+        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 7
+        versionName = (project.findProperty("appVersionName") as String?) ?: "0.3.4-dev"
     }
     buildFeatures {
         buildConfig = true

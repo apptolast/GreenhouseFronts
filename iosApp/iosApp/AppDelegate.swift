@@ -30,10 +30,16 @@ class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNUserNot
 
         UNUserNotificationCenter.current().requestAuthorization(
             options: [.alert, .badge, .sound]
-        ) { _, _ in
-            /* result ignored: best effort */
+        ) { granted, error in
+            if let error = error {
+                print("[Push] Notification permission error: \(error.localizedDescription)")
+            } else {
+                print("[Push] Notification permission granted=\(granted)")
+            }
+            DispatchQueue.main.async {
+                application.registerForRemoteNotifications()
+            }
         }
-        application.registerForRemoteNotifications()
 
         return true
     }
@@ -42,15 +48,40 @@ class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNUserNot
 
     func application(_ application: UIApplication,
                      didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        let apnsToken = deviceToken.map {
+            String(format: "%02.2hhx", $0)
+        }
+        .joined()
+        print("[Push] APNs token received prefix=\(apnsToken.prefix(16)) length=\(apnsToken.count)")
         Messaging.messaging().apnsToken = deviceToken
+
+        Messaging.messaging().token { token, error in
+            if let error = error {
+                print("[Push] FCM token fetch failed: \(error.localizedDescription)")
+                return
+            }
+            guard let token = token, !token.isEmpty else {
+                print("[Push] FCM token fetch returned empty token")
+                return
+            }
+            print("[Push] FCM token fetched prefix=\(token.prefix(16))")
+            IOSPushBridge.shared.pushNewToken(token: token)
+        }
+    }
+
+    func application(_ application: UIApplication,
+                     didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        print("[Push] APNs registration failed: \(error.localizedDescription)")
     }
 
     // MARK: - FCM token rotation → Kotlin
 
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
         guard let token = fcmToken else {
+            print("[Push] Messaging delegate returned empty FCM token")
             return
         }
+        print("[Push] Messaging delegate FCM token prefix=\(token.prefix(16))")
         IOSPushBridge.shared.pushNewToken(token: token)
     }
 
