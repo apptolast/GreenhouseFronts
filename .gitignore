@@ -574,6 +574,8 @@ Dependencies/
 fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
+fastlane/screenshots/**/*.jpg
+fastlane/screenshots/**/*.jpeg
 fastlane/test_output
 
 # Per-platform fastlane setups (KMP). Patterns mirror the recommended layout:
@@ -581,6 +583,8 @@ fastlane/test_output
 **/fastlane/report.xml
 **/fastlane/Preview.html
 **/fastlane/screenshots/**/*.png
+**/fastlane/screenshots/**/*.jpg
+**/fastlane/screenshots/**/*.jpeg
 **/fastlane/test_output
 **/fastlane/README.md
 # Local secrets — keep paths/keys out of git. .env.example IS tracked.
