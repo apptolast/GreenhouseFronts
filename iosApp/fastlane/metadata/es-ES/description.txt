@@ -1,0 +1,15 @@
+Kropia es una app de monitorización de invernaderos para productores y equipos que necesitan una vista clara del entorno desde cualquier lugar.
+
+Conecta con el panel de tu invernadero, revisa lecturas de sensores en vivo y sigue las condiciones que afectan a tus cultivos. Kropia reúne temperatura, humedad, luz, CO2, estado de sectores e información de alertas en una experiencia móvil pensada para consultas rápidas y seguimiento operativo.
+
+Qué puedes hacer con Kropia:
+
+- Ver lecturas de sensores del invernadero en tiempo real.
+- Consultar temperatura, humedad, luz y CO2.
+- Revisar invernaderos, sectores y dispositivos conectados.
+- Recibir notificaciones cuando una alerta requiere atención.
+- Inspeccionar el historial de alertas y estados críticos sin resolver.
+- Mantener visible el estado de los actuadores durante la operativa diaria.
+- Enviar sugerencias y mejoras directamente al equipo.
+
+Kropia ayuda a los equipos de invernadero a reaccionar antes, reducir revisiones manuales y tener la información ambiental siempre a mano.

@@ -1,0 +1,1 @@
+Kropia arrives on iOS with greenhouse monitoring, real-time sensor data, alert notifications and remote actuator visibility.

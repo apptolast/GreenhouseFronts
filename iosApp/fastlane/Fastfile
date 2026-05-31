@@ -1,0 +1,219 @@
+# Fastfile - iOS lanes for Kropia (KMP iosApp module).
+#
+# Lanes (run from `iosApp/`):
+#   bundle exec fastlane ios bootstrap_match      # one-time: create/update match App Store profile
+#   bundle exec fastlane ios match_certificates   # sync App Store cert + profile readonly
+#   bundle exec fastlane ios build                # local Release .ipa, no upload
+#   bundle exec fastlane ios beta                 # build + upload to TestFlight
+#   bundle exec fastlane ios upload_store_assets  # upload metadata/screenshots only
+#   bundle exec fastlane ios release_from_tag     # CI: tag -> TestFlight
+
+default_platform(:ios)
+
+IOS_APP_DIR = File.expand_path("..", __dir__)
+ROOT_DIR = File.expand_path("../..", __dir__)
+XCODEPROJ = File.join(IOS_APP_DIR, "iosApp.xcodeproj")
+SCHEME = "iosApp"
+BUNDLE_ID = "com.apptolast.greenhousefronts"
+METADATA_PATH = File.join(IOS_APP_DIR, "fastlane/metadata")
+SCREENSHOTS_PATH = File.join(IOS_APP_DIR, "fastlane/screenshots")
+RELEASE_CONFIG = "Release"
+IPA_OUTPUT_NAME = "iosApp.ipa"
+APPSTORE_PROFILE_NAME = "match AppStore #{BUNDLE_ID}"
+APPSTORE_SIGNING_XCARGS = "PROVISIONING_PROFILE_SPECIFIER='#{APPSTORE_PROFILE_NAME}'"
+
+def parse_tag(tag)
+  match = tag.to_s.match(/\Av(\d+\.\d+\.\d+(?:[-+][\w.\-]+)?)\z/)
+  UI.user_error!("Tag '#{tag}' is not in form `vMAJOR.MINOR.PATCH[-suffix]`") unless match
+  match[1]
+end
+
+def app_store_connect_api_key_token
+  key_id = ENV["APP_STORE_CONNECT_API_KEY_ID"]
+  issuer_id = ENV["APP_STORE_CONNECT_API_KEY_ISSUER_ID"]
+  key_path = ENV["ASC_API_KEY_PATH"] || ENV["APP_STORE_CONNECT_API_KEY_PATH"]
+  key_b64 = ENV["APP_STORE_CONNECT_API_KEY_BASE64"]
+
+  UI.user_error!("APP_STORE_CONNECT_API_KEY_ID not set") if key_id.to_s.empty?
+  UI.user_error!("APP_STORE_CONNECT_API_KEY_ISSUER_ID not set") if issuer_id.to_s.empty?
+  UI.user_error!("Provide ASC_API_KEY_PATH locally or APP_STORE_CONNECT_API_KEY_BASE64 in CI") if key_path.to_s.empty? && key_b64.to_s.empty?
+
+  token = app_store_connect_api_key(
+    key_id: key_id,
+    issuer_id: issuer_id,
+    key_filepath: key_path,
+    key_content: key_b64,
+    is_key_content_base64: !key_b64.to_s.empty?,
+    in_house: false
+  )
+
+  ENV.delete("APP_STORE_CONNECT_API_KEY_PATH")
+  ENV.delete("APP_STORE_CONNECT_API_KEY_BASE64")
+  token
+end
+
+def prebuild_kotlin_framework(configuration: RELEASE_CONFIG)
+  task = configuration == RELEASE_CONFIG ? "linkReleaseFrameworkIosArm64" : "linkDebugFrameworkIosArm64"
+  gradle(
+    task: ":composeApp:#{task}",
+    project_dir: ROOT_DIR,
+    flags: "--no-configuration-cache"
+  )
+end
+
+def sync_appstore_signing(api_key:, readonly:)
+  match(
+    type: "appstore",
+    readonly: readonly,
+    app_identifier: [BUNDLE_ID],
+    api_key: api_key
+  )
+end
+
+def next_testflight_build_number(api_key)
+  latest_testflight_build_number(
+    app_identifier: BUNDLE_ID,
+    api_key: api_key,
+    initial_build_number: 0
+  ).to_i + 1
+end
+
+def build_release_ipa
+  build_app(
+    project: XCODEPROJ,
+    scheme: SCHEME,
+    configuration: RELEASE_CONFIG,
+    export_method: "app-store",
+    export_options: {
+      provisioningProfiles: {
+        BUNDLE_ID => APPSTORE_PROFILE_NAME
+      }
+    },
+    xcargs: APPSTORE_SIGNING_XCARGS,
+    output_directory: IOS_APP_DIR,
+    output_name: IPA_OUTPUT_NAME,
+    include_bitcode: false,
+    include_symbols: true,
+    clean: true
+  )
+end
+
+platform :ios do
+  desc "One-time setup/update: create App Store signing certificate + provisioning profile in the encrypted match repo"
+  lane :bootstrap_match do
+    api_key = app_store_connect_api_key_token
+    sync_appstore_signing(api_key: api_key, readonly: false)
+  end
+
+  desc "Sync App Store signing certificate + provisioning profile from the match repo (readonly)"
+  lane :match_certificates do
+    api_key = app_store_connect_api_key_token
+    sync_appstore_signing(api_key: api_key, readonly: true)
+  end
+
+  desc "Build a Release .ipa locally (no upload)"
+  lane :build do
+    api_key = app_store_connect_api_key_token
+
+    prebuild_kotlin_framework(configuration: RELEASE_CONFIG)
+    sync_appstore_signing(api_key: api_key, readonly: true)
+    build_release_ipa
+
+    UI.success "Built .ipa at #{lane_context[SharedValues::IPA_OUTPUT_PATH]}"
+  end
+
+  desc "Build and upload to TestFlight. Pass version_name:'X.Y.Z' to override the current marketing version."
+  lane :beta do |options|
+    api_key = app_store_connect_api_key_token
+    next_build = next_testflight_build_number(api_key)
+
+    increment_build_number(
+      build_number: next_build,
+      xcodeproj: XCODEPROJ
+    )
+
+    if options[:version_name]
+      increment_version_number(
+        version_number: options[:version_name],
+        xcodeproj: XCODEPROJ
+      )
+    end
+
+    prebuild_kotlin_framework(configuration: RELEASE_CONFIG)
+    sync_appstore_signing(api_key: api_key, readonly: true)
+    build_release_ipa
+
+    upload_to_testflight(
+      api_key: api_key,
+      app_identifier: BUNDLE_ID,
+      skip_waiting_for_build_processing: true,
+      distribute_external: false,
+      skip_submission: true
+    )
+
+    UI.success "Uploaded build #{next_build} to TestFlight"
+  end
+
+  desc "Upload App Store metadata and any prepared screenshots. Does not upload a binary or submit for review."
+  lane :upload_store_assets do
+    api_key = app_store_connect_api_key_token
+    screenshot_files = Dir.glob(File.join(SCREENSHOTS_PATH, "**", "*.{png,jpg,jpeg}"), File::FNM_CASEFOLD)
+    skip_screenshots = screenshot_files.empty?
+
+    UI.important "No screenshots found under #{SCREENSHOTS_PATH}; uploading metadata only." if skip_screenshots
+
+    upload_to_app_store(
+      api_key: api_key,
+      app_identifier: BUNDLE_ID,
+      metadata_path: METADATA_PATH,
+      screenshots_path: SCREENSHOTS_PATH,
+      skip_binary_upload: true,
+      skip_metadata: false,
+      skip_screenshots: skip_screenshots,
+      overwrite_screenshots: true,
+      submit_for_review: false,
+      automatic_release: false,
+      precheck_include_in_app_purchases: false,
+      force: true
+    )
+
+    UI.success "Uploaded App Store metadata#{skip_screenshots ? "" : " and screenshots"}"
+  end
+
+  desc "CI-only: read GITHUB_REF_NAME, increment build number from App Store Connect, build, upload to TestFlight."
+  lane :release_from_tag do
+    tag = ENV["GITHUB_REF_NAME"]
+    UI.user_error!("GITHUB_REF_NAME not set; this lane is meant to run from a tag-triggered GitHub Actions job") if tag.to_s.empty?
+
+    version_name = parse_tag(tag)
+    api_key = app_store_connect_api_key_token
+    next_build = next_testflight_build_number(api_key)
+
+    increment_version_number(
+      version_number: version_name,
+      xcodeproj: XCODEPROJ
+    )
+    increment_build_number(
+      build_number: next_build,
+      xcodeproj: XCODEPROJ
+    )
+
+    prebuild_kotlin_framework(configuration: RELEASE_CONFIG)
+    sync_appstore_signing(api_key: api_key, readonly: true)
+    build_release_ipa
+
+    upload_to_testflight(
+      api_key: api_key,
+      app_identifier: BUNDLE_ID,
+      skip_waiting_for_build_processing: true,
+      distribute_external: false,
+      skip_submission: true
+    )
+
+    UI.success "Uploaded v#{version_name} (build #{next_build}) to TestFlight"
+  end
+
+  error do |lane, exception|
+    UI.error "Lane `#{lane}` failed: #{exception.message}"
+  end
+end

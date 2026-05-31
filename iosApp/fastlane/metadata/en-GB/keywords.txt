@@ -1,0 +1,1 @@
+greenhouse,sensors,alerts,irrigation,climate,automation,crops,monitoring,farming,iot

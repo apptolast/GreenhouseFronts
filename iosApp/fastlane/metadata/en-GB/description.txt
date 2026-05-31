@@ -1,0 +1,15 @@
+Kropia is a greenhouse monitoring app for growers and operators who need a clear view of their environment from anywhere.
+
+Connect to your greenhouse dashboard, review live sensor readings and keep track of the conditions that affect your crops. Kropia brings temperature, humidity, light, CO2, sector status and alert information into a mobile experience designed for quick checks and operational follow-up.
+
+What you can do with Kropia:
+
+- View greenhouse sensor readings in real time.
+- Check temperature, humidity, light and CO2 values.
+- Review greenhouses, sectors and connected devices.
+- Receive alert notifications when conditions need attention.
+- Inspect alert history and unresolved critical states.
+- Keep actuator status visible while managing daily operations.
+- Send feedback and improvement suggestions to the team.
+
+Kropia helps greenhouse teams react faster, reduce manual checking and keep environmental information close at hand.
