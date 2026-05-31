@@ -67,8 +67,9 @@ kotlin {
             // Chart Library - Vico (native platforms)
             implementation(libs.vico.multiplatform.m3)
 
-            // Firebase Cloud Messaging + Crashlytics (BoM aligns versions)
+            // Firebase Analytics + Cloud Messaging + Crashlytics (BoM aligns versions)
             implementation(project.dependencies.platform(libs.firebase.bom))
+            implementation(libs.firebase.analytics)
             implementation(libs.firebase.messaging)
             implementation(libs.firebase.crashlytics)
 
@@ -179,7 +180,7 @@ android {
         // fastlane always override them, so this number does NOT need to be
         // bumped per release any more.
         versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 7
-        versionName = (project.findProperty("appVersionName") as String?) ?: "0.3.4-dev"
+        versionName = (project.findProperty("appVersionName") as String?) ?: "0.4.0-dev"
     }
     buildFeatures {
         buildConfig = true

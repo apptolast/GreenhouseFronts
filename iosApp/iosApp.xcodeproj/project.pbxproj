@@ -10,6 +10,7 @@
 		7F4D28A12FCA38CB0075A61C /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 7F4D28A02FCA38CB0075A61C /* FirebaseCore */; };
 		7F4D28A32FCA38CB0075A61C /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = 7F4D28A22FCA38CB0075A61C /* FirebaseCrashlytics */; };
 		7F4D28A92FCA38CB0075A61C /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 7F4D28A82FCA38CB0075A61C /* FirebaseMessaging */; };
+		7F4D28AB2FCA38CB0075A61C /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 7F4D28AA2FCA38CB0075A61C /* FirebaseAnalytics */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -49,6 +50,7 @@
 			files = (
 				7F4D28A92FCA38CB0075A61C /* FirebaseMessaging in Frameworks */,
 				7F4D28A12FCA38CB0075A61C /* FirebaseCore in Frameworks */,
+				7F4D28AB2FCA38CB0075A61C /* FirebaseAnalytics in Frameworks */,
 				7F4D28A32FCA38CB0075A61C /* FirebaseCrashlytics in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -95,6 +97,7 @@
 			name = iosApp;
 			packageProductDependencies = (
 				7F4D28A02FCA38CB0075A61C /* FirebaseCore */,
+				7F4D28AA2FCA38CB0075A61C /* FirebaseAnalytics */,
 				7F4D28A22FCA38CB0075A61C /* FirebaseCrashlytics */,
 				7F4D28A82FCA38CB0075A61C /* FirebaseMessaging */,
 			);
@@ -265,7 +268,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1.1;
+				MARKETING_VERSION = 0.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.apptolast.greenhousefronts;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -365,10 +368,10 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1.1;
+				MARKETING_VERSION = 0.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.apptolast.greenhousefronts;
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "Kropia AppStore 2026";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "match AppStore com.apptolast.greenhousefronts";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -424,6 +427,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 7F4D28972FCA38CB0075A61C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseMessaging;
+		};
+		7F4D28AA2FCA38CB0075A61C /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7F4D28972FCA38CB0075A61C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

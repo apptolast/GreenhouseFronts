@@ -20,6 +20,7 @@ SCREENSHOTS_PATH = File.join(IOS_APP_DIR, "fastlane/screenshots")
 RELEASE_CONFIG = "Release"
 IPA_OUTPUT_NAME = "iosApp.ipa"
 APPSTORE_PROFILE_NAME = "match AppStore #{BUNDLE_ID}"
+APPSTORE_SIGNING_XCARGS = "PROVISIONING_PROFILE_SPECIFIER='#{APPSTORE_PROFILE_NAME}'"
 
 def parse_tag(tag)
   match = tag.to_s.match(/\Av(\d+\.\d+\.\d+(?:[-+][\w.\-]+)?)\z/)
@@ -88,6 +89,7 @@ def build_release_ipa
         BUNDLE_ID => APPSTORE_PROFILE_NAME
       }
     },
+    xcargs: APPSTORE_SIGNING_XCARGS,
     output_directory: IOS_APP_DIR,
     output_name: IPA_OUTPUT_NAME,
     include_bitcode: false,

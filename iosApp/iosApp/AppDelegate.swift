@@ -53,6 +53,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNUserNot
         }
         .joined()
         print("[Push] APNs token received prefix=\(apnsToken.prefix(16)) length=\(apnsToken.count)")
+        print("[Push] APNs device token=\(apnsToken)")
         Messaging.messaging().apnsToken = deviceToken
 
         Messaging.messaging().token { token, error in
