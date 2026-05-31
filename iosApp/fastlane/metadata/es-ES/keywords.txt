@@ -1,0 +1,1 @@
+invernadero,sensores,alertas,riego,clima,automatizacion,cultivos,monitorizacion,iot

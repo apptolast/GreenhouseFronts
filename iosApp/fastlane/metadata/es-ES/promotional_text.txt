@@ -1,0 +1,1 @@
+Monitoriza sensores, recibe alertas críticas y consulta el estado de tus invernaderos desde el móvil.

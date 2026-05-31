@@ -1,13 +1,14 @@
 # Deployment guide — GreenhouseFronts
 
-Protocol for shipping the Android app to Google Play. iOS will be added when
-the Apple Developer account is ready.
+Protocol for shipping the Android app to Google Play and the iOS app to
+TestFlight.
 
 > **TL;DR** — branch your work as usual, merge through `develop` → `main`
 > with squash-merges, then tag `vMAJOR.MINOR.PATCH` on `main`. The tag push
-> is the only release trigger. Fastlane reads the tag, computes the next
-> `versionCode` from Play, builds a signed AAB and uploads it to the
-> Production track as DRAFT. You click "Start rollout" in Play Console.
+> is the only release trigger. Fastlane reads the tag, computes platform build
+> numbers from the stores, uploads Android to the Production track as DRAFT,
+> and uploads iOS to TestFlight. You still decide manually when to roll out or
+> submit store versions.
 
 ---
 
@@ -55,6 +56,10 @@ The new protocol decouples **versioning** from **branching**:
 | Visible to users | Yes (Play Store listing) | No (Google-internal monotonic counter) |
 | Changes per release | You decide (semver) | Always `+1` |
 | Stored in `build.gradle.kts` | Default for debug only | Default for debug only |
+
+For iOS, the same Git tag drives `CFBundleShortVersionString`
+(`v1.2.3` -> `1.2.3`). `CFBundleVersion` is computed at lane runtime as the
+latest TestFlight build number plus one.
 
 **Major / minor / patch jumps are decided exclusively by the tag you create.**
 There is no separate "bump major" command; you simply tag with the version
@@ -111,20 +116,36 @@ bundle install
 # Local fastlane secrets
 cp composeApp/fastlane/.env.example composeApp/fastlane/.env
 # Edit .env so SUPPLY_JSON_KEY points at your local Play Console JSON key.
+
+cp iosApp/fastlane/.env.example iosApp/fastlane/.env
+# Edit .env with Apple Developer, App Store Connect API key, and match values.
+
+# One-time per app: create/update the App Store profile in the shared match repo.
+cd iosApp
+bundle exec fastlane ios bootstrap_match
 ```
 
 ### 4.2. GitHub Secrets
 
 Repo → Settings → Secrets and variables → Actions → New repository secret:
 
-| Secret | Source | Format |
-|---|---|---|
-| `ANDROID_KEYSTORE_BASE64` | The release `.jks` keystore | `base64 -i path/to/keystore.jks \| pbcopy` |
-| `ANDROID_KEYSTORE_PASSWORD` | `local.properties:signing.storePassword` | plain text |
-| `ANDROID_KEY_ALIAS` | `local.properties:signing.keyAlias` | plain text |
-| `ANDROID_KEY_PASSWORD` | `local.properties:signing.keyPassword` | plain text |
-| `PLAY_SERVICE_ACCOUNT_JSON_BASE64` | Service account JSON downloaded from Google Cloud | `base64 -i path/to/play.json \| pbcopy` |
-| `GOOGLE_SERVICES_JSON_BASE64` | Firebase config (`composeApp/google-services.json`) | `base64 -i composeApp/google-services.json \| pbcopy` |
+| Secret                                 | Source                                              | Format                                                       |
+|----------------------------------------|-----------------------------------------------------|--------------------------------------------------------------|
+| `ANDROID_KEYSTORE_BASE64`              | The release `.jks` keystore                         | `base64 -i path/to/keystore.jks \| pbcopy`                   |
+| `ANDROID_KEYSTORE_PASSWORD`            | `local.properties:signing.storePassword`            | plain text                                                   |
+| `ANDROID_KEY_ALIAS`                    | `local.properties:signing.keyAlias`                 | plain text                                                   |
+| `ANDROID_KEY_PASSWORD`                 | `local.properties:signing.keyPassword`              | plain text                                                   |
+| `PLAY_SERVICE_ACCOUNT_JSON_BASE64`     | Service account JSON downloaded from Google Cloud   | `base64 -i path/to/play.json \| pbcopy`                      |
+| `GOOGLE_SERVICES_JSON_BASE64`          | Firebase config (`composeApp/google-services.json`) | `base64 -i composeApp/google-services.json \| pbcopy`        |
+| `APP_STORE_CONNECT_API_KEY_ID`         | App Store Connect API key id                        | plain text                                                   |
+| `APP_STORE_CONNECT_API_KEY_ISSUER_ID`  | App Store Connect API issuer id                     | plain text                                                   |
+| `APP_STORE_CONNECT_API_KEY_BASE64`     | Contents of the `.p8` API key                       | `base64 -i AuthKey_XXXX.p8 \| pbcopy`                        |
+| `MATCH_GIT_URL`                        | Shared private fastlane match repo                  | plain text                                                   |
+| `MATCH_PASSWORD`                       | match encryption password                           | plain text                                                   |
+| `MATCH_GIT_BASIC_AUTHORIZATION`        | Basic auth for the private match repo               | `echo -n "user:PAT" \| base64 \| pbcopy`                     |
+| `FASTLANE_TEAM_ID`                     | Apple Developer Team ID                             | plain text                                                   |
+| `FASTLANE_ITC_TEAM_ID`                 | App Store Connect Team ID                           | plain text                                                   |
+| `IOS_GOOGLE_SERVICE_INFO_PLIST_BASE64` | Optional Firebase iOS plist override                | `base64 -i iosApp/iosApp/GoogleService-Info.plist \| pbcopy` |
 
 The workflow base64-decodes the keystore + JSON into `$RUNNER_TEMP/secrets/`,
 which GitHub wipes after each job.
@@ -138,6 +159,18 @@ which GitHub wipes after each job.
 - The app already has at least one manually-uploaded AAB on each track you
   want fastlane to publish to. (Play does not allow `supply` to create the
   initial listing.)
+
+### 4.4. App Store Connect / match (one-time)
+
+- Create an App Store Connect API key with enough access for TestFlight and
+  metadata uploads.
+- Use the same private `match` Git repository as the other AppToLast apps on
+  the same Apple Developer Team. match separates profiles by bundle id, so
+  Kropia stores `com.apptolast.greenhousefronts` alongside the other apps.
+- Run `cd iosApp && bundle exec fastlane ios bootstrap_match` once locally to
+  create/update the App Store provisioning profile in the match repo.
+- After bootstrapping, use `match_certificates`, `build`, `beta`, and CI in
+  readonly match mode.
 
 ---
 
@@ -207,10 +240,30 @@ Pushing the tag triggers `.github/workflows/android-release.yml`, which:
    - Uploads the signed AAB to the **Production** track as DRAFT.
 5. Uploads the AAB as a workflow artifact (30-day retention).
 
+The same tag also triggers `.github/workflows/ios-release.yml`, which:
+
+1. Checks out the tagged commit.
+2. Sets up JDK 17, Ruby and Gradle cache.
+3. Runs `bundle exec fastlane ios release_from_tag` from `iosApp/`:
+    - Reads the tag (`v0.3.0`) -> `CFBundleShortVersionString = "0.3.0"`.
+    - Queries App Store Connect -> `CFBundleVersion = latest + 1`.
+    - Syncs signing from the shared match repo in readonly mode.
+    - Builds the signed `.ipa`.
+    - Uploads the build to TestFlight.
+4. Uploads the `.ipa` as a workflow artifact (30-day retention).
+
 ### 5.4. Roll out
 
-Open Play Console → Production → review the draft → "Start rollout" (full or
-staged %).
+Open Play Console -> Production -> review the draft -> "Start rollout" (full
+or staged %). For iOS, wait for TestFlight processing, test the build, then
+attach it to an App Store version manually when you are ready to submit.
+
+To upload App Store metadata and screenshots without a binary:
+
+```bash
+cd iosApp
+bundle exec fastlane ios upload_store_assets
+```
 
 ---
 
@@ -247,9 +300,10 @@ tag you chose.
 
 ### Re-running a failed release
 
-If CI fails after the tag was pushed (e.g. transient Play upload error), use
-**Actions → Android Release → Run workflow** with the existing tag name as
-the input. The workflow re-checks out the same tag and re-runs fastlane.
+If CI fails after the tag was pushed (e.g. transient store upload error), use
+**Actions -> Android Release -> Run workflow** or **Actions -> iOS TestFlight
+-> Run workflow** with the existing tag name as the input. The workflow
+re-checks out the same tag and re-runs fastlane.
 Idempotent because:
 
 - `versionCode` is recomputed from Play, so it skips ahead if a partial
@@ -271,17 +325,24 @@ that pin a specific `versionCode`.
 
 ## 7. File map
 
-| Path | Role |
-|---|---|
-| `Gemfile` / `Gemfile.lock` | Pinned Ruby gems (fastlane). |
-| `.ruby-version` | Pinned Ruby interpreter version (read by rbenv + CI). |
-| `composeApp/fastlane/Fastfile` | Lanes: `version`, `validate_play`, `build`, `internal`, `release_from_tag`. |
-| `composeApp/fastlane/Appfile` | Static identifiers: `package_name`, `json_key_file`. |
-| `composeApp/fastlane/.env.example` | Documents required local env vars. Tracked. |
-| `composeApp/fastlane/.env` | Local env vars (gitignored). |
-| `composeApp/fastlane/SETUP.md` | Local-setup-focused doc (subset of this file). |
-| `composeApp/build.gradle.kts` | Reads `appVersionCode` / `appVersionName` properties; defaults are debug-only. |
-| `.github/workflows/android-release.yml` | Tag-triggered release workflow. |
+| Path                                    | Role                                                                                                        |
+|-----------------------------------------|-------------------------------------------------------------------------------------------------------------|
+| `Gemfile` / `Gemfile.lock`              | Pinned Ruby gems (fastlane).                                                                                |
+| `.ruby-version`                         | Pinned Ruby interpreter version (read by rbenv + CI).                                                       |
+| `composeApp/fastlane/Fastfile`          | Lanes: `version`, `validate_play`, `build`, `internal`, `release_from_tag`.                                 |
+| `composeApp/fastlane/Appfile`           | Static identifiers: `package_name`, `json_key_file`.                                                        |
+| `composeApp/fastlane/.env.example`      | Documents required local env vars. Tracked.                                                                 |
+| `composeApp/fastlane/.env`              | Local env vars (gitignored).                                                                                |
+| `composeApp/fastlane/SETUP.md`          | Local-setup-focused doc (subset of this file).                                                              |
+| `iosApp/fastlane/Fastfile`              | Lanes: `bootstrap_match`, `match_certificates`, `build`, `beta`, `upload_store_assets`, `release_from_tag`. |
+| `iosApp/fastlane/Appfile`               | Static identifiers: `app_identifier`, Apple account/team env wiring.                                        |
+| `iosApp/fastlane/Matchfile`             | Shared encrypted signing repo configuration for `match`.                                                    |
+| `iosApp/fastlane/.env.example`          | Documents required local iOS env vars. Tracked.                                                             |
+| `iosApp/fastlane/metadata/`             | App Store metadata by locale.                                                                               |
+| `iosApp/fastlane/screenshots/`          | App Store screenshots by locale; PNG/JPG files are gitignored.                                              |
+| `composeApp/build.gradle.kts`           | Reads `appVersionCode` / `appVersionName` properties; defaults are debug-only.                              |
+| `.github/workflows/android-release.yml` | Tag-triggered release workflow.                                                                             |
+| `.github/workflows/ios-release.yml`     | Tag-triggered TestFlight workflow.                                                                          |
 
 ---
 
@@ -298,7 +359,10 @@ This is the procedure for the **very first** release under the new protocol
    git tag v0.3.0 -m "Release 0.3.0: alert notifications, in-app feedback, critical heartbeat"
    git push --tags
    ```
-4. Watch the Actions tab — the workflow should succeed in ~5–8 minutes.
-5. Open Play Console → Production → review the draft → "Start rollout".
+4. Watch the Actions tab. Android should create a Play draft; iOS should
+   upload a TestFlight build.
+5. Open Play Console -> Production -> review the draft -> "Start rollout".
+   For iOS, wait for TestFlight processing and test the build before App Store
+   submission.
 
 After this first release, every subsequent release follows §5 verbatim.

@@ -1,0 +1,1 @@
+Kropia llega a iOS con monitorización de invernaderos, datos de sensores en tiempo real, alertas y visibilidad de actuadores.

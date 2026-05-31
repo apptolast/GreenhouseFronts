@@ -1,0 +1,14 @@
+# Appfile - fixed identifiers for the iOS side of Kropia (KMP).
+#
+# Per-developer paths and credentials are loaded from `iosApp/fastlane/.env`
+# (gitignored) or from CI environment variables populated by GitHub Secrets.
+
+# Bundle identifier as declared by the Xcode project.
+app_identifier("com.apptolast.greenhousefronts")
+
+# Apple Developer account email used by pilot/deliver in interactive sessions.
+apple_id(ENV["APPLE_ID"]) unless ENV["APPLE_ID"].to_s.empty?
+
+# Team identifiers are kept in env so this file can stay committed.
+team_id(ENV["FASTLANE_TEAM_ID"]) unless ENV["FASTLANE_TEAM_ID"].to_s.empty?
+itc_team_id(ENV["FASTLANE_ITC_TEAM_ID"]) unless ENV["FASTLANE_ITC_TEAM_ID"].to_s.empty?
