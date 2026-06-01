@@ -182,6 +182,8 @@ platform :ios do
 
   desc "CI-only: read GITHUB_REF_NAME, increment build number from App Store Connect, build, upload to TestFlight."
   lane :release_from_tag do
+    setup_ci(keychain_name: "kropia-temp.keychain")
+
     tag = ENV["GITHUB_REF_NAME"]
     UI.user_error!("GITHUB_REF_NAME not set; this lane is meant to run from a tag-triggered GitHub Actions job") if tag.to_s.empty?
 
