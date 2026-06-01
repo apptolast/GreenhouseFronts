@@ -180,12 +180,17 @@ platform :ios do
     UI.success "Uploaded App Store metadata#{skip_screenshots ? "" : " and screenshots"}"
   end
 
-  desc "CI-only: read GITHUB_REF_NAME, increment build number from App Store Connect, build, upload to TestFlight."
+  desc "CI-only: read RELEASE_TAG, increment build number from App Store Connect, build, upload to TestFlight."
   lane :release_from_tag do
+    if ENV["CI"] == "true"
+      ENV.delete("MATCH_KEYCHAIN_NAME")
+      ENV.delete("MATCH_KEYCHAIN_PASSWORD")
+    end
     setup_ci(keychain_name: "kropia-temp.keychain")
 
-    tag = ENV["GITHUB_REF_NAME"]
-    UI.user_error!("GITHUB_REF_NAME not set; this lane is meant to run from a tag-triggered GitHub Actions job") if tag.to_s.empty?
+    tag = ENV["RELEASE_TAG"].to_s
+    tag = ENV["GITHUB_REF_NAME"].to_s if tag.empty?
+    UI.user_error!("RELEASE_TAG not set; provide a tag like v0.4.0 for this release lane") if tag.to_s.empty?
 
     version_name = parse_tag(tag)
     api_key = app_store_connect_api_key_token
