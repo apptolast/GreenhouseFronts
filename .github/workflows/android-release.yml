@@ -69,7 +69,7 @@ jobs:
           bundler-cache: true
 
       - name: Set up Gradle cache
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Decode signing secrets
         # Decoding into $RUNNER_TEMP keeps the files inside the per-job
