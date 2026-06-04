@@ -55,7 +55,7 @@ jobs:
       - name: Set up JDK 17
         # AGP 9 requires Java 17 to run Gradle (the project still targets
         # JVM 11 bytecode — that's controlled by build.gradle.kts).
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
