@@ -9,6 +9,9 @@ build/
 # Local configuration file (sdk path, etc)
 local.properties
 
+# Local Codex/MCP configuration with API tokens
+.codex/config.toml
+
 # Log/OS Files
 *.log
 
