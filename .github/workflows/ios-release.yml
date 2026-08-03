@@ -56,7 +56,7 @@ jobs:
           bundler-cache: true
 
       - name: Set up Gradle cache
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@v6.2.0
 
       - name: Render local.properties
         run: |
